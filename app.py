@@ -29,7 +29,7 @@ AGENTS = {
         "emoji": "📊",
         "flag": "🇸🇳",
         "title": "Финансы",
-        "keywords": ["амара", "бухгалтер", "финанс", "деньги", "бюджет", "отчёт", "p&l", "roi", "подписк", "подписок", "расход", "трат", "прибыл", "убыт", "mrr", "выручк"],
+        "keywords": ["амара", "бухгалтер", "финанс", "деньги", "бюджет", "отчёт", "p&l", "roi", "подписк", "подписок", "расход", "затрат", "потрат", "прибыл", "убыт", "mrr", "выручк"],
     },
     "smm": {
         "name": "Юки",
@@ -141,6 +141,18 @@ st.markdown("""
     [data-testid="stVerticalBlockBorderWrapper"] > div > div[data-testid="stVerticalBlock"] {
         max-width: 100% !important;
     }
+    /* Chat scroll container */
+    .chat-scroll-container {
+        max-height: 65vh;
+        overflow-y: auto;
+        padding-right: 0.5rem;
+    }
+    /* Timestamp style */
+    .msg-time {
+        font-size: 0.7rem;
+        color: #666;
+        margin-top: 0.25rem;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -213,10 +225,7 @@ def main():
             st.error("❌ OPENROUTER_API_KEY не настроен")
             api_ready = False
 
-        if env_status['optional']['OPENAI_API_KEY']:
-            st.success("✅ OpenAI (embeddings) подключен")
-        else:
-            st.warning("⚠️ OPENAI_API_KEY не настроен (embeddings)")
+        st.success("✅ ONNX Embedder (память, бесплатно)")
 
         if env_status['optional']['DATABASE_URL']:
             st.success("✅ PostgreSQL подключен")
@@ -251,38 +260,78 @@ def main():
 
     # Tab 1: Chat
     with tab1:
-        # Hint about addressing agents
-        st.caption("💡 Обращайтесь к агентам по имени: **Санторо**, **Амара**, **Юки**, **Нирадж** — или просто пишите, ответит CEO")
-
         # Initialize chat history
         if "messages" not in st.session_state:
             st.session_state.messages = [
                 {
                     "role": "assistant",
-                    "content": "Ciao! 👋 Я Санторо — CEO AI-корпорации. Со мной в команде Амара (📊 финансы), Юки (📱 контент) и Нирадж (⚙️ техника). Обращайтесь к любому из нас по имени!",
+                    "content": "Ciao! Я Санторо — CEO AI-корпорации. Со мной Амара (📊 финансы), Юки (📱 контент) и Нирадж (⚙️ техника). Обращайтесь к любому из нас по имени!",
                     "agent_key": "manager",
                     "agent_name": "Санторо",
+                    "time": datetime.now().strftime("%H:%M"),
                 }
             ]
 
-        # Scrollable chat history container
-        chat_container = st.container(height=550)
-        with chat_container:
-            for message in st.session_state.messages:
-                if message["role"] == "user":
-                    with st.chat_message("user"):
-                        st.markdown(message["content"])
-                else:
-                    agent_key = message.get("agent_key", "manager")
-                    agent_info = AGENTS.get(agent_key, AGENTS["manager"])
-                    display_name = f"{agent_info['flag']} {agent_info['name']}"
-                    with st.chat_message(display_name, avatar=agent_info["emoji"]):
-                        st.markdown(message["content"])
+        # Header row: hint + message count + clear button
+        head_col1, head_col2 = st.columns([5, 1])
+        with head_col1:
+            msg_count = len([m for m in st.session_state.messages if m["role"] == "user"])
+            st.caption(f"💡 Пишите имя агента: **Санторо**, **Амара**, **Юки**, **Нирадж** — или просто пишите, ответит CEO • Сообщений: {msg_count}")
+        with head_col2:
+            if st.button("🗑️ Очистить", key="clear_chat", help="Очистить историю чата"):
+                st.session_state.messages = [
+                    {
+                        "role": "assistant",
+                        "content": "Ciao! Чат очищен. Я Санторо — CEO. Обращайтесь к любому из нас!",
+                        "agent_key": "manager",
+                        "agent_name": "Санторо",
+                        "time": datetime.now().strftime("%H:%M"),
+                    }
+                ]
+                st.rerun()
 
-        # Chat input at the bottom
+        # Display all messages (no fixed-height container)
+        for i, message in enumerate(st.session_state.messages):
+            msg_time = message.get("time", "")
+            if message["role"] == "user":
+                with st.chat_message("user"):
+                    st.markdown(message["content"])
+                    if msg_time:
+                        st.caption(f"🕐 {msg_time}")
+            else:
+                agent_key = message.get("agent_key", "manager")
+                agent_info = AGENTS.get(agent_key, AGENTS["manager"])
+                display_name = f"{agent_info['flag']} {agent_info['name']}"
+                with st.chat_message(display_name, avatar=agent_info["emoji"]):
+                    st.markdown(message["content"])
+                    if msg_time:
+                        st.caption(f"🕐 {msg_time}")
+
+        # Anchor to scroll to after rerun
+        st.markdown('<div id="chat-bottom"></div>', unsafe_allow_html=True)
+
+        # Auto-scroll to bottom of chat
+        st.markdown("""
+        <script>
+            const chatBottom = document.getElementById('chat-bottom');
+            if (chatBottom) {
+                chatBottom.scrollIntoView({behavior: 'smooth'});
+            }
+            // Fallback: scroll main container
+            window.scrollTo(0, document.body.scrollHeight);
+        </script>
+        """, unsafe_allow_html=True)
+
+        # Chat input
         if prompt := st.chat_input("Напишите сообщение... (можно @Амара или @Нирадж)"):
+            now = datetime.now().strftime("%H:%M")
+
             # Add user message
-            st.session_state.messages.append({"role": "user", "content": prompt})
+            st.session_state.messages.append({
+                "role": "user",
+                "content": prompt,
+                "time": now,
+            })
 
             # Detect target agent
             target_key = detect_agent(prompt)
@@ -290,17 +339,8 @@ def main():
 
             # Check if API is configured
             if not api_ready:
-                response = """⚠️ **API не настроен**
-
-Добавьте `OPENROUTER_API_KEY` в переменные окружения Railway:
-
-```bash
-railway variables set OPENROUTER_API_KEY=sk-or-v1-ваш-ключ
-```
-
-Получить ключ: https://openrouter.ai/keys"""
+                response = "⚠️ **API не настроен.** Добавьте `OPENROUTER_API_KEY` в Railway."
                 agent_key_resp = "manager"
-
             else:
                 corp = get_corporation()
                 if corp and corp.is_ready:
@@ -314,24 +354,16 @@ railway variables set OPENROUTER_API_KEY=sk-or-v1-ваш-ключ
                         response = corp.execute_task(task_with_context, target_key)
                     agent_key_resp = target_key
                 else:
-                    response = f"""🤖 **Получено сообщение:**
-
-> {prompt}
-
----
-
-⚠️ **CrewAI инициализируется...**
-
-Агенты сконфигурированы, но не все зависимости загружены.
-Попробуйте перезагрузить страницу."""
+                    response = "⚠️ **CrewAI инициализируется...** Попробуйте перезагрузить страницу."
                     agent_key_resp = "manager"
 
-            # Add assistant response with agent identity
+            # Add assistant response
             st.session_state.messages.append({
                 "role": "assistant",
                 "content": response,
                 "agent_key": agent_key_resp,
                 "agent_name": AGENTS[agent_key_resp]["name"],
+                "time": datetime.now().strftime("%H:%M"),
             })
             st.rerun()
 
