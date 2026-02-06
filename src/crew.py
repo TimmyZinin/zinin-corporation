@@ -107,7 +107,14 @@ class AICorporation:
         )
 
         try:
-            result = self.crew.kickoff(tasks=[task])
+            crew = Crew(
+                agents=[agent],
+                tasks=[task],
+                process=Process.sequential,
+                verbose=True,
+                memory=False,
+            )
+            result = crew.kickoff()
             return str(result)
         except Exception as e:
             return f"❌ Ошибка выполнения: {e}"
