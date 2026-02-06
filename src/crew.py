@@ -112,9 +112,25 @@ class AICorporation:
 
         agent = agent_map.get(agent_name, self.manager)
 
+        # Build expected output with substance requirement
+        expected = (
+            "Содержательный, конкретный и полный ответ на русском языке. "
+            "Минимум 200 слов. "
+            "Включай: конкретные шаги, рекомендации, цифры, примеры. "
+            "НЕ останавливайся на приветствии — дай полный ответ по существу вопроса."
+        )
+
+        # Wrap the task with explicit instruction
+        full_description = (
+            f"{task_description}\n\n"
+            "ВАЖНО: Дай ПОЛНЫЙ содержательный ответ. "
+            "Приветствие — максимум 1 строка, потом СРАЗУ переходи к сути. "
+            "Ответ должен содержать конкретные детали, шаги и рекомендации."
+        )
+
         task = create_task(
-            description=task_description,
-            expected_output="Детальный ответ на задачу",
+            description=full_description,
+            expected_output=expected,
             agent=agent,
         )
 
