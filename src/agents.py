@@ -40,7 +40,7 @@ def create_manager_agent() -> Optional[Agent]:
         return None
 
     try:
-        model = config.get("llm", "openrouter/anthropic/claude-sonnet-4-20250514")
+        model = config.get("llm", "openrouter/anthropic/claude-sonnet-4")
         llm = create_llm(model)
         return Agent(
             role=config.get("role", "Управленец-Автоматизатор"),
@@ -66,7 +66,7 @@ def create_accountant_agent() -> Optional[Agent]:
         return None
 
     try:
-        model = config.get("llm", "openrouter/anthropic/claude-3-5-haiku-latest")
+        model = config.get("llm", "openrouter/anthropic/claude-3.5-haiku")
         llm = create_llm(model)
         return Agent(
             role=config.get("role", "Бухгалтер-аналитик"),
@@ -92,7 +92,7 @@ def create_automator_agent() -> Optional[Agent]:
         return None
 
     try:
-        model = config.get("llm", "openrouter/anthropic/claude-sonnet-4-20250514")
+        model = config.get("llm", "openrouter/anthropic/claude-sonnet-4")
         llm = create_llm(model)
         return Agent(
             role=config.get("role", "Автоматизатор-интегратор"),

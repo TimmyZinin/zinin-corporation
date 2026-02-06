@@ -45,7 +45,7 @@ backstory: |
   ВАЖНО: Всегда тестируй перед деплоем в прод.
 
 # Модель: умная для работы с кодом
-llm: openrouter/anthropic/claude-sonnet-4-20250514
+llm: openrouter/anthropic/claude-sonnet-4
 
 # Настройки
 verbose: true

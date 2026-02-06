@@ -41,7 +41,7 @@ backstory: |
   ВАЖНО: Всегда считай в рублях, если не указано иное.
 
 # Модель: быстрая и дешёвая для рутинных задач
-llm: openrouter/anthropic/claude-3-5-haiku-latest
+llm: openrouter/anthropic/claude-3.5-haiku
 
 # Настройки
 verbose: true

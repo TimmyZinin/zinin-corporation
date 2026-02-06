@@ -39,7 +39,7 @@ backstory: |
   - Помогать проектировать новых агентов
 
 # Модель: самая умная для стратегических решений
-llm: openrouter/anthropic/claude-sonnet-4-20250514
+llm: openrouter/anthropic/claude-sonnet-4
 
 # Настройки
 verbose: true
