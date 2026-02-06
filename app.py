@@ -440,35 +440,45 @@ railway variables set OPENROUTER_API_KEY=sk-or-v1-ваш-ключ
             },
         ]
 
+        # Handle task execution via session_state
         for task in tasks:
-            with st.container():
-                agent_info = AGENTS.get(task["agent"], AGENTS["manager"])
-                col1, col2 = st.columns([4, 1])
-                with col1:
-                    st.markdown(f"**{task['name']}**")
-                    st.caption(f"{task['description']} • {agent_info['flag']} {agent_info['name']}")
-                with col2:
-                    disabled = not api_ready
-                    run_task = st.button("Запустить", key=task["name"], disabled=disabled)
-
-                # Result full-width BELOW the row
-                if run_task:
+            agent_info = AGENTS.get(task["agent"], AGENTS["manager"])
+            col1, col2 = st.columns([4, 1])
+            with col1:
+                st.markdown(f"**{task['name']}**")
+                st.caption(f"{task['description']} • {agent_info['flag']} {agent_info['name']}")
+            with col2:
+                if st.button("▶", key=f"btn_{task['method']}", disabled=not api_ready, help="Запустить задачу"):
                     corp = get_corporation()
                     if corp and corp.is_ready:
                         with st.spinner(f"{agent_info['emoji']} {agent_info['name']} работает..."):
                             method = getattr(corp, task["method"])
                             result = method()
+                        st.session_state[f"task_result_{task['method']}"] = {
+                            "result": result,
+                            "agent": agent_info["name"],
+                            "time": datetime.now().strftime("%H:%M:%S"),
+                        }
                         st.session_state.messages.append({
                             "role": "assistant",
                             "content": result,
                             "agent_key": task["agent"],
                             "agent_name": agent_info["name"],
                         })
-                        st.success(f"✅ {agent_info['name']} завершил(а) задачу!")
-                        st.markdown(result)
+                        st.rerun()
                     else:
                         st.error("❌ CrewAI не инициализирован")
-                st.divider()
+
+            # Show result FULL WIDTH if exists
+            result_key = f"task_result_{task['method']}"
+            if result_key in st.session_state:
+                res = st.session_state[result_key]
+                with st.expander(f"✅ Результат от {res['agent']} ({res['time']})", expanded=True):
+                    st.markdown(res["result"])
+                    if st.button("Скрыть", key=f"hide_{task['method']}"):
+                        del st.session_state[result_key]
+                        st.rerun()
+            st.divider()
 
         if not api_ready:
             st.info("💡 Добавьте OPENROUTER_API_KEY для активации задач")
