@@ -15,7 +15,8 @@ langchain-community>=0.3.0
 psycopg2-binary>=2.9.9
 
 # Web search (free, no API key)
-ddgs>=8.0.0
+ddgs>=7.0.0
+beautifulsoup4>=4.12.0
 
 # Utilities
 python-dotenv>=1.0.0

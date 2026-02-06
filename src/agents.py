@@ -33,10 +33,10 @@ def create_llm(model: str) -> LLM:
 
 
 def _load_web_tools() -> list:
-    """Load web search/scrape tools (shared by manager and automator)"""
+    """Load web search tools (shared by multiple agents)"""
     try:
-        from .tools.web_tools import WebSearchTool, WebScrapeTool
-        return [WebSearchTool(), WebScrapeTool()]
+        from .tools.web_tools import WebSearchTool, WebPageReaderTool
+        return [WebSearchTool(), WebPageReaderTool()]
     except Exception as e:
         print(f"WARNING: Could not load web tools: {e}")
         return []
