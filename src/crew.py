@@ -175,9 +175,26 @@ class AICorporation:
     def system_health_check(self) -> str:
         """Run system health check task"""
         task_desc = """
-        Проверь работоспособность всех интеграций.
-        Убедись что публикации работают.
-        Залогируй любые ошибки.
+        Проведи полную проверку системы:
+
+        1. Вызови System Health Checker с action='status' для общего состояния
+        2. Вызови System Health Checker с action='agents' для проверки агентов
+        3. Вызови System Health Checker с action='errors' для списка ошибок
+        4. Вызови Integration Manager с action='list' для проверки интеграций
+
+        Дай структурированный отчёт: что работает, что нет, рекомендации.
+        """
+        return self.execute_task(task_desc, "automator")
+
+    def integration_status(self) -> str:
+        """Check integration status from Niraj"""
+        task_desc = """
+        Проверь статус всех интеграций:
+
+        1. Вызови Integration Manager с action='list' для списка всех интеграций
+        2. Вызови Integration Manager с action='list_cron' для cron-задач
+
+        Дай краткий отчёт по каждой интеграции и рекомендации.
         """
         return self.execute_task(task_desc, "automator")
 

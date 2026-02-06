@@ -1,0 +1,31 @@
+{
+  "integrations": {
+    "telegram": {
+      "name": "Telegram Bot",
+      "status": "inactive",
+      "endpoint": "",
+      "last_check": null
+    },
+    "linkedin": {
+      "name": "LinkedIn API",
+      "status": "inactive",
+      "endpoint": "",
+      "last_check": null
+    },
+    "activepieces": {
+      "name": "Activepieces",
+      "status": "inactive",
+      "endpoint": "",
+      "last_check": null
+    },
+    "google_sheets": {
+      "name": "Google Sheets",
+      "status": "inactive",
+      "endpoint": "",
+      "last_check": null
+    }
+  },
+  "error_log": [],
+  "cron_jobs": [],
+  "last_updated": "2026-02-06T00:00:00"
+}

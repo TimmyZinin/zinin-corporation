@@ -4,6 +4,7 @@ Streamlit app for interacting with CrewAI agents
 """
 
 import os
+import re
 import sys
 import yaml
 import streamlit as st
@@ -11,6 +12,78 @@ from datetime import datetime
 
 # Add src to path for imports
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+# ──────────────────────────────────────────────────────────
+# Agent registry — single source of truth for all agents
+# ──────────────────────────────────────────────────────────
+AGENTS = {
+    "manager": {
+        "name": "Санторо",
+        "emoji": "👑",
+        "flag": "🇮🇹",
+        "title": "CEO",
+        "keywords": ["санторо", "ceo", "директор", "босс", "шеф", "стратеги", "управлен"],
+    },
+    "accountant": {
+        "name": "Амара",
+        "emoji": "📊",
+        "flag": "🇸🇳",
+        "title": "Финансы",
+        "keywords": ["амара", "бухгалтер", "финанс", "деньги", "бюджет", "отчёт", "p&l", "roi", "подписк", "расход", "трат", "прибыл", "убыт", "mrr", "выручк"],
+    },
+    "automator": {
+        "name": "Нирадж",
+        "emoji": "⚙️",
+        "flag": "🇳🇵",
+        "title": "Техдир",
+        "keywords": ["нирадж", "техдир", "техник", "интеграц", "автоматиз", "деплой", "код", "webhook", "cron"],
+    },
+}
+
+
+def detect_agent(message: str) -> str:
+    """Detect which agent is being addressed in the message.
+
+    Priority: @mention > name mention > keyword match > default (manager)
+    """
+    text = message.lower().strip()
+
+    # 1) @mention: @Санторо, @Амара, @Нирадж
+    for key, info in AGENTS.items():
+        if f"@{info['name'].lower()}" in text:
+            return key
+
+    # 2) Direct name mention
+    for key, info in AGENTS.items():
+        if info["name"].lower() in text:
+            return key
+
+    # 3) Keyword match (first match wins by keyword specificity)
+    for key, info in AGENTS.items():
+        if key == "manager":
+            continue  # check manager last (it's default)
+        for kw in info["keywords"]:
+            if kw in text:
+                return key
+
+    # 4) Default to CEO
+    return "manager"
+
+
+def format_chat_context(messages: list, max_messages: int = 10) -> str:
+    """Format recent chat history as context for the agent."""
+    recent = messages[-(max_messages + 1):-1]  # exclude the current message
+    if not recent:
+        return ""
+
+    lines = ["Контекст предыдущей переписки в корпоративном чате:"]
+    for msg in recent:
+        if msg["role"] == "user":
+            lines.append(f"Тим: {msg['content']}")
+        else:
+            agent_name = msg.get("agent_name", "Санторо")
+            lines.append(f"{agent_name}: {msg['content'][:300]}")
+    return "\n".join(lines)
 
 # Page config
 st.set_page_config(
@@ -171,23 +244,42 @@ def main():
 
     # Tab 1: Chat
     with tab1:
+        # Hint about addressing agents
+        st.caption("💡 Обращайтесь к агентам по имени: **Санторо**, **Амара**, **Нирадж** — или просто пишите, ответит CEO")
+
         # Initialize chat history
         if "messages" not in st.session_state:
             st.session_state.messages = [
-                {"role": "assistant", "content": "👋 Привет! Я Управленец — CEO AI-корпорации. Чем могу помочь?"}
+                {
+                    "role": "assistant",
+                    "content": "Ciao! 👋 Я Санторо — CEO AI-корпорации. Со мной в команде Амара (📊 финансы) и Нирадж (⚙️ техника). Обращайтесь к любому из нас по имени!",
+                    "agent_key": "manager",
+                    "agent_name": "Санторо",
+                }
             ]
 
         # Scrollable chat history container
         chat_container = st.container(height=550)
         with chat_container:
             for message in st.session_state.messages:
-                with st.chat_message(message["role"]):
-                    st.markdown(message["content"])
+                if message["role"] == "user":
+                    with st.chat_message("user"):
+                        st.markdown(message["content"])
+                else:
+                    agent_key = message.get("agent_key", "manager")
+                    agent_info = AGENTS.get(agent_key, AGENTS["manager"])
+                    display_name = f"{agent_info['flag']} {agent_info['name']}"
+                    with st.chat_message(display_name, avatar=agent_info["emoji"]):
+                        st.markdown(message["content"])
 
         # Chat input at the bottom
-        if prompt := st.chat_input("Напишите сообщение..."):
+        if prompt := st.chat_input("Напишите сообщение... (можно @Амара или @Нирадж)"):
             # Add user message
             st.session_state.messages.append({"role": "user", "content": prompt})
+
+            # Detect target agent
+            target_key = detect_agent(prompt)
+            target_info = AGENTS[target_key]
 
             # Check if API is configured
             if not api_ready:
@@ -200,12 +292,20 @@ railway variables set OPENROUTER_API_KEY=sk-or-v1-ваш-ключ
 ```
 
 Получить ключ: https://openrouter.ai/keys"""
+                agent_key_resp = "manager"
 
             else:
                 corp = get_corporation()
                 if corp and corp.is_ready:
-                    with st.spinner("🤖 Думаю..."):
-                        response = corp.execute_task(prompt, "manager")
+                    # Build context from chat history
+                    context = format_chat_context(st.session_state.messages)
+                    task_with_context = prompt
+                    if context:
+                        task_with_context = f"{context}\n\n---\nНовое сообщение от Тима: {prompt}"
+
+                    with st.spinner(f"{target_info['emoji']} {target_info['name']} думает..."):
+                        response = corp.execute_task(task_with_context, target_key)
+                    agent_key_resp = target_key
                 else:
                     response = f"""🤖 **Получено сообщение:**
 
@@ -217,9 +317,15 @@ railway variables set OPENROUTER_API_KEY=sk-or-v1-ваш-ключ
 
 Агенты сконфигурированы, но не все зависимости загружены.
 Попробуйте перезагрузить страницу."""
+                    agent_key_resp = "manager"
 
-            # Add assistant response
-            st.session_state.messages.append({"role": "assistant", "content": response})
+            # Add assistant response with agent identity
+            st.session_state.messages.append({
+                "role": "assistant",
+                "content": response,
+                "agent_key": agent_key_resp,
+                "agent_name": AGENTS[agent_key_resp]["name"],
+            })
             st.rerun()
 
     # Tab 2: Agents
@@ -228,38 +334,36 @@ railway variables set OPENROUTER_API_KEY=sk-or-v1-ваш-ключ
 
         col1, col2, col3 = st.columns(3)
 
-        agents_info = [
+        agents_display = [
             {
-                "name": "👑 Санторо (CEO)",
-                "file": "manager",
-                "status": "ready" if api_ready else "pending",
+                "key": "manager",
                 "model": "Claude Sonnet 4",
                 "role": "CEO, координация, стратегия",
             },
             {
-                "name": "📊 Амара (Финансы)",
-                "file": "accountant",
-                "status": "ready" if api_ready else "pending",
+                "key": "accountant",
                 "model": "Claude 3.5 Haiku",
                 "role": "P&L, ROI, подписки, API бюджет",
             },
             {
-                "name": "⚙️ Нирадж (Техдир)",
-                "file": "automator",
-                "status": "ready" if api_ready else "pending",
+                "key": "automator",
                 "model": "Claude Sonnet 4",
-                "role": "Интеграции, автоматизация",
+                "role": "Интеграции, автоматизация, код",
             },
         ]
 
-        for i, agent in enumerate(agents_info):
+        file_map = {"manager": "manager", "accountant": "accountant", "automator": "automator"}
+
+        for i, agent in enumerate(agents_display):
             with [col1, col2, col3][i]:
-                config = load_agent_config(agent["file"])
+                info = AGENTS[agent["key"]]
+                config = load_agent_config(file_map[agent["key"]])
 
-                st.markdown(f"### {agent['name']}")
+                st.markdown(f"### {info['emoji']} {info['name']} ({info['title']}) {info['flag']}")
 
-                status_class = "status-ready" if agent["status"] == "ready" else "status-pending"
-                status_text = "Активен" if agent["status"] == "ready" else "Ожидает API"
+                status = "ready" if api_ready else "pending"
+                status_class = "status-ready" if status == "ready" else "status-pending"
+                status_text = "Активен" if status == "ready" else "Ожидает API"
                 st.markdown(f'<span class="{status_class}">● {status_text}</span>', unsafe_allow_html=True)
 
                 st.caption(f"**Роль:** {agent['role']}")
@@ -281,19 +385,19 @@ railway variables set OPENROUTER_API_KEY=sk-or-v1-ваш-ключ
                 "method": "strategic_review",
             },
             {
-                "name": "💰 Финансовый отчёт (Амара)",
+                "name": "💰 Финансовый отчёт",
                 "agent": "accountant",
                 "description": "Полный P&L по проектам, MRR, расходы на API, ROI",
                 "method": "financial_report",
             },
             {
-                "name": "💻 Проверка API бюджета (Амара)",
+                "name": "💻 Проверка API бюджета",
                 "agent": "accountant",
                 "description": "Расходы по агентам, алерты превышений",
                 "method": "api_budget_check",
             },
             {
-                "name": "📊 Анализ подписок (Амара)",
+                "name": "📊 Анализ подписок",
                 "agent": "accountant",
                 "description": "Подписчики, прогноз MRR, отток",
                 "method": "subscription_analysis",
@@ -301,26 +405,40 @@ railway variables set OPENROUTER_API_KEY=sk-or-v1-ваш-ключ
             {
                 "name": "🔧 Проверка систем",
                 "agent": "automator",
-                "description": "Статус интеграций, логи ошибок",
+                "description": "Полная проверка здоровья системы, агентов, ошибок",
                 "method": "system_health_check",
+            },
+            {
+                "name": "🔌 Статус интеграций",
+                "agent": "automator",
+                "description": "Все внешние сервисы и cron-задачи",
+                "method": "integration_status",
             },
         ]
 
         for task in tasks:
             with st.container():
+                agent_info = AGENTS.get(task["agent"], AGENTS["manager"])
                 col1, col2 = st.columns([3, 1])
                 with col1:
                     st.markdown(f"**{task['name']}**")
-                    st.caption(f"{task['description']} • Агент: {task['agent']}")
+                    st.caption(f"{task['description']} • {agent_info['flag']} {agent_info['name']}")
                 with col2:
                     disabled = not api_ready
                     if st.button("Запустить", key=task["name"], disabled=disabled):
                         corp = get_corporation()
                         if corp and corp.is_ready:
-                            with st.spinner(f"⏳ Выполняю {task['name']}..."):
+                            with st.spinner(f"{agent_info['emoji']} {agent_info['name']} работает..."):
                                 method = getattr(corp, task["method"])
                                 result = method()
-                            st.success("✅ Готово!")
+                            # Add result to chat history too
+                            st.session_state.messages.append({
+                                "role": "assistant",
+                                "content": result,
+                                "agent_key": task["agent"],
+                                "agent_name": agent_info["name"],
+                            })
+                            st.success(f"✅ {agent_info['name']} завершил(а) задачу!")
                             st.markdown(result)
                         else:
                             st.error("❌ CrewAI не инициализирован")

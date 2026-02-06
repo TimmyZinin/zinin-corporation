@@ -97,24 +97,32 @@ def create_accountant_agent() -> Optional[Agent]:
 
 
 def create_automator_agent() -> Optional[Agent]:
-    """Create the Automator agent"""
+    """Create the Automator (Niraj) agent with tech tools"""
     config = load_agent_config("automator")
     if not config:
         print("ERROR: automator.yaml not found")
         return None
 
     try:
+        from .tools.tech_tools import SystemHealthChecker, IntegrationManager
+        tools = [SystemHealthChecker(), IntegrationManager()]
+    except Exception as e:
+        print(f"WARNING: Could not load tech tools: {e}")
+        tools = []
+
+    try:
         model = config.get("llm", "openrouter/anthropic/claude-sonnet-4")
         llm = create_llm(model)
         return Agent(
-            role=config.get("role", "Автоматизатор-интегратор"),
-            goal=config.get("goal", "Настраивать технические интеграции"),
+            role=config.get("role", "Технический директор Нирадж"),
+            goal=config.get("goal", "Обеспечивать техническую инфраструктуру"),
             backstory=config.get("backstory", "Ты — технический директор"),
             llm=llm,
+            tools=tools,
             verbose=True,
             memory=False,
             allow_delegation=False,
-            max_iter=15,
+            max_iter=20,
         )
     except Exception as e:
         print(f"ERROR creating automator: {e}")
