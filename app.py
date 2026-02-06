@@ -230,25 +230,25 @@ railway variables set OPENROUTER_API_KEY=sk-or-v1-ваш-ключ
 
         agents_info = [
             {
-                "name": "👑 Управленец",
+                "name": "👑 Санторо (CEO)",
                 "file": "manager",
                 "status": "ready" if api_ready else "pending",
                 "model": "Claude Sonnet 4",
-                "role": "CEO, координация",
+                "role": "CEO, координация, стратегия",
             },
             {
-                "name": "📊 Амара (Бухгалтер)",
+                "name": "📊 Амара (Финансы)",
                 "file": "accountant",
                 "status": "ready" if api_ready else "pending",
                 "model": "Claude 3.5 Haiku",
-                "role": "Финансы, P&L, ROI, подписки",
+                "role": "P&L, ROI, подписки, API бюджет",
             },
             {
-                "name": "⚙️ Автоматизатор",
+                "name": "⚙️ Нирадж (Техдир)",
                 "file": "automator",
                 "status": "ready" if api_ready else "pending",
-                "model": "Claude Sonnet",
-                "role": "Интеграции",
+                "model": "Claude Sonnet 4",
+                "role": "Интеграции, автоматизация",
             },
         ]
 
