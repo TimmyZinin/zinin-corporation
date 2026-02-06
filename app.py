@@ -41,9 +41,25 @@ st.markdown("""
     .status-ready { color: #00cec9; }
     .status-pending { color: #ffc107; }
     .status-error { color: #ff6b6b; }
+    /* Full-width chat messages */
     .stChatMessage {
         background: #1a1a2e;
         border-radius: 12px;
+        max-width: 100% !important;
+    }
+    .stChatMessage [data-testid="stMarkdownContainer"] {
+        max-width: 100% !important;
+        width: 100% !important;
+    }
+    /* Make main block full width */
+    .block-container {
+        max-width: 100% !important;
+        padding-left: 2rem !important;
+        padding-right: 2rem !important;
+    }
+    /* Chat container scrollable area */
+    [data-testid="stVerticalBlockBorderWrapper"] > div > div[data-testid="stVerticalBlock"] {
+        max-width: 100% !important;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -155,25 +171,23 @@ def main():
 
     # Tab 1: Chat
     with tab1:
-        st.subheader("Общение с командой агентов")
-
         # Initialize chat history
         if "messages" not in st.session_state:
             st.session_state.messages = [
                 {"role": "assistant", "content": "👋 Привет! Я Управленец — CEO AI-корпорации. Чем могу помочь?"}
             ]
 
-        # Display chat messages
-        for message in st.session_state.messages:
-            with st.chat_message(message["role"]):
-                st.markdown(message["content"])
+        # Scrollable chat history container
+        chat_container = st.container(height=550)
+        with chat_container:
+            for message in st.session_state.messages:
+                with st.chat_message(message["role"]):
+                    st.markdown(message["content"])
 
-        # Chat input
+        # Chat input at the bottom
         if prompt := st.chat_input("Напишите сообщение..."):
             # Add user message
             st.session_state.messages.append({"role": "user", "content": prompt})
-            with st.chat_message("user"):
-                st.markdown(prompt)
 
             # Check if API is configured
             if not api_ready:
@@ -206,8 +220,7 @@ railway variables set OPENROUTER_API_KEY=sk-or-v1-ваш-ключ
 
             # Add assistant response
             st.session_state.messages.append({"role": "assistant", "content": response})
-            with st.chat_message("assistant"):
-                st.markdown(response)
+            st.rerun()
 
     # Tab 2: Agents
     with tab2:
