@@ -1,0 +1,19 @@
+# AI Corporation Dependencies
+
+# CrewAI core
+crewai[tools]>=0.102.0
+
+# Web interface
+streamlit>=1.38.0
+
+# LangChain for LLM integration
+langchain-openai>=0.2.0
+langchain-community>=0.3.0
+
+# Database
+psycopg2-binary>=2.9.9
+
+# Utilities
+python-dotenv>=1.0.0
+pyyaml>=6.0.0
+httpx>=0.27.0
