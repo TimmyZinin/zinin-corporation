@@ -129,10 +129,46 @@ class AICorporation:
         return self.execute_task(task_desc, "manager")
 
     def financial_report(self) -> str:
-        """Run financial report task"""
+        """Run full financial report from Amara"""
         task_desc = """
-        Подготовь еженедельный финансовый отчёт.
-        Включи: MRR, расходы на API, прогноз на месяц.
+        Используй свои инструменты для подготовки финансового отчёта:
+
+        1. Вызови Financial Tracker с action='report' для общего отчёта по проектам
+        2. Вызови Subscription Monitor с action='status' и action='forecast' для данных по подпискам
+        3. Вызови API Usage Tracker с action='usage' и action='alerts' для контроля расходов
+
+        На основе полученных данных подготовь структурированный отчёт:
+        - Сводка по доходам и расходам каждого проекта
+        - MRR от подписок
+        - API расходы по агентам
+        - ROI-анализ
+        - Рекомендации для CEO
+        """
+        return self.execute_task(task_desc, "accountant")
+
+    def api_budget_check(self) -> str:
+        """Check API budget status from Amara"""
+        task_desc = """
+        Проверь текущее состояние API бюджетов:
+
+        1. Вызови API Usage Tracker с action='usage' для текущих расходов
+        2. Вызови API Usage Tracker с action='alerts' для проверки превышений
+
+        Дай краткий отчёт: кто сколько потратил, есть ли превышения,
+        рекомендации по оптимизации.
+        """
+        return self.execute_task(task_desc, "accountant")
+
+    def subscription_analysis(self) -> str:
+        """Analyze subscriptions from Amara"""
+        task_desc = """
+        Проанализируй состояние подписок в клубах:
+
+        1. Вызови Subscription Monitor с action='status' для текущих подписчиков
+        2. Вызови Subscription Monitor с action='forecast' для прогноза MRR
+        3. Вызови Subscription Monitor с action='churn' для анализа оттока
+
+        Дай рекомендации по росту подписчиков и снижению оттока.
         """
         return self.execute_task(task_desc, "accountant")
 

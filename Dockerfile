@@ -10,6 +10,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY agents/ /app/agents/
 COPY crews/ /app/crews/
 COPY src/ /app/src/
+COPY data/ /app/data/
 COPY CLAUDE.md README.md /app/
 COPY app.py /app/app.py
 

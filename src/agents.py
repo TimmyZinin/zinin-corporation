@@ -59,20 +59,32 @@ def create_manager_agent() -> Optional[Agent]:
 
 
 def create_accountant_agent() -> Optional[Agent]:
-    """Create the Accountant agent"""
+    """Create the Accountant (Amara) agent with financial tools"""
     config = load_agent_config("accountant")
     if not config:
         print("ERROR: accountant.yaml not found")
         return None
 
     try:
+        from .tools.financial_tools import (
+            FinancialTracker,
+            SubscriptionMonitor,
+            APIUsageTracker,
+        )
+        tools = [FinancialTracker(), SubscriptionMonitor(), APIUsageTracker()]
+    except Exception as e:
+        print(f"WARNING: Could not load financial tools: {e}")
+        tools = []
+
+    try:
         model = config.get("llm", "openrouter/anthropic/claude-3.5-haiku")
         llm = create_llm(model)
         return Agent(
-            role=config.get("role", "Бухгалтер-аналитик"),
-            goal=config.get("goal", "Вести финансовый учёт AI-корпорации"),
-            backstory=config.get("backstory", "Ты — финансовый директор"),
+            role=config.get("role", "Финансовый директор Амара"),
+            goal=config.get("goal", "Максимизировать прибыль и контролировать расходы"),
+            backstory=config.get("backstory", "Ты — финансовый директор AI-корпорации"),
             llm=llm,
+            tools=tools,
             verbose=True,
             memory=False,
             allow_delegation=False,

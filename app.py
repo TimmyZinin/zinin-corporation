@@ -237,11 +237,11 @@ railway variables set OPENROUTER_API_KEY=sk-or-v1-ваш-ключ
                 "role": "CEO, координация",
             },
             {
-                "name": "📊 Бухгалтер",
+                "name": "📊 Амара (Бухгалтер)",
                 "file": "accountant",
                 "status": "ready" if api_ready else "pending",
-                "model": "Claude Haiku",
-                "role": "Финансы, P&L",
+                "model": "Claude 3.5 Haiku",
+                "role": "Финансы, P&L, ROI, подписки",
             },
             {
                 "name": "⚙️ Автоматизатор",
@@ -281,10 +281,22 @@ railway variables set OPENROUTER_API_KEY=sk-or-v1-ваш-ключ
                 "method": "strategic_review",
             },
             {
-                "name": "💰 Финансовый отчёт",
+                "name": "💰 Финансовый отчёт (Амара)",
                 "agent": "accountant",
-                "description": "MRR, расходы на API, P&L",
+                "description": "Полный P&L по проектам, MRR, расходы на API, ROI",
                 "method": "financial_report",
+            },
+            {
+                "name": "💻 Проверка API бюджета (Амара)",
+                "agent": "accountant",
+                "description": "Расходы по агентам, алерты превышений",
+                "method": "api_budget_check",
+            },
+            {
+                "name": "📊 Анализ подписок (Амара)",
+                "agent": "accountant",
+                "description": "Подписчики, прогноз MRR, отток",
+                "method": "subscription_analysis",
             },
             {
                 "name": "🔧 Проверка систем",
