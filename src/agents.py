@@ -124,7 +124,7 @@ def create_smm_agent() -> Optional[Agent]:
         tools = []
 
     try:
-        model = config.get("llm", "openrouter/meta-llama/llama-3.3-70b-instruct:free")
+        model = config.get("llm", "openrouter/anthropic/claude-3.5-haiku")
         llm = create_llm(model)
         return Agent(
             role=config.get("role", "SMM-менеджер Юки"),

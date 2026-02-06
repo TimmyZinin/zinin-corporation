@@ -247,7 +247,7 @@ def main():
         st.caption(f"Запущено: {datetime.now().strftime('%d.%m.%Y %H:%M')}")
 
     # Main content - Tabs
-    tab1, tab2, tab3, tab4 = st.tabs(["💬 Чат", "👥 Агенты", "📋 Задачи", "📊 Статистика"])
+    tab1, tab2, tab3, tab5, tab4 = st.tabs(["💬 Чат", "👥 Агенты", "📋 Задачи", "📱 Контент", "📊 Статистика"])
 
     # Tab 1: Chat
     with tab1:
@@ -344,7 +344,7 @@ railway variables set OPENROUTER_API_KEY=sk-or-v1-ваш-ключ
                 "key": "manager",
                 "yaml": "manager",
                 "model": "Claude Sonnet 4",
-                "role": "CEO, стратегия, веб-поиск",
+                "role": "CEO, координация, стратегия",
             },
             {
                 "key": "accountant",
@@ -355,14 +355,14 @@ railway variables set OPENROUTER_API_KEY=sk-or-v1-ваш-ключ
             {
                 "key": "smm",
                 "yaml": "yuki",
-                "model": "Llama 3.3 70B (free)",
+                "model": "Claude 3.5 Haiku",
                 "role": "Контент, LinkedIn, Self-Refine",
             },
             {
                 "key": "automator",
                 "yaml": "automator",
                 "model": "Claude Sonnet 4",
-                "role": "Интеграции, автоматизация, веб-поиск",
+                "role": "Интеграции, автоматизация, код",
             },
         ]
 
@@ -427,18 +427,6 @@ railway variables set OPENROUTER_API_KEY=sk-or-v1-ваш-ключ
                 "method": "subscription_analysis",
             },
             {
-                "name": "✍️ Сгенерировать пост",
-                "agent": "smm",
-                "description": "Юки создаст пост для LinkedIn с Self-Refine",
-                "method": "generate_post",
-            },
-            {
-                "name": "🔗 Статус LinkedIn",
-                "agent": "smm",
-                "description": "Проверка токена, статистика генераций Юки",
-                "method": "linkedin_status",
-            },
-            {
                 "name": "🔧 Проверка систем",
                 "agent": "automator",
                 "description": "Полная проверка здоровья системы, агентов, ошибок",
@@ -455,33 +443,154 @@ railway variables set OPENROUTER_API_KEY=sk-or-v1-ваш-ключ
         for task in tasks:
             with st.container():
                 agent_info = AGENTS.get(task["agent"], AGENTS["manager"])
-                col1, col2 = st.columns([3, 1])
+                col1, col2 = st.columns([4, 1])
                 with col1:
                     st.markdown(f"**{task['name']}**")
                     st.caption(f"{task['description']} • {agent_info['flag']} {agent_info['name']}")
                 with col2:
                     disabled = not api_ready
-                    if st.button("Запустить", key=task["name"], disabled=disabled):
-                        corp = get_corporation()
-                        if corp and corp.is_ready:
-                            with st.spinner(f"{agent_info['emoji']} {agent_info['name']} работает..."):
-                                method = getattr(corp, task["method"])
-                                result = method()
-                            # Add result to chat history too
-                            st.session_state.messages.append({
-                                "role": "assistant",
-                                "content": result,
-                                "agent_key": task["agent"],
-                                "agent_name": agent_info["name"],
-                            })
-                            st.success(f"✅ {agent_info['name']} завершил(а) задачу!")
-                            st.markdown(result)
-                        else:
-                            st.error("❌ CrewAI не инициализирован")
+                    run_task = st.button("Запустить", key=task["name"], disabled=disabled)
+
+                # Result full-width BELOW the row
+                if run_task:
+                    corp = get_corporation()
+                    if corp and corp.is_ready:
+                        with st.spinner(f"{agent_info['emoji']} {agent_info['name']} работает..."):
+                            method = getattr(corp, task["method"])
+                            result = method()
+                        st.session_state.messages.append({
+                            "role": "assistant",
+                            "content": result,
+                            "agent_key": task["agent"],
+                            "agent_name": agent_info["name"],
+                        })
+                        st.success(f"✅ {agent_info['name']} завершил(а) задачу!")
+                        st.markdown(result)
+                    else:
+                        st.error("❌ CrewAI не инициализирован")
                 st.divider()
 
         if not api_ready:
             st.info("💡 Добавьте OPENROUTER_API_KEY для активации задач")
+
+    # Tab 5: Content (Yuki SMM)
+    with tab5:
+        st.subheader("📱 Контент-студия Юки")
+        st.caption("🇰🇷 Генерация, оценка и публикация постов для LinkedIn")
+
+        # Settings row
+        col_topic, col_author = st.columns([3, 1])
+        with col_topic:
+            topic = st.text_input(
+                "Тема поста",
+                placeholder="Например: как составить резюме, LinkedIn профиль, ошибки на собеседовании...",
+                key="yuki_topic",
+            )
+        with col_author:
+            author = st.selectbox(
+                "Автор",
+                ["Кристина Жукова", "Тим Зинин"],
+                key="yuki_author",
+            )
+
+        author_key = "kristina" if "Кристина" in author else "tim"
+
+        # Generate button
+        col_gen, col_status = st.columns([1, 1])
+        with col_gen:
+            generate_clicked = st.button(
+                "✍️ Сгенерировать пост",
+                disabled=not api_ready or not topic,
+                use_container_width=True,
+            )
+        with col_status:
+            check_linkedin = st.button(
+                "🔗 Проверить LinkedIn",
+                disabled=not api_ready,
+                use_container_width=True,
+            )
+
+        # LinkedIn status check
+        if check_linkedin:
+            corp = get_corporation()
+            if corp and corp.is_ready:
+                with st.spinner("📱 Юки проверяет LinkedIn..."):
+                    result = corp.linkedin_status()
+                st.info(result)
+
+        # Generation flow
+        if generate_clicked and topic:
+            corp = get_corporation()
+            if corp and corp.is_ready:
+                with st.spinner(f"📱 Юки генерирует пост про «{topic}»..."):
+                    result = corp.generate_post(topic=topic, author=author_key)
+
+                # Store result in session
+                st.session_state["yuki_last_post"] = result
+                st.session_state["yuki_last_topic"] = topic
+                st.session_state["yuki_last_author"] = author
+
+        # Display last generated post
+        if "yuki_last_post" in st.session_state:
+            st.divider()
+            st.markdown(f"**Тема:** {st.session_state.get('yuki_last_topic', '')} • **Автор:** {st.session_state.get('yuki_last_author', '')}")
+
+            raw_post = st.session_state["yuki_last_post"]
+
+            # Extract just the post text (after --- separator if present)
+            post_text = raw_post
+            if "---\n" in raw_post:
+                parts = raw_post.split("---\n", 1)
+                meta = parts[0]
+                post_text = parts[1] if len(parts) > 1 else raw_post
+                # Show meta info
+                with st.expander("📊 Метаданные генерации"):
+                    st.text(meta)
+
+            # Editable post
+            edited_post = st.text_area(
+                "Текст поста (можно редактировать)",
+                value=post_text,
+                height=400,
+                key="yuki_edit_post",
+            )
+
+            # Post stats
+            char_count = len(edited_post)
+            word_count = len(edited_post.split())
+            color = "green" if 1200 <= char_count <= 3000 else "orange" if 800 <= char_count <= 3500 else "red"
+            st.caption(f":{color}[{char_count} символов] • {word_count} слов")
+
+            # Action buttons
+            col_pub, col_critique, col_regen = st.columns(3)
+            with col_pub:
+                if st.button("🚀 Опубликовать в LinkedIn", use_container_width=True, disabled=not api_ready):
+                    corp = get_corporation()
+                    if corp and corp.is_ready and corp.smm:
+                        from src.tools.smm_tools import LinkedInPublisherTool
+                        pub = LinkedInPublisherTool()
+                        with st.spinner("Публикуем..."):
+                            pub_result = pub._run(action="publish", text=edited_post)
+                        if "✅" in pub_result:
+                            st.success(pub_result)
+                        else:
+                            st.error(pub_result)
+
+            with col_critique:
+                if st.button("🔍 Оценить пост", use_container_width=True, disabled=not api_ready):
+                    from src.tools.smm_tools import ContentGenerator
+                    cg = ContentGenerator()
+                    critique = cg._run(action="critique", content=edited_post)
+                    st.info(critique)
+
+            with col_regen:
+                if st.button("🔄 Переделать", use_container_width=True, disabled=not api_ready or not topic):
+                    corp = get_corporation()
+                    if corp and corp.is_ready:
+                        with st.spinner("📱 Юки переделывает..."):
+                            result = corp.generate_post(topic=topic, author=author_key)
+                        st.session_state["yuki_last_post"] = result
+                        st.rerun()
 
     # Tab 4: Stats
     with tab4:

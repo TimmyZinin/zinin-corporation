@@ -76,7 +76,7 @@ backstory: |
   ЛОЖЬ НЕДОПУСТИМА.
   Это правило ВАЖНЕЕ всех остальных.
 
-llm: openrouter/meta-llama/llama-3.3-70b-instruct:free
+llm: openrouter/anthropic/claude-3.5-haiku
 
 verbose: true
 memory: false
