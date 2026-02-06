@@ -20,6 +20,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy configuration files
 COPY agents/ /app/agents/
 COPY crews/ /app/crews/
+COPY src/ /app/src/
 COPY CLAUDE.md README.md /app/
 
 # Create a simple Streamlit app for CrewAI
