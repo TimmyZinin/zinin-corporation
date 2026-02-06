@@ -6,7 +6,7 @@ import os
 import yaml
 import traceback
 from typing import Optional
-from crewai import Agent
+from crewai import Agent, LLM
 
 
 def load_agent_config(agent_name: str) -> dict:
@@ -22,6 +22,16 @@ def load_agent_config(agent_name: str) -> dict:
     return {}
 
 
+def create_llm(model: str) -> LLM:
+    """Create LLM instance for OpenRouter"""
+    api_key = os.getenv("OPENROUTER_API_KEY", "")
+    return LLM(
+        model=model,
+        api_key=api_key,
+        base_url="https://openrouter.ai/api/v1",
+    )
+
+
 def create_manager_agent() -> Optional[Agent]:
     """Create the Manager agent"""
     config = load_agent_config("manager")
@@ -30,11 +40,13 @@ def create_manager_agent() -> Optional[Agent]:
         return None
 
     try:
+        model = config.get("llm", "openrouter/anthropic/claude-sonnet-4-20250514")
+        llm = create_llm(model)
         return Agent(
             role=config.get("role", "Управленец-Автоматизатор"),
             goal=config.get("goal", "Координировать работу всех агентов"),
             backstory=config.get("backstory", "Ты — CEO AI-корпорации"),
-            llm=config.get("llm", "openrouter/anthropic/claude-sonnet-4-20250514"),
+            llm=llm,
             verbose=True,
             memory=False,
             allow_delegation=True,
@@ -54,11 +66,13 @@ def create_accountant_agent() -> Optional[Agent]:
         return None
 
     try:
+        model = config.get("llm", "openrouter/anthropic/claude-3-5-haiku-latest")
+        llm = create_llm(model)
         return Agent(
             role=config.get("role", "Бухгалтер-аналитик"),
             goal=config.get("goal", "Вести финансовый учёт AI-корпорации"),
             backstory=config.get("backstory", "Ты — финансовый директор"),
-            llm=config.get("llm", "openrouter/anthropic/claude-3-5-haiku-latest"),
+            llm=llm,
             verbose=True,
             memory=False,
             allow_delegation=False,
@@ -78,11 +92,13 @@ def create_automator_agent() -> Optional[Agent]:
         return None
 
     try:
+        model = config.get("llm", "openrouter/anthropic/claude-sonnet-4-20250514")
+        llm = create_llm(model)
         return Agent(
             role=config.get("role", "Автоматизатор-интегратор"),
             goal=config.get("goal", "Настраивать технические интеграции"),
             backstory=config.get("backstory", "Ты — технический директор"),
-            llm=config.get("llm", "openrouter/anthropic/claude-sonnet-4-20250514"),
+            llm=llm,
             verbose=True,
             memory=False,
             allow_delegation=False,
