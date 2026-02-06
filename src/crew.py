@@ -5,6 +5,7 @@ Orchestrates the multi-agent system
 
 import os
 import yaml
+import traceback
 from typing import Optional, List
 from crewai import Crew, Task, Process
 
@@ -64,20 +65,21 @@ class AICorporation:
             if not all([self.manager, self.accountant, self.automator]):
                 return False
 
-            # Create crew with hierarchical process
+            # Create crew with sequential process (no embeddings needed)
             self.crew = Crew(
                 agents=[self.manager, self.accountant, self.automator],
-                process=Process.hierarchical,
-                manager_agent=self.manager,
-                verbose=self.config.get("verbose", True),
-                memory=self.config.get("memory", True),
+                process=Process.sequential,
+                verbose=True,
+                memory=False,
             )
 
             self._initialized = True
+            print("AI Corporation initialized successfully!")
             return True
 
         except Exception as e:
             print(f"Failed to initialize AI Corporation: {e}")
+            traceback.print_exc()
             return False
 
     @property

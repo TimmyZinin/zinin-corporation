@@ -1,17 +1,12 @@
 """
 🏢 AI Corporation — Agents Module
-Defines and configures all AI agents for the corporation
 """
 
 import os
 import yaml
+import traceback
 from typing import Optional
 from crewai import Agent
-from crewai.tools import (
-    FileReadTool,
-    FileWriterTool,
-    DirectoryReadTool,
-)
 
 
 def load_agent_config(agent_name: str) -> dict:
@@ -28,87 +23,72 @@ def load_agent_config(agent_name: str) -> dict:
 
 
 def create_manager_agent() -> Optional[Agent]:
-    """Create the Manager (Управленец) agent"""
+    """Create the Manager agent"""
     config = load_agent_config("manager")
     if not config:
+        print("ERROR: manager.yaml not found")
         return None
 
-    # Define tools for Manager
-    tools = [
-        FileReadTool(),
-        FileWriterTool(),
-        DirectoryReadTool(),
-    ]
-
-    return Agent(
-        role=config.get("role", "Управленец-Автоматизатор"),
-        goal=config.get("goal", "Координировать работу всех агентов"),
-        backstory=config.get("backstory", "Ты — CEO AI-корпорации"),
-        llm=config.get("llm", "openrouter/anthropic/claude-sonnet-4-20250514"),
-        verbose=config.get("verbose", True),
-        memory=config.get("memory", True),
-        allow_delegation=config.get("allow_delegation", True),
-        max_iter=config.get("max_iter", 15),
-        max_rpm=config.get("max_rpm", 10),
-        tools=tools,
-    )
+    try:
+        return Agent(
+            role=config.get("role", "Управленец-Автоматизатор"),
+            goal=config.get("goal", "Координировать работу всех агентов"),
+            backstory=config.get("backstory", "Ты — CEO AI-корпорации"),
+            llm=config.get("llm", "openrouter/anthropic/claude-sonnet-4-20250514"),
+            verbose=True,
+            memory=False,
+            allow_delegation=True,
+            max_iter=15,
+        )
+    except Exception as e:
+        print(f"ERROR creating manager: {e}")
+        traceback.print_exc()
+        return None
 
 
 def create_accountant_agent() -> Optional[Agent]:
-    """Create the Accountant (Бухгалтер) agent"""
+    """Create the Accountant agent"""
     config = load_agent_config("accountant")
     if not config:
+        print("ERROR: accountant.yaml not found")
         return None
 
-    tools = [
-        FileReadTool(),
-        FileWriterTool(),
-    ]
-
-    return Agent(
-        role=config.get("role", "Бухгалтер-аналитик"),
-        goal=config.get("goal", "Вести финансовый учёт AI-корпорации"),
-        backstory=config.get("backstory", "Ты — финансовый директор"),
-        llm=config.get("llm", "openrouter/anthropic/claude-3-5-haiku-latest"),
-        verbose=config.get("verbose", True),
-        memory=config.get("memory", True),
-        allow_delegation=config.get("allow_delegation", False),
-        max_iter=config.get("max_iter", 10),
-        max_rpm=config.get("max_rpm", 15),
-        tools=tools,
-    )
+    try:
+        return Agent(
+            role=config.get("role", "Бухгалтер-аналитик"),
+            goal=config.get("goal", "Вести финансовый учёт AI-корпорации"),
+            backstory=config.get("backstory", "Ты — финансовый директор"),
+            llm=config.get("llm", "openrouter/anthropic/claude-3-5-haiku-latest"),
+            verbose=True,
+            memory=False,
+            allow_delegation=False,
+            max_iter=10,
+        )
+    except Exception as e:
+        print(f"ERROR creating accountant: {e}")
+        traceback.print_exc()
+        return None
 
 
 def create_automator_agent() -> Optional[Agent]:
-    """Create the Automator (Автоматизатор) agent"""
+    """Create the Automator agent"""
     config = load_agent_config("automator")
     if not config:
+        print("ERROR: automator.yaml not found")
         return None
 
-    tools = [
-        FileReadTool(),
-        FileWriterTool(),
-        DirectoryReadTool(),
-    ]
-
-    return Agent(
-        role=config.get("role", "Автоматизатор-интегратор"),
-        goal=config.get("goal", "Настраивать технические интеграции"),
-        backstory=config.get("backstory", "Ты — технический директор"),
-        llm=config.get("llm", "openrouter/anthropic/claude-sonnet-4-20250514"),
-        verbose=config.get("verbose", True),
-        memory=config.get("memory", True),
-        allow_delegation=config.get("allow_delegation", False),
-        max_iter=config.get("max_iter", 15),
-        max_rpm=config.get("max_rpm", 10),
-        tools=tools,
-    )
-
-
-def get_all_agents() -> dict:
-    """Get all configured agents"""
-    return {
-        "manager": create_manager_agent(),
-        "accountant": create_accountant_agent(),
-        "automator": create_automator_agent(),
-    }
+    try:
+        return Agent(
+            role=config.get("role", "Автоматизатор-интегратор"),
+            goal=config.get("goal", "Настраивать технические интеграции"),
+            backstory=config.get("backstory", "Ты — технический директор"),
+            llm=config.get("llm", "openrouter/anthropic/claude-sonnet-4-20250514"),
+            verbose=True,
+            memory=False,
+            allow_delegation=False,
+            max_iter=15,
+        )
+    except Exception as e:
+        print(f"ERROR creating automator: {e}")
+        traceback.print_exc()
+        return None
