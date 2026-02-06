@@ -29,7 +29,14 @@ AGENTS = {
         "emoji": "📊",
         "flag": "🇸🇳",
         "title": "Финансы",
-        "keywords": ["амара", "бухгалтер", "финанс", "деньги", "бюджет", "отчёт", "p&l", "roi", "подписк", "расход", "трат", "прибыл", "убыт", "mrr", "выручк"],
+        "keywords": ["амара", "бухгалтер", "финанс", "деньги", "бюджет", "отчёт", "p&l", "roi", "подписк", "подписок", "расход", "трат", "прибыл", "убыт", "mrr", "выручк"],
+    },
+    "smm": {
+        "name": "Юки",
+        "emoji": "📱",
+        "flag": "🇰🇷",
+        "title": "SMM",
+        "keywords": ["юки", "smm", "пост", "контент", "linkedin", "публикац", "генерац", "статья", "копирайт", "текст для", "опубликуй", "напиши пост"],
     },
     "automator": {
         "name": "Нирадж",
@@ -245,14 +252,14 @@ def main():
     # Tab 1: Chat
     with tab1:
         # Hint about addressing agents
-        st.caption("💡 Обращайтесь к агентам по имени: **Санторо**, **Амара**, **Нирадж** — или просто пишите, ответит CEO")
+        st.caption("💡 Обращайтесь к агентам по имени: **Санторо**, **Амара**, **Юки**, **Нирадж** — или просто пишите, ответит CEO")
 
         # Initialize chat history
         if "messages" not in st.session_state:
             st.session_state.messages = [
                 {
                     "role": "assistant",
-                    "content": "Ciao! 👋 Я Санторо — CEO AI-корпорации. Со мной в команде Амара (📊 финансы) и Нирадж (⚙️ техника). Обращайтесь к любому из нас по имени!",
+                    "content": "Ciao! 👋 Я Санторо — CEO AI-корпорации. Со мной в команде Амара (📊 финансы), Юки (📱 контент) и Нирадж (⚙️ техника). Обращайтесь к любому из нас по имени!",
                     "agent_key": "manager",
                     "agent_name": "Санторо",
                 }
@@ -332,33 +339,50 @@ railway variables set OPENROUTER_API_KEY=sk-or-v1-ваш-ключ
     with tab2:
         st.subheader("Команда агентов")
 
-        col1, col2, col3 = st.columns(3)
-
         agents_display = [
             {
                 "key": "manager",
+                "yaml": "manager",
                 "model": "Claude Sonnet 4",
                 "role": "CEO, координация, стратегия",
             },
             {
                 "key": "accountant",
+                "yaml": "accountant",
                 "model": "Claude 3.5 Haiku",
                 "role": "P&L, ROI, подписки, API бюджет",
             },
             {
+                "key": "smm",
+                "yaml": "yuki",
+                "model": "Llama 3.3 70B (free)",
+                "role": "Контент, LinkedIn, Self-Refine",
+            },
+            {
                 "key": "automator",
+                "yaml": "automator",
                 "model": "Claude Sonnet 4",
                 "role": "Интеграции, автоматизация, код",
             },
         ]
 
-        file_map = {"manager": "manager", "accountant": "accountant", "automator": "automator"}
+        cols = st.columns(len(agents_display))
 
         for i, agent in enumerate(agents_display):
-            with [col1, col2, col3][i]:
+            with cols[i]:
                 info = AGENTS[agent["key"]]
-                config = load_agent_config(file_map[agent["key"]])
+                config = load_agent_config(agent["yaml"])
 
+                # Use avatar image for Yuki if available
+                avatar_path = None
+                if agent["key"] == "smm":
+                    for p in ["/app/data/avatars/yuki.jpg", "data/avatars/yuki.jpg"]:
+                        if os.path.exists(p):
+                            avatar_path = p
+                            break
+
+                if avatar_path:
+                    st.image(avatar_path, width=80)
                 st.markdown(f"### {info['emoji']} {info['name']} ({info['title']}) {info['flag']}")
 
                 status = "ready" if api_ready else "pending"
@@ -401,6 +425,18 @@ railway variables set OPENROUTER_API_KEY=sk-or-v1-ваш-ключ
                 "agent": "accountant",
                 "description": "Подписчики, прогноз MRR, отток",
                 "method": "subscription_analysis",
+            },
+            {
+                "name": "✍️ Сгенерировать пост",
+                "agent": "smm",
+                "description": "Юки создаст пост для LinkedIn с Self-Refine",
+                "method": "generate_post",
+            },
+            {
+                "name": "🔗 Статус LinkedIn",
+                "agent": "smm",
+                "description": "Проверка токена, статистика генераций Юки",
+                "method": "linkedin_status",
             },
             {
                 "name": "🔧 Проверка систем",
@@ -459,7 +495,7 @@ railway variables set OPENROUTER_API_KEY=sk-or-v1-ваш-ключ
         api_cost = st.session_state.get('api_cost', 0.0)
 
         with col1:
-            st.metric("Агентов", "3")
+            st.metric("Агентов", "4")
         with col2:
             st.metric("Задач выполнено", tasks_completed)
         with col3:

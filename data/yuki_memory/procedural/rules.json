@@ -1,0 +1,35 @@
+{
+  "version": "1.0.0",
+  "created_at": "2026-02-04T04:22:00Z",
+  "updated_at": "2026-02-04T04:22:00Z",
+  "rules": [
+    {
+      "id": "r001",
+      "category": "structure",
+      "rule": "Каждый пост должен содержать 6 элементов: крючок, проблема, история, инсайт, решение, вывод",
+      "source": "baseline",
+      "confidence": 1.0
+    },
+    {
+      "id": "r002",
+      "category": "tone",
+      "rule": "Говорить прямо и уверенно, без воды и лозунгов",
+      "source": "baseline",
+      "confidence": 1.0
+    },
+    {
+      "id": "r003",
+      "category": "content",
+      "rule": "Использовать конкретные цифры и примеры из практики",
+      "source": "baseline",
+      "confidence": 1.0
+    },
+    {
+      "id": "r004",
+      "category": "forbidden",
+      "rule": "Избегать фраз: 'попробуйте', 'возможно', 'верьте в себя', 'каждый человек уникален'",
+      "source": "baseline",
+      "confidence": 1.0
+    }
+  ]
+}

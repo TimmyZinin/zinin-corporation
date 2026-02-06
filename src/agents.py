@@ -96,6 +96,40 @@ def create_accountant_agent() -> Optional[Agent]:
         return None
 
 
+def create_smm_agent() -> Optional[Agent]:
+    """Create the SMM (Yuki) agent with content tools"""
+    config = load_agent_config("yuki")
+    if not config:
+        print("ERROR: yuki.yaml not found")
+        return None
+
+    try:
+        from .tools.smm_tools import ContentGenerator, YukiMemory, LinkedInPublisherTool
+        tools = [ContentGenerator(), YukiMemory(), LinkedInPublisherTool()]
+    except Exception as e:
+        print(f"WARNING: Could not load smm tools: {e}")
+        tools = []
+
+    try:
+        model = config.get("llm", "openrouter/meta-llama/llama-3.3-70b-instruct:free")
+        llm = create_llm(model)
+        return Agent(
+            role=config.get("role", "SMM-менеджер Юки"),
+            goal=config.get("goal", "Создавать высококачественный контент"),
+            backstory=config.get("backstory", "Ты — Юки, SMM-менеджер AI-корпорации"),
+            llm=llm,
+            tools=tools,
+            verbose=True,
+            memory=False,
+            allow_delegation=False,
+            max_iter=10,
+        )
+    except Exception as e:
+        print(f"ERROR creating smm agent: {e}")
+        traceback.print_exc()
+        return None
+
+
 def create_automator_agent() -> Optional[Agent]:
     """Create the Automator (Niraj) agent with tech tools"""
     config = load_agent_config("automator")

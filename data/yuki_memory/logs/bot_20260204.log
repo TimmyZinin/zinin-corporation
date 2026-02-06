@@ -1,0 +1,573 @@
+2026-02-04 05:00:47,489 [INFO] 🔑 GROQ_API_KEY: НЕ УСТАНОВЛЕН!
+2026-02-04 05:00:47,489 [INFO] 🔑 OPENROUTER_API_KEY: НЕ УСТАНОВЛЕН
+2026-02-04 05:00:47,489 [INFO] 🔑 ANTHROPIC_API_KEY: НЕ УСТАНОВЛЕН
+2026-02-04 05:00:47,489 [INFO] 🔑 GEMINI_API_KEY: НЕ УСТАНОВЛЕН
+2026-02-04 05:00:47,489 [INFO] 🖼️ Картинки через OpenRouter: НЕТ
+2026-02-04 05:00:47,489 [INFO] 🎛️ Inline Keyboards: ДА
+2026-02-04 05:00:47,489 [INFO] 📊 Dashboard API: НЕТ
+2026-02-04 05:00:47,489 [INFO] 🧠 Memory System: ДА
+2026-02-04 05:02:42,742 [INFO] 🔑 GROQ_API_KEY: НЕ УСТАНОВЛЕН!
+2026-02-04 05:02:42,743 [INFO] 🔑 OPENROUTER_API_KEY: НЕ УСТАНОВЛЕН
+2026-02-04 05:02:42,743 [INFO] 🔑 ANTHROPIC_API_KEY: НЕ УСТАНОВЛЕН
+2026-02-04 05:02:42,743 [INFO] 🔑 GEMINI_API_KEY: НЕ УСТАНОВЛЕН
+2026-02-04 05:02:42,743 [INFO] 🖼️ Картинки через OpenRouter: НЕТ
+2026-02-04 05:02:42,743 [INFO] 🎛️ Inline Keyboards: ДА
+2026-02-04 05:02:42,743 [INFO] 📊 Dashboard API: ДА
+2026-02-04 05:02:42,743 [INFO] 🧠 Memory System: ДА
+2026-02-04 05:03:50,622 [INFO] 🔑 GROQ_API_KEY: НЕ УСТАНОВЛЕН!
+2026-02-04 05:03:50,623 [INFO] 🔑 OPENROUTER_API_KEY: НЕ УСТАНОВЛЕН
+2026-02-04 05:03:50,623 [INFO] 🔑 ANTHROPIC_API_KEY: НЕ УСТАНОВЛЕН
+2026-02-04 05:03:50,623 [INFO] 🔑 GEMINI_API_KEY: НЕ УСТАНОВЛЕН
+2026-02-04 05:03:50,624 [INFO] 🖼️ Картинки через OpenRouter: НЕТ
+2026-02-04 05:03:50,624 [INFO] 🎛️ Inline Keyboards: ДА
+2026-02-04 05:03:50,624 [INFO] 📊 Dashboard API: ДА
+2026-02-04 05:03:50,624 [INFO] 🧠 Memory System: ДА
+2026-02-04 05:03:50,626 [INFO] ✅ CallbackHandler инициализирован
+2026-02-04 05:03:50,627 [INFO] ✅ Dashboard API подключён
+2026-02-04 05:03:50,627 [INFO] ✅ Memory Manager инициализирован
+2026-02-04 12:24:38,893 [INFO] 🔑 GROQ_API_KEY: НЕ УСТАНОВЛЕН!
+2026-02-04 12:24:38,894 [INFO] 🔑 OPENROUTER_API_KEY: НЕ УСТАНОВЛЕН
+2026-02-04 12:24:38,894 [INFO] 🔑 ANTHROPIC_API_KEY: НЕ УСТАНОВЛЕН
+2026-02-04 12:24:38,894 [INFO] 🔑 GEMINI_API_KEY: НЕ УСТАНОВЛЕН
+2026-02-04 12:24:38,895 [INFO] 🖼️ Картинки через OpenRouter: НЕТ
+2026-02-04 12:24:38,895 [INFO] 🎛️ Inline Keyboards: ДА
+2026-02-04 12:24:38,895 [INFO] 📊 Dashboard API: ДА
+2026-02-04 12:24:38,895 [INFO] 🧠 Memory System: ДА
+2026-02-04 12:24:38,895 [INFO] ✨ Self-Refine: ДА
+2026-02-04 12:24:38,895 [INFO] 🔄 Reflexion: ДА
+2026-02-04 12:24:38,895 [INFO] 📝 Prompt Manager: ДА
+2026-02-04 12:24:38,900 [INFO] === СБОРКА SMM Bot v5.0 ===
+2026-02-04 12:24:38,900 [INFO] Build: 2026-02-04 (+ Self-Refine + Reflexion)
+2026-02-04 12:24:38,903 [INFO] ✅ CallbackHandler инициализирован
+2026-02-04 12:24:38,904 [INFO] ✅ Dashboard API подключён
+2026-02-04 12:24:38,904 [INFO] ✅ Memory Manager инициализирован
+2026-02-04 12:24:39,221 [INFO] ✅ Webhook удалён, готов к polling
+2026-02-04 12:24:39,221 [INFO] 🚀 СБОРКА SMM Bot запущен
+2026-02-04 12:24:39,517 [INFO] ✅ Сообщение отправлено в -5218185060
+2026-02-04 12:24:39,738 [INFO] 📩 @timzinin: /пост О влиянии жизни в Каше в Турции на карьеру в...
+2026-02-04 12:24:40,043 [INFO] Генерирую пост: О влиянии жизни в Каше в Турции на карьеру владельца франшизы для LinkedIn от Кристина Жукова
+2026-02-04 12:24:40,043 [INFO] 🚀 Генерация поста: тема='О влиянии жизни в Каше в Турции на карьеру владельца франшизы', автор='Кристина Жукова'
+2026-02-04 12:24:40,043 [INFO] ℹ️ OPENROUTER_API_KEY не настроен, пропускаю
+2026-02-04 12:24:40,043 [INFO] ℹ️ GROQ_API_KEY не настроен, пропускаю
+2026-02-04 12:24:40,043 [INFO] ℹ️ ANTHROPIC_API_KEY не настроен, пропускаю
+2026-02-04 12:24:40,043 [WARNING] 🔴 Все API недоступны, использую шаблон!
+2026-02-04 12:24:40,043 [INFO] ✨ Запускаю Self-Refine...
+2026-02-04 12:24:40,044 [WARNING] ⚠️ Нет API ключа для Self-Refine, будет использована только rule-based критика
+2026-02-04 12:24:40,044 [INFO] 🔄 Self-Refine: начинаю улучшение контента (threshold=0.8)
+2026-02-04 12:24:40,044 [INFO]    Итерация 1: score=0.85, passed=True
+2026-02-04 12:24:40,044 [INFO] ✅ Self-Refine: контент прошёл проверку за 1 итераций
+2026-02-04 12:24:40,044 [INFO] ✅ Self-Refine: 1 итераций, score=0.85
+2026-02-04 12:24:40,044 [INFO] ℹ️ OPENROUTER_API_KEY не настроен, картинка не будет сгенерирована
+2026-02-04 12:24:40,475 [INFO] ✅ Пост создан в Dashboard: id=10
+2026-02-04 12:24:40,894 [INFO] ✅ Сообщение с keyboard отправлено в 64242118
+2026-02-04 12:25:22,969 [ERROR] HTTP Error 409: {"ok":false,"error_code":409,"description":"Conflict: terminated by other getUpdates request; make sure that only one bot instance is running"}
+2026-02-04 12:25:22,973 [WARNING] ⚠️ Конфликт 409 — другой инстанс бота. Жду 5 сек и сбрасываю webhook...
+2026-02-04 12:25:28,267 [INFO] ✅ Webhook удалён, готов к polling
+2026-02-04 12:26:30,171 [INFO] 📩 @timzinin: /пост О красивых видах природы...
+2026-02-04 12:26:30,478 [INFO] Генерирую пост: О красивых видах природы для LinkedIn от Кристина Жукова
+2026-02-04 12:26:30,479 [INFO] 🚀 Генерация поста: тема='О красивых видах природы', автор='Кристина Жукова'
+2026-02-04 12:26:30,479 [INFO] ℹ️ OPENROUTER_API_KEY не настроен, пропускаю
+2026-02-04 12:26:30,480 [INFO] ℹ️ GROQ_API_KEY не настроен, пропускаю
+2026-02-04 12:26:30,481 [INFO] ℹ️ ANTHROPIC_API_KEY не настроен, пропускаю
+2026-02-04 12:26:30,481 [WARNING] 🔴 Все API недоступны, использую шаблон!
+2026-02-04 12:26:30,482 [INFO] ✨ Запускаю Self-Refine...
+2026-02-04 12:26:30,483 [INFO] 🔄 Self-Refine: начинаю улучшение контента (threshold=0.8)
+2026-02-04 12:26:30,486 [INFO]    Итерация 1: score=0.76, passed=False
+2026-02-04 12:26:30,489 [INFO]    Итерация 2: score=0.76, passed=False
+2026-02-04 12:26:30,489 [INFO]    Итерация 3: score=0.76, passed=False
+2026-02-04 12:26:30,489 [INFO] ⚠️ Self-Refine: достигнут лимит итераций, final_score=0.76
+2026-02-04 12:26:30,489 [INFO] ✅ Self-Refine: 3 итераций, score=0.76
+2026-02-04 12:26:30,489 [INFO] ℹ️ OPENROUTER_API_KEY не настроен, картинка не будет сгенерирована
+2026-02-04 12:26:30,941 [INFO] ✅ Пост создан в Dashboard: id=11
+2026-02-04 12:26:31,205 [INFO] ✅ Сообщение с keyboard отправлено в -5218185060
+2026-02-04 12:26:54,420 [INFO] 📲 Callback от @timzinin: reject:11
+2026-02-04 12:26:58,259 [INFO] 📲 Callback от @timzinin: reject_reason:other:11
+2026-02-04 12:26:58,479 [INFO] ❌ Пост #11 отклонён пользователем 64242118, причина: other
+2026-02-04 12:27:14,100 [INFO] 📩 @timzinin: /пост о машинах...
+2026-02-04 12:27:14,508 [INFO] Генерирую пост: о машинах для LinkedIn от Кристина Жукова
+2026-02-04 12:27:14,508 [INFO] 🚀 Генерация поста: тема='о машинах', автор='Кристина Жукова'
+2026-02-04 12:27:14,508 [INFO] ℹ️ OPENROUTER_API_KEY не настроен, пропускаю
+2026-02-04 12:27:14,508 [INFO] ℹ️ GROQ_API_KEY не настроен, пропускаю
+2026-02-04 12:27:14,508 [INFO] ℹ️ ANTHROPIC_API_KEY не настроен, пропускаю
+2026-02-04 12:27:14,508 [WARNING] 🔴 Все API недоступны, использую шаблон!
+2026-02-04 12:27:14,508 [INFO] ✨ Запускаю Self-Refine...
+2026-02-04 12:27:14,508 [INFO] 🔄 Self-Refine: начинаю улучшение контента (threshold=0.8)
+2026-02-04 12:27:14,509 [INFO]    Итерация 1: score=0.76, passed=False
+2026-02-04 12:27:14,509 [INFO]    Итерация 2: score=0.76, passed=False
+2026-02-04 12:27:14,509 [INFO]    Итерация 3: score=0.76, passed=False
+2026-02-04 12:27:14,509 [INFO] ⚠️ Self-Refine: достигнут лимит итераций, final_score=0.76
+2026-02-04 12:27:14,509 [INFO] ✅ Self-Refine: 3 итераций, score=0.76
+2026-02-04 12:27:14,509 [INFO] ℹ️ OPENROUTER_API_KEY не настроен, картинка не будет сгенерирована
+2026-02-04 12:27:14,538 [INFO] ✅ Пост создан в Dashboard: id=12
+2026-02-04 12:27:14,838 [INFO] ✅ Сообщение с keyboard отправлено в -5218185060
+2026-02-04 12:27:22,489 [INFO] 📲 Callback от @timzinin: edit:12
+2026-02-04 12:27:23,423 [INFO] ✅ Сообщение отправлено в -5218185060
+2026-02-04 12:28:19,779 [ERROR] HTTP Error 409: {"ok":false,"error_code":409,"description":"Conflict: terminated by other getUpdates request; make sure that only one bot instance is running"}
+2026-02-04 12:28:19,782 [WARNING] ⚠️ Конфликт 409 — другой инстанс бота. Жду 5 сек и сбрасываю webhook...
+2026-02-04 12:28:25,074 [INFO] ✅ Webhook удалён, готов к polling
+2026-02-04 12:28:39,996 [ERROR] HTTP Error 409: {"ok":false,"error_code":409,"description":"Conflict: terminated by other getUpdates request; make sure that only one bot instance is running"}
+2026-02-04 12:28:39,997 [ERROR] ❌ Конфликт 409 сохраняется. Возможно, другой бот работает.
+2026-02-04 12:29:09,122 [INFO] Получен сигнал остановки...
+2026-02-04 12:29:10,584 [INFO] Бот остановлен
+2026-02-04 12:29:11,161 [INFO] ✅ Сообщение отправлено в -5218185060
+2026-02-04 12:31:07,512 [INFO] 🔑 GROQ_API_KEY: НЕ УСТАНОВЛЕН!
+2026-02-04 12:31:07,513 [INFO] 🔑 OPENROUTER_API_KEY: НЕ УСТАНОВЛЕН
+2026-02-04 12:31:07,513 [INFO] 🔑 ANTHROPIC_API_KEY: НЕ УСТАНОВЛЕН
+2026-02-04 12:31:07,513 [INFO] 🔑 GEMINI_API_KEY: НЕ УСТАНОВЛЕН
+2026-02-04 12:31:07,513 [INFO] 🖼️ Картинки через OpenRouter: НЕТ
+2026-02-04 12:31:07,513 [INFO] 🎛️ Inline Keyboards: ДА
+2026-02-04 12:31:07,513 [INFO] 📊 Dashboard API: ДА
+2026-02-04 12:31:07,513 [INFO] 🧠 Memory System: ДА
+2026-02-04 12:31:07,513 [INFO] ✨ Self-Refine: ДА
+2026-02-04 12:31:07,513 [INFO] 🔄 Reflexion: ДА
+2026-02-04 12:31:07,513 [INFO] 📝 Prompt Manager: ДА
+2026-02-04 12:31:07,515 [INFO] === СБОРКА SMM Bot v5.0 ===
+2026-02-04 12:31:07,515 [INFO] Build: 2026-02-04 (+ Self-Refine + Reflexion)
+2026-02-04 12:31:07,518 [INFO] ✅ CallbackHandler инициализирован
+2026-02-04 12:31:07,518 [INFO] ✅ Dashboard API подключён
+2026-02-04 12:31:07,518 [INFO] ✅ Memory Manager инициализирован
+2026-02-04 12:31:07,895 [INFO] ✅ Webhook удалён, готов к polling
+2026-02-04 12:31:07,895 [INFO] 🚀 СБОРКА SMM Bot запущен
+2026-02-04 12:31:08,178 [INFO] ✅ Сообщение отправлено в -5218185060
+2026-02-04 12:33:07,376 [INFO] Получен сигнал остановки...
+2026-02-04 12:33:09,740 [INFO] Бот остановлен
+2026-02-04 12:33:10,274 [INFO] ✅ Сообщение отправлено в -5218185060
+2026-02-04 12:41:44,765 [INFO] 🔑 GROQ_API_KEY: установлен (gsk_N2NtI7...)
+2026-02-04 12:41:44,768 [INFO] 🔑 OPENROUTER_API_KEY: установлен (sk-or-v1-0...)
+2026-02-04 12:41:44,768 [INFO] 🔑 ANTHROPIC_API_KEY: НЕ УСТАНОВЛЕН
+2026-02-04 12:41:44,768 [INFO] 🔑 GEMINI_API_KEY: НЕ УСТАНОВЛЕН
+2026-02-04 12:41:44,768 [INFO] 🖼️ Картинки через OpenRouter: ДА
+2026-02-04 12:41:44,768 [INFO] 🎛️ Inline Keyboards: ДА
+2026-02-04 12:41:44,768 [INFO] 📊 Dashboard API: ДА
+2026-02-04 12:41:44,768 [INFO] 🧠 Memory System: ДА
+2026-02-04 12:41:44,768 [INFO] ✨ Self-Refine: ДА
+2026-02-04 12:41:44,768 [INFO] 🔄 Reflexion: ДА
+2026-02-04 12:41:44,768 [INFO] 📝 Prompt Manager: ДА
+2026-02-04 12:41:44,772 [INFO] === СБОРКА SMM Bot v5.0 ===
+2026-02-04 12:41:44,772 [INFO] Build: 2026-02-04 (+ Self-Refine + Reflexion)
+2026-02-04 12:41:44,774 [INFO] ✅ CallbackHandler инициализирован
+2026-02-04 12:41:44,774 [INFO] ✅ Dashboard API подключён
+2026-02-04 12:41:44,774 [INFO] ✅ Memory Manager инициализирован
+2026-02-04 12:41:45,098 [ERROR] URL Error: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: self-signed certificate in certificate chain (_ssl.c:1035)
+2026-02-04 12:41:45,098 [INFO] 🚀 СБОРКА SMM Bot запущен
+2026-02-04 12:41:45,260 [ERROR] URL Error: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: self-signed certificate in certificate chain (_ssl.c:1035)
+2026-02-04 12:41:45,260 [ERROR] ❌ Ошибка отправки: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: self-signed certificate in certificate chain (_ssl.c:1035)
+2026-02-04 12:41:45,500 [ERROR] URL Error: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: self-signed certificate in certificate chain (_ssl.c:1035)
+2026-02-04 12:41:45,745 [ERROR] URL Error: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: self-signed certificate in certificate chain (_ssl.c:1035)
+2026-02-04 12:41:45,928 [ERROR] URL Error: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: self-signed certificate in certificate chain (_ssl.c:1035)
+2026-02-04 12:41:46,156 [ERROR] URL Error: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: self-signed certificate in certificate chain (_ssl.c:1035)
+2026-02-04 12:41:46,297 [ERROR] URL Error: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: self-signed certificate in certificate chain (_ssl.c:1035)
+2026-02-04 12:41:46,533 [ERROR] URL Error: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: self-signed certificate in certificate chain (_ssl.c:1035)
+2026-02-04 12:41:46,700 [ERROR] URL Error: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: self-signed certificate in certificate chain (_ssl.c:1035)
+2026-02-04 12:41:46,881 [ERROR] URL Error: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: self-signed certificate in certificate chain (_ssl.c:1035)
+2026-02-04 12:41:47,139 [ERROR] URL Error: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: self-signed certificate in certificate chain (_ssl.c:1035)
+2026-02-04 12:41:47,334 [ERROR] URL Error: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: self-signed certificate in certificate chain (_ssl.c:1035)
+2026-02-04 12:41:47,592 [ERROR] URL Error: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: self-signed certificate in certificate chain (_ssl.c:1035)
+2026-02-04 12:41:47,934 [ERROR] URL Error: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: self-signed certificate in certificate chain (_ssl.c:1035)
+2026-02-04 12:41:48,632 [ERROR] URL Error: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: self-signed certificate in certificate chain (_ssl.c:1035)
+2026-02-04 12:41:48,886 [ERROR] URL Error: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: self-signed certificate in certificate chain (_ssl.c:1035)
+2026-02-04 12:41:49,078 [ERROR] URL Error: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: self-signed certificate in certificate chain (_ssl.c:1035)
+2026-02-04 12:41:49,298 [ERROR] URL Error: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: self-signed certificate in certificate chain (_ssl.c:1035)
+2026-02-04 12:41:49,506 [ERROR] URL Error: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: self-signed certificate in certificate chain (_ssl.c:1035)
+2026-02-04 12:41:49,773 [ERROR] URL Error: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: self-signed certificate in certificate chain (_ssl.c:1035)
+2026-02-04 12:41:50,940 [ERROR] URL Error: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: self-signed certificate in certificate chain (_ssl.c:1035)
+2026-02-04 12:41:51,186 [ERROR] URL Error: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: self-signed certificate in certificate chain (_ssl.c:1035)
+2026-02-04 12:41:51,352 [ERROR] URL Error: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: self-signed certificate in certificate chain (_ssl.c:1035)
+2026-02-04 12:41:51,559 [ERROR] URL Error: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: self-signed certificate in certificate chain (_ssl.c:1035)
+2026-02-04 12:41:51,780 [ERROR] URL Error: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: self-signed certificate in certificate chain (_ssl.c:1035)
+2026-02-04 12:41:51,945 [ERROR] URL Error: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: self-signed certificate in certificate chain (_ssl.c:1035)
+2026-02-04 12:41:52,102 [ERROR] URL Error: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: self-signed certificate in certificate chain (_ssl.c:1035)
+2026-02-04 12:41:52,429 [ERROR] URL Error: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: self-signed certificate in certificate chain (_ssl.c:1035)
+2026-02-04 12:41:52,586 [ERROR] URL Error: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: self-signed certificate in certificate chain (_ssl.c:1035)
+2026-02-04 12:41:52,820 [ERROR] URL Error: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: self-signed certificate in certificate chain (_ssl.c:1035)
+2026-02-04 12:41:52,971 [ERROR] URL Error: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: self-signed certificate in certificate chain (_ssl.c:1035)
+2026-02-04 12:41:53,121 [ERROR] URL Error: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: self-signed certificate in certificate chain (_ssl.c:1035)
+2026-02-04 12:41:53,521 [ERROR] URL Error: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: self-signed certificate in certificate chain (_ssl.c:1035)
+2026-02-04 12:41:54,959 [ERROR] URL Error: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: self-signed certificate in certificate chain (_ssl.c:1035)
+2026-02-04 12:41:55,132 [ERROR] URL Error: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: self-signed certificate in certificate chain (_ssl.c:1035)
+2026-02-04 12:41:55,269 [ERROR] URL Error: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: self-signed certificate in certificate chain (_ssl.c:1035)
+2026-02-04 12:41:55,521 [ERROR] URL Error: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: self-signed certificate in certificate chain (_ssl.c:1035)
+2026-02-04 12:41:55,674 [ERROR] URL Error: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: self-signed certificate in certificate chain (_ssl.c:1035)
+2026-02-04 12:41:55,978 [ERROR] URL Error: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: self-signed certificate in certificate chain (_ssl.c:1035)
+2026-02-04 12:41:56,163 [ERROR] URL Error: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: self-signed certificate in certificate chain (_ssl.c:1035)
+2026-02-04 12:41:56,685 [ERROR] URL Error: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: self-signed certificate in certificate chain (_ssl.c:1035)
+2026-02-04 12:41:56,940 [ERROR] URL Error: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: self-signed certificate in certificate chain (_ssl.c:1035)
+2026-02-04 12:41:57,107 [ERROR] URL Error: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: self-signed certificate in certificate chain (_ssl.c:1035)
+2026-02-04 12:41:57,363 [ERROR] URL Error: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: self-signed certificate in certificate chain (_ssl.c:1035)
+2026-02-04 12:41:58,744 [ERROR] URL Error: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: self-signed certificate in certificate chain (_ssl.c:1035)
+2026-02-04 12:41:58,907 [ERROR] URL Error: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: self-signed certificate in certificate chain (_ssl.c:1035)
+2026-02-04 12:42:01,357 [ERROR] URL Error: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: self-signed certificate in certificate chain (_ssl.c:1035)
+2026-02-04 12:42:01,531 [ERROR] URL Error: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: self-signed certificate in certificate chain (_ssl.c:1035)
+2026-02-04 12:42:01,744 [ERROR] URL Error: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: self-signed certificate in certificate chain (_ssl.c:1035)
+2026-02-04 12:42:01,890 [ERROR] URL Error: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: self-signed certificate in certificate chain (_ssl.c:1035)
+2026-02-04 12:42:02,278 [ERROR] URL Error: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: self-signed certificate in certificate chain (_ssl.c:1035)
+2026-02-04 12:42:04,436 [ERROR] URL Error: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: self-signed certificate in certificate chain (_ssl.c:1035)
+2026-02-04 12:42:05,337 [ERROR] URL Error: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: self-signed certificate in certificate chain (_ssl.c:1035)
+2026-02-04 12:42:05,560 [ERROR] URL Error: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: self-signed certificate in certificate chain (_ssl.c:1035)
+2026-02-04 12:42:05,729 [ERROR] URL Error: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: self-signed certificate in certificate chain (_ssl.c:1035)
+2026-02-04 12:42:05,927 [ERROR] URL Error: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: self-signed certificate in certificate chain (_ssl.c:1035)
+2026-02-04 12:42:06,095 [ERROR] URL Error: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: self-signed certificate in certificate chain (_ssl.c:1035)
+2026-02-04 12:42:13,181 [INFO] 🔑 GROQ_API_KEY: установлен (gsk_N2NtI7...)
+2026-02-04 12:42:13,182 [INFO] 🔑 OPENROUTER_API_KEY: установлен (sk-or-v1-0...)
+2026-02-04 12:42:13,182 [INFO] 🔑 ANTHROPIC_API_KEY: НЕ УСТАНОВЛЕН
+2026-02-04 12:42:13,182 [INFO] 🔑 GEMINI_API_KEY: НЕ УСТАНОВЛЕН
+2026-02-04 12:42:13,182 [INFO] 🖼️ Картинки через OpenRouter: ДА
+2026-02-04 12:42:13,182 [INFO] 🎛️ Inline Keyboards: ДА
+2026-02-04 12:42:13,182 [INFO] 📊 Dashboard API: ДА
+2026-02-04 12:42:13,182 [INFO] 🧠 Memory System: ДА
+2026-02-04 12:42:13,182 [INFO] ✨ Self-Refine: ДА
+2026-02-04 12:42:13,182 [INFO] 🔄 Reflexion: ДА
+2026-02-04 12:42:13,182 [INFO] 📝 Prompt Manager: ДА
+2026-02-04 12:42:13,184 [INFO] === СБОРКА SMM Bot v5.0 ===
+2026-02-04 12:42:13,184 [INFO] Build: 2026-02-04 (+ Self-Refine + Reflexion)
+2026-02-04 12:42:13,186 [INFO] ✅ CallbackHandler инициализирован
+2026-02-04 12:42:13,186 [INFO] ✅ Dashboard API подключён
+2026-02-04 12:42:13,186 [INFO] ✅ Memory Manager инициализирован
+2026-02-04 12:42:14,001 [ERROR] URL Error: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: self-signed certificate in certificate chain (_ssl.c:1081)
+2026-02-04 12:42:14,005 [INFO] 🚀 СБОРКА SMM Bot запущен
+2026-02-04 12:42:14,312 [ERROR] URL Error: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: self-signed certificate in certificate chain (_ssl.c:1081)
+2026-02-04 12:42:14,312 [ERROR] ❌ Ошибка отправки: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: self-signed certificate in certificate chain (_ssl.c:1081)
+2026-02-04 12:42:14,470 [ERROR] URL Error: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: self-signed certificate in certificate chain (_ssl.c:1081)
+2026-02-04 12:42:14,614 [ERROR] URL Error: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: self-signed certificate in certificate chain (_ssl.c:1081)
+2026-02-04 12:42:16,455 [ERROR] URL Error: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: self-signed certificate in certificate chain (_ssl.c:1081)
+2026-02-04 12:42:16,868 [ERROR] URL Error: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: self-signed certificate in certificate chain (_ssl.c:1081)
+2026-02-04 12:42:17,030 [ERROR] URL Error: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: self-signed certificate in certificate chain (_ssl.c:1081)
+2026-02-04 12:42:17,389 [ERROR] URL Error: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: self-signed certificate in certificate chain (_ssl.c:1081)
+2026-02-04 12:42:18,156 [ERROR] URL Error: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: self-signed certificate in certificate chain (_ssl.c:1081)
+2026-02-04 12:42:18,518 [ERROR] URL Error: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: self-signed certificate in certificate chain (_ssl.c:1081)
+2026-02-04 12:42:18,647 [ERROR] URL Error: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: self-signed certificate in certificate chain (_ssl.c:1081)
+2026-02-04 12:42:18,961 [ERROR] URL Error: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: self-signed certificate in certificate chain (_ssl.c:1081)
+2026-02-04 12:42:19,118 [ERROR] URL Error: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: self-signed certificate in certificate chain (_ssl.c:1081)
+2026-02-04 12:42:20,402 [ERROR] URL Error: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: self-signed certificate in certificate chain (_ssl.c:1081)
+2026-02-04 12:42:20,710 [ERROR] URL Error: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: self-signed certificate in certificate chain (_ssl.c:1081)
+2026-02-04 12:42:20,861 [ERROR] URL Error: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: self-signed certificate in certificate chain (_ssl.c:1081)
+2026-02-04 12:42:21,055 [ERROR] URL Error: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: self-signed certificate in certificate chain (_ssl.c:1081)
+2026-02-04 12:42:21,226 [ERROR] URL Error: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: self-signed certificate in certificate chain (_ssl.c:1081)
+2026-02-04 12:42:21,374 [ERROR] URL Error: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: self-signed certificate in certificate chain (_ssl.c:1081)
+2026-02-04 12:42:21,752 [ERROR] URL Error: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: self-signed certificate in certificate chain (_ssl.c:1081)
+2026-02-04 12:42:21,918 [ERROR] URL Error: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: self-signed certificate in certificate chain (_ssl.c:1081)
+2026-02-04 12:42:22,228 [ERROR] URL Error: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: self-signed certificate in certificate chain (_ssl.c:1081)
+2026-02-04 12:42:22,429 [ERROR] URL Error: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: self-signed certificate in certificate chain (_ssl.c:1081)
+2026-02-04 12:42:22,632 [ERROR] URL Error: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: self-signed certificate in certificate chain (_ssl.c:1081)
+2026-02-04 12:42:22,798 [ERROR] URL Error: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: self-signed certificate in certificate chain (_ssl.c:1081)
+2026-02-04 12:42:22,947 [ERROR] URL Error: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: self-signed certificate in certificate chain (_ssl.c:1081)
+2026-02-04 12:42:23,153 [ERROR] URL Error: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: self-signed certificate in certificate chain (_ssl.c:1081)
+2026-02-04 12:42:23,342 [ERROR] URL Error: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: self-signed certificate in certificate chain (_ssl.c:1081)
+2026-02-04 12:42:23,529 [ERROR] URL Error: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: self-signed certificate in certificate chain (_ssl.c:1081)
+2026-02-04 12:42:23,777 [ERROR] URL Error: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: self-signed certificate in certificate chain (_ssl.c:1081)
+2026-02-04 12:42:23,957 [ERROR] URL Error: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: self-signed certificate in certificate chain (_ssl.c:1081)
+2026-02-04 12:42:24,203 [ERROR] URL Error: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: self-signed certificate in certificate chain (_ssl.c:1081)
+2026-02-04 12:42:24,733 [ERROR] URL Error: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: self-signed certificate in certificate chain (_ssl.c:1081)
+2026-02-04 12:42:24,890 [ERROR] URL Error: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: self-signed certificate in certificate chain (_ssl.c:1081)
+2026-02-04 12:42:25,043 [ERROR] URL Error: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: self-signed certificate in certificate chain (_ssl.c:1081)
+2026-02-04 12:42:25,252 [ERROR] URL Error: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: self-signed certificate in certificate chain (_ssl.c:1081)
+2026-02-04 12:42:25,398 [ERROR] URL Error: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: self-signed certificate in certificate chain (_ssl.c:1081)
+2026-02-04 12:44:00,662 [INFO] 🔑 GROQ_API_KEY: установлен (gsk_N2NtI7...)
+2026-02-04 12:44:00,663 [INFO] 🔑 OPENROUTER_API_KEY: установлен (sk-or-v1-0...)
+2026-02-04 12:44:00,663 [INFO] 🔑 ANTHROPIC_API_KEY: НЕ УСТАНОВЛЕН
+2026-02-04 12:44:00,663 [INFO] 🔑 GEMINI_API_KEY: НЕ УСТАНОВЛЕН
+2026-02-04 12:44:00,663 [INFO] 🖼️ Картинки через OpenRouter: ДА
+2026-02-04 12:44:00,663 [INFO] 🎛️ Inline Keyboards: ДА
+2026-02-04 12:44:00,663 [INFO] 📊 Dashboard API: ДА
+2026-02-04 12:44:00,663 [INFO] 🧠 Memory System: ДА
+2026-02-04 12:44:00,663 [INFO] ✨ Self-Refine: ДА
+2026-02-04 12:44:00,663 [INFO] 🔄 Reflexion: ДА
+2026-02-04 12:44:00,663 [INFO] 📝 Prompt Manager: ДА
+2026-02-04 12:44:00,665 [INFO] === СБОРКА SMM Bot v5.0 ===
+2026-02-04 12:44:00,665 [INFO] Build: 2026-02-04 (+ Self-Refine + Reflexion)
+2026-02-04 12:44:00,668 [INFO] ✅ CallbackHandler инициализирован
+2026-02-04 12:44:00,668 [INFO] ✅ Dashboard API подключён
+2026-02-04 12:44:00,668 [INFO] ✅ Memory Manager инициализирован
+2026-02-04 12:44:01,049 [INFO] ✅ Webhook удалён, готов к polling
+2026-02-04 12:44:01,049 [INFO] 🚀 СБОРКА SMM Bot запущен
+2026-02-04 12:44:01,440 [INFO] ✅ Сообщение отправлено в -5218185060
+2026-02-04 12:44:01,732 [INFO] 📩 @timzinin: /пост О том как найти работу в Индонезии...
+2026-02-04 12:44:02,023 [INFO] Генерирую пост: О том как найти работу в Индонезии для LinkedIn от Кристина Жукова
+2026-02-04 12:44:02,023 [INFO] 🚀 Генерация поста: тема='О том как найти работу в Индонезии', автор='Кристина Жукова'
+2026-02-04 12:44:02,023 [INFO] 📡 Пробую OpenRouter API...
+2026-02-04 12:44:02,023 [INFO] 🔧 OpenRouter: пробую Llama 3.3 70B
+2026-02-04 12:44:02,466 [WARNING] ⚠️ OpenRouter Llama 3.3 70B HTTP 401: {"error":{"message":"User not found.","code":401}}
+2026-02-04 12:44:02,466 [INFO] 🔧 OpenRouter: пробую Llama 4 Scout
+2026-02-04 12:44:02,779 [WARNING] ⚠️ OpenRouter Llama 4 Scout HTTP 401: {"error":{"message":"User not found.","code":401}}
+2026-02-04 12:44:02,779 [ERROR] ❌ Все модели OpenRouter недоступны
+2026-02-04 12:44:02,779 [WARNING] ⚠️ OpenRouter вернул None
+2026-02-04 12:44:02,779 [INFO] 📡 Пробую Groq API...
+2026-02-04 12:44:02,779 [INFO] 🔧 _call_groq_model: model=llama-3.3-70b-versatile, GROQ_API_KEY=gsk_N2NtI7k9GOVbftEG...
+2026-02-04 12:44:03,069 [ERROR] Ошибка Groq API 70B: HTTP 401
+2026-02-04 12:44:03,069 [INFO] 🔧 _call_groq_model: model=llama-3.1-8b-instant, GROQ_API_KEY=gsk_N2NtI7k9GOVbftEG...
+2026-02-04 12:44:03,306 [ERROR] Ошибка Groq API 8B: HTTP 401
+2026-02-04 12:44:03,306 [ERROR] ❌ Все модели Groq недоступны
+2026-02-04 12:44:03,306 [WARNING] ⚠️ Groq вернул None
+2026-02-04 12:44:03,306 [INFO] ℹ️ ANTHROPIC_API_KEY не настроен, пропускаю
+2026-02-04 12:44:03,306 [WARNING] 🔴 Все API недоступны, использую шаблон!
+2026-02-04 12:44:03,306 [INFO] ✨ Запускаю Self-Refine...
+2026-02-04 12:44:03,307 [INFO] 🔄 Self-Refine: начинаю улучшение контента (threshold=0.8)
+2026-02-04 12:44:03,308 [INFO]    Итерация 1: score=0.76, passed=False
+2026-02-04 12:44:04,655 [ERROR] Ошибка LLM refine: HTTP Error 401: Unauthorized
+2026-02-04 12:44:04,660 [INFO]    Итерация 2: score=0.76, passed=False
+2026-02-04 12:44:04,766 [ERROR] Ошибка LLM refine: HTTP Error 401: Unauthorized
+2026-02-04 12:44:04,767 [INFO]    Итерация 3: score=0.76, passed=False
+2026-02-04 12:44:04,767 [INFO] ⚠️ Self-Refine: достигнут лимит итераций, final_score=0.76
+2026-02-04 12:44:04,767 [INFO] ✅ Self-Refine: 3 итераций, score=0.76
+2026-02-04 12:44:04,776 [INFO] 🎨 Генерирую картинку через OpenRouter: 'О том как найти работу в Индонезии'
+2026-02-04 12:44:04,776 [INFO] Отправляю запрос к OpenRouter Nano Banana (попытка 1)...
+2026-02-04 12:44:05,173 [ERROR] HTTP Error 401: {"error":{"message":"User not found.","code":401}}
+2026-02-04 12:44:05,173 [INFO] Повторная попытка через 1 сек...
+2026-02-04 12:44:06,179 [INFO] Отправляю запрос к OpenRouter Nano Banana (попытка 2)...
+2026-02-04 12:44:06,737 [ERROR] HTTP Error 401: {"error":{"message":"User not found.","code":401}}
+2026-02-04 12:44:06,738 [INFO] Повторная попытка через 2 сек...
+2026-02-04 12:44:08,748 [INFO] Отправляю запрос к OpenRouter Nano Banana (попытка 3)...
+2026-02-04 12:44:08,864 [ERROR] HTTP Error 401: {"error":{"message":"User not found.","code":401}}
+2026-02-04 12:44:08,864 [ERROR] Ошибка в ответе: HTTP Error 401: {"error":{"message":"User not found.","code":401}}
+2026-02-04 12:44:08,864 [WARNING] ⚠️ OpenRouter не вернул картинку
+2026-02-04 12:44:09,132 [INFO] ✅ Пост создан в Dashboard: id=13
+2026-02-04 12:44:09,634 [INFO] ✅ Сообщение с keyboard отправлено в 64242118
+2026-02-04 12:46:14,272 [INFO] Получен сигнал остановки...
+2026-02-04 12:46:21,692 [INFO] 🔑 GROQ_API_KEY: установлен (gsk_cot0tr...)
+2026-02-04 12:46:21,692 [INFO] 🔑 OPENROUTER_API_KEY: установлен (sk-or-v1-c...)
+2026-02-04 12:46:21,692 [INFO] 🔑 ANTHROPIC_API_KEY: НЕ УСТАНОВЛЕН
+2026-02-04 12:46:21,692 [INFO] 🔑 GEMINI_API_KEY: установлен (AIzaSyAHhd...)
+2026-02-04 12:46:21,692 [INFO] 🖼️ Картинки через OpenRouter: ДА
+2026-02-04 12:46:21,692 [INFO] 🎛️ Inline Keyboards: ДА
+2026-02-04 12:46:21,692 [INFO] 📊 Dashboard API: ДА
+2026-02-04 12:46:21,692 [INFO] 🧠 Memory System: ДА
+2026-02-04 12:46:21,692 [INFO] ✨ Self-Refine: ДА
+2026-02-04 12:46:21,692 [INFO] 🔄 Reflexion: ДА
+2026-02-04 12:46:21,692 [INFO] 📝 Prompt Manager: ДА
+2026-02-04 12:46:21,694 [INFO] === СБОРКА SMM Bot v5.0 ===
+2026-02-04 12:46:21,694 [INFO] Build: 2026-02-04 (+ Self-Refine + Reflexion)
+2026-02-04 12:46:21,696 [INFO] ✅ CallbackHandler инициализирован
+2026-02-04 12:46:21,696 [INFO] ✅ Dashboard API подключён
+2026-02-04 12:46:21,696 [INFO] ✅ Memory Manager инициализирован
+2026-02-04 12:46:21,696 [ERROR] ❌ Другой экземпляр бота уже запущен!
+2026-02-04 12:46:42,494 [INFO] 🔑 GROQ_API_KEY: установлен (gsk_cot0tr...)
+2026-02-04 12:46:42,495 [INFO] 🔑 OPENROUTER_API_KEY: установлен (sk-or-v1-c...)
+2026-02-04 12:46:42,495 [INFO] 🔑 ANTHROPIC_API_KEY: НЕ УСТАНОВЛЕН
+2026-02-04 12:46:42,495 [INFO] 🔑 GEMINI_API_KEY: установлен (AIzaSyAHhd...)
+2026-02-04 12:46:42,495 [INFO] 🖼️ Картинки через OpenRouter: ДА
+2026-02-04 12:46:42,495 [INFO] 🎛️ Inline Keyboards: ДА
+2026-02-04 12:46:42,495 [INFO] 📊 Dashboard API: ДА
+2026-02-04 12:46:42,495 [INFO] 🧠 Memory System: ДА
+2026-02-04 12:46:42,495 [INFO] ✨ Self-Refine: ДА
+2026-02-04 12:46:42,495 [INFO] 🔄 Reflexion: ДА
+2026-02-04 12:46:42,495 [INFO] 📝 Prompt Manager: ДА
+2026-02-04 12:46:42,496 [INFO] === СБОРКА SMM Bot v5.0 ===
+2026-02-04 12:46:42,497 [INFO] Build: 2026-02-04 (+ Self-Refine + Reflexion)
+2026-02-04 12:46:42,498 [INFO] ✅ CallbackHandler инициализирован
+2026-02-04 12:46:42,498 [INFO] ✅ Dashboard API подключён
+2026-02-04 12:46:42,498 [INFO] ✅ Memory Manager инициализирован
+2026-02-04 12:46:42,948 [INFO] ✅ Webhook удалён, готов к polling
+2026-02-04 12:46:42,948 [INFO] 🚀 СБОРКА SMM Bot запущен
+2026-02-04 12:46:43,275 [INFO] ✅ Сообщение отправлено в -5218185060
+2026-02-04 12:47:43,251 [INFO] 📩 @timzinin: /пост О том как лучше составить резюме...
+2026-02-04 12:47:43,600 [INFO] Генерирую пост: О том как лучше составить резюме для LinkedIn от Кристина Жукова
+2026-02-04 12:47:43,600 [INFO] 🚀 Генерация поста: тема='О том как лучше составить резюме', автор='Кристина Жукова'
+2026-02-04 12:47:43,600 [INFO] 📡 Пробую OpenRouter API...
+2026-02-04 12:47:43,601 [INFO] 🔧 OpenRouter: пробую Llama 3.3 70B
+2026-02-04 12:47:44,758 [WARNING] ⚠️ OpenRouter Llama 3.3 70B HTTP 429: {"error":{"message":"Provider returned error","code":429,"metadata":{"raw":"meta-llama/llama-3.3-70b-instruct:free is temporarily rate-limited upstream. Please retry shortly, or add your own key to ac
+2026-02-04 12:47:44,759 [INFO] 🔧 OpenRouter: пробую Llama 4 Scout
+2026-02-04 12:47:45,154 [WARNING] ⚠️ OpenRouter Llama 4 Scout HTTP 404: {"error":{"message":"No endpoints found for meta-llama/llama-4-scout:free.","code":404},"user_id":"user_2w2CBVYzrf4TO21Zkj6dhIpRn1M"}
+2026-02-04 12:47:45,154 [ERROR] ❌ Все модели OpenRouter недоступны
+2026-02-04 12:47:45,154 [WARNING] ⚠️ OpenRouter вернул None
+2026-02-04 12:47:45,154 [INFO] 📡 Пробую Groq API...
+2026-02-04 12:47:45,154 [INFO] 🔧 _call_groq_model: model=llama-3.3-70b-versatile, GROQ_API_KEY=gsk_cot0trGdFlIUqXNo...
+2026-02-04 12:47:45,307 [ERROR] Ошибка Groq API 70B: HTTP 401
+2026-02-04 12:47:45,307 [INFO] 🔧 _call_groq_model: model=llama-3.1-8b-instant, GROQ_API_KEY=gsk_cot0trGdFlIUqXNo...
+2026-02-04 12:47:45,457 [ERROR] Ошибка Groq API 8B: HTTP 401
+2026-02-04 12:47:45,457 [ERROR] ❌ Все модели Groq недоступны
+2026-02-04 12:47:45,457 [WARNING] ⚠️ Groq вернул None
+2026-02-04 12:47:45,457 [INFO] ℹ️ ANTHROPIC_API_KEY не настроен, пропускаю
+2026-02-04 12:47:45,457 [WARNING] 🔴 Все API недоступны, использую шаблон!
+2026-02-04 12:47:45,457 [INFO] ✨ Запускаю Self-Refine...
+2026-02-04 12:47:45,457 [INFO] 🔄 Self-Refine: начинаю улучшение контента (threshold=0.8)
+2026-02-04 12:47:45,459 [INFO]    Итерация 1: score=0.78, passed=False
+2026-02-04 12:47:46,828 [ERROR] Ошибка LLM refine: HTTP Error 429: Too Many Requests
+2026-02-04 12:47:46,830 [INFO]    Итерация 2: score=0.78, passed=False
+2026-02-04 12:47:47,355 [ERROR] Ошибка LLM refine: HTTP Error 429: Too Many Requests
+2026-02-04 12:47:47,355 [INFO]    Итерация 3: score=0.78, passed=False
+2026-02-04 12:47:47,355 [INFO] ⚠️ Self-Refine: достигнут лимит итераций, final_score=0.78
+2026-02-04 12:47:47,355 [INFO] ✅ Self-Refine: 3 итераций, score=0.78
+2026-02-04 12:47:47,358 [INFO] 🎨 Генерирую картинку через OpenRouter: 'О том как лучше составить резюме'
+2026-02-04 12:47:47,360 [INFO] Отправляю запрос к OpenRouter Nano Banana (попытка 1)...
+2026-02-04 12:47:54,618 [INFO] ✅ Ответ получен от OpenRouter
+2026-02-04 12:47:54,619 [INFO] ✅ Найдено изображение от OpenRouter
+2026-02-04 12:47:54,622 [INFO] ✅ Изображение сохранено: hottake_124754.png
+2026-02-04 12:47:54,622 [INFO] ✅ Картинка сгенерирована: hottake_124754.png
+2026-02-04 12:47:55,586 [INFO] ✅ Фото отправлено в 64242118
+2026-02-04 12:47:55,821 [INFO] ✅ Пост создан в Dashboard: id=14
+2026-02-04 12:47:56,103 [INFO] ✅ Сообщение с keyboard отправлено в 64242118
+2026-02-04 12:51:48,820 [INFO] 🔑 GROQ_API_KEY: НЕ УСТАНОВЛЕН!
+2026-02-04 12:51:48,820 [INFO] 🔑 OPENROUTER_API_KEY: НЕ УСТАНОВЛЕН
+2026-02-04 12:51:48,820 [INFO] 🔑 ANTHROPIC_API_KEY: НЕ УСТАНОВЛЕН
+2026-02-04 12:51:48,820 [INFO] 🔑 GEMINI_API_KEY: НЕ УСТАНОВЛЕН
+2026-02-04 12:51:48,820 [INFO] 🖼️ Картинки через OpenRouter: НЕТ
+2026-02-04 12:51:48,820 [INFO] 🎛️ Inline Keyboards: ДА
+2026-02-04 12:51:48,820 [INFO] 📊 Dashboard API: ДА
+2026-02-04 12:51:48,820 [INFO] 🧠 Memory System: ДА
+2026-02-04 12:51:48,820 [INFO] ✨ Self-Refine: ДА
+2026-02-04 12:51:48,820 [INFO] 🔄 Reflexion: ДА
+2026-02-04 12:51:48,820 [INFO] 📝 Prompt Manager: ДА
+2026-02-04 12:51:48,823 [INFO] === СБОРКА SMM Bot v5.0 ===
+2026-02-04 12:51:48,823 [INFO] Build: 2026-02-04 (+ Self-Refine + Reflexion)
+2026-02-04 12:51:48,825 [INFO] ✅ CallbackHandler инициализирован
+2026-02-04 12:51:48,825 [INFO] ✅ Dashboard API подключён
+2026-02-04 12:51:48,825 [INFO] ✅ Memory Manager инициализирован
+2026-02-04 12:51:49,061 [INFO] ✅ Webhook удалён, готов к polling
+2026-02-04 12:51:49,061 [INFO] 🚀 СБОРКА SMM Bot запущен
+2026-02-04 12:51:49,368 [INFO] ✅ Сообщение отправлено в -5218185060
+2026-02-04 12:53:23,230 [INFO] 🔑 GROQ_API_KEY: установлен (gsk_cot0tr...)
+2026-02-04 12:53:23,232 [INFO] 🔑 OPENROUTER_API_KEY: установлен (sk-or-v1-c...)
+2026-02-04 12:53:23,232 [INFO] 🔑 ANTHROPIC_API_KEY: НЕ УСТАНОВЛЕН
+2026-02-04 12:53:23,232 [INFO] 🔑 GEMINI_API_KEY: установлен (AIzaSyAHhd...)
+2026-02-04 12:53:23,232 [INFO] 🖼️ Картинки через OpenRouter: ДА
+2026-02-04 12:53:23,232 [INFO] 🎛️ Inline Keyboards: ДА
+2026-02-04 12:53:23,232 [INFO] 📊 Dashboard API: ДА
+2026-02-04 12:53:23,232 [INFO] 🧠 Memory System: ДА
+2026-02-04 12:53:23,232 [INFO] ✨ Self-Refine: ДА
+2026-02-04 12:53:23,232 [INFO] 🔄 Reflexion: ДА
+2026-02-04 12:53:23,232 [INFO] 📝 Prompt Manager: ДА
+2026-02-04 12:53:23,237 [INFO] === СБОРКА SMM Bot v5.0 ===
+2026-02-04 12:53:23,237 [INFO] Build: 2026-02-04 (+ Self-Refine + Reflexion)
+2026-02-04 12:53:23,249 [INFO] ✅ CallbackHandler инициализирован
+2026-02-04 12:53:23,249 [INFO] ✅ Dashboard API подключён
+2026-02-04 12:53:23,249 [INFO] ✅ Memory Manager инициализирован
+2026-02-04 12:53:23,838 [INFO] ✅ Webhook удалён, готов к polling
+2026-02-04 12:53:23,838 [INFO] 🚀 СБОРКА SMM Bot запущен
+2026-02-04 12:53:24,579 [INFO] ✅ Сообщение отправлено в -5218185060
+2026-02-04 12:56:01,629 [INFO] 🔑 GROQ_API_KEY: установлен (gsk_cot0tr...)
+2026-02-04 12:56:01,630 [INFO] 🔑 OPENROUTER_API_KEY: установлен (sk-or-v1-c...)
+2026-02-04 12:56:01,630 [INFO] 🔑 ANTHROPIC_API_KEY: НЕ УСТАНОВЛЕН
+2026-02-04 12:56:01,630 [INFO] 🔑 GEMINI_API_KEY: установлен (AIzaSyAHhd...)
+2026-02-04 12:56:01,630 [INFO] 🖼️ Картинки через OpenRouter: ДА
+2026-02-04 12:56:01,630 [INFO] 🎛️ Inline Keyboards: ДА
+2026-02-04 12:56:01,630 [INFO] 📊 Dashboard API: ДА
+2026-02-04 12:56:01,630 [INFO] 🧠 Memory System: ДА
+2026-02-04 12:56:01,630 [INFO] ✨ Self-Refine: ДА
+2026-02-04 12:56:01,630 [INFO] 🔄 Reflexion: ДА
+2026-02-04 12:56:01,630 [INFO] 📝 Prompt Manager: ДА
+2026-02-04 12:56:01,632 [INFO] === СБОРКА SMM Bot v5.0 ===
+2026-02-04 12:56:01,632 [INFO] Build: 2026-02-04 (+ Self-Refine + Reflexion)
+2026-02-04 12:56:01,634 [INFO] ✅ CallbackHandler инициализирован
+2026-02-04 12:56:01,634 [INFO] ✅ Dashboard API подключён
+2026-02-04 12:56:01,634 [INFO] ✅ Memory Manager инициализирован
+2026-02-04 12:56:01,993 [INFO] ✅ Webhook удалён, готов к polling
+2026-02-04 12:56:01,993 [INFO] 🚀 СБОРКА SMM Bot запущен
+2026-02-04 12:56:02,301 [INFO] ✅ Сообщение отправлено в -5218185060
+2026-02-04 12:56:31,211 [INFO] Получен сигнал остановки...
+2026-02-04 12:56:32,567 [INFO] Бот остановлен
+2026-02-04 12:56:32,861 [INFO] ✅ Сообщение отправлено в -5218185060
+2026-02-04 12:56:49,255 [INFO] 🔑 GROQ_API_KEY: установлен (gsk_cot0tr...)
+2026-02-04 12:56:49,256 [INFO] 🔑 OPENROUTER_API_KEY: установлен (sk-or-v1-c...)
+2026-02-04 12:56:49,256 [INFO] 🔑 ANTHROPIC_API_KEY: НЕ УСТАНОВЛЕН
+2026-02-04 12:56:49,256 [INFO] 🔑 GEMINI_API_KEY: установлен (AIzaSyAHhd...)
+2026-02-04 12:56:49,256 [INFO] 🖼️ Картинки через OpenRouter: ДА
+2026-02-04 12:56:49,256 [INFO] 🎛️ Inline Keyboards: ДА
+2026-02-04 12:56:49,256 [INFO] 📊 Dashboard API: ДА
+2026-02-04 12:56:49,257 [INFO] 🧠 Memory System: ДА
+2026-02-04 12:56:49,257 [INFO] ✨ Self-Refine: ДА
+2026-02-04 12:56:49,257 [INFO] 🔄 Reflexion: ДА
+2026-02-04 12:56:49,257 [INFO] 📝 Prompt Manager: ДА
+2026-02-04 12:56:49,260 [INFO] === СБОРКА SMM Bot v5.0 ===
+2026-02-04 12:56:49,260 [INFO] Build: 2026-02-04 (+ Self-Refine + Reflexion)
+2026-02-04 12:56:49,263 [INFO] ✅ CallbackHandler инициализирован
+2026-02-04 12:56:49,263 [INFO] ✅ Dashboard API подключён
+2026-02-04 12:56:49,263 [INFO] ✅ Memory Manager инициализирован
+2026-02-04 12:56:49,551 [INFO] ✅ Webhook удалён, готов к polling
+2026-02-04 12:56:49,551 [INFO] 🚀 СБОРКА SMM Bot запущен
+2026-02-04 12:56:49,864 [INFO] ✅ Сообщение отправлено в -5218185060
+2026-02-04 12:57:54,717 [INFO] Получен сигнал остановки...
+2026-02-04 12:58:20,646 [INFO] Бот остановлен
+2026-02-04 12:58:20,967 [INFO] ✅ Сообщение отправлено в -5218185060
+2026-02-04 13:09:13,352 [INFO] 🔑 GROQ_API_KEY: установлен (gsk_cot0tr...)
+2026-02-04 13:09:13,355 [INFO] 🔑 OPENROUTER_API_KEY: установлен (sk-or-v1-c...)
+2026-02-04 13:09:13,355 [INFO] 🔑 ANTHROPIC_API_KEY: НЕ УСТАНОВЛЕН
+2026-02-04 13:09:13,355 [INFO] 🔑 GEMINI_API_KEY: установлен (AIzaSyAHhd...)
+2026-02-04 13:09:13,355 [INFO] 🖼️ Картинки через OpenRouter: ДА
+2026-02-04 13:09:13,355 [INFO] 🎛️ Inline Keyboards: НЕТ
+2026-02-04 13:09:13,355 [INFO] 📊 Dashboard API: НЕТ
+2026-02-04 13:09:13,355 [INFO] 🧠 Memory System: НЕТ
+2026-02-04 13:09:13,355 [INFO] ✨ Self-Refine: НЕТ
+2026-02-04 13:09:13,355 [INFO] 🔄 Reflexion: НЕТ
+2026-02-04 13:09:13,355 [INFO] 📝 Prompt Manager: НЕТ
+2026-02-04 16:09:01,981 [INFO] ============================================================
+2026-02-04 16:09:01,982 [INFO] 🚀 СБОРКА SMM Bot v5.2 — Initializing...
+2026-02-04 16:09:01,982 [INFO] ============================================================
+2026-02-04 16:09:01,982 [INFO] 📦 Загрузка inline_keyboards...
+2026-02-04 16:09:01,989 [INFO] ✅ inline_keyboards загружен
+2026-02-04 16:09:01,989 [INFO] 📦 Загрузка api_client...
+2026-02-04 16:09:01,990 [INFO] ✅ api_client загружен
+2026-02-04 16:09:01,990 [INFO] 📦 Загрузка memory_manager...
+2026-02-04 16:09:01,991 [INFO] ✅ memory_manager загружен
+2026-02-04 16:09:01,991 [INFO] 📦 Загрузка self_refine...
+2026-02-04 16:09:01,992 [INFO] ✅ self_refine загружен
+2026-02-04 16:09:01,992 [INFO] 📦 Загрузка reflexion...
+2026-02-04 16:09:01,994 [INFO] ✅ reflexion загружен
+2026-02-04 16:09:01,994 [INFO] 📦 Загрузка prompt_manager...
+2026-02-04 16:09:01,995 [INFO] ✅ prompt_manager загружен
+2026-02-04 16:09:01,995 [INFO] 📦 Загрузка autonomy...
+2026-02-04 16:09:01,996 [INFO] ✅ autonomy загружен
+2026-02-04 16:09:01,996 [INFO] 📦 Загрузка confidence...
+2026-02-04 16:09:01,998 [INFO] ✅ confidence загружен
+2026-02-04 16:09:01,998 [INFO] 📦 Загрузка monitoring...
+2026-02-04 16:09:01,999 [INFO] ✅ monitoring загружен
+2026-02-04 16:09:01,999 [INFO] 📦 Загрузка rollback...
+2026-02-04 16:09:02,000 [INFO] ✅ rollback загружен
+2026-02-04 16:09:02,000 [INFO] 📦 Все модули обработаны
+2026-02-04 16:09:02,000 [INFO] 🔑 GROQ_API_KEY: установлен (gsk_cot0tr...)
+2026-02-04 16:09:02,000 [INFO] 🔑 OPENROUTER_API_KEY: установлен (sk-or-v1-c...)
+2026-02-04 16:09:02,000 [INFO] 🔑 ANTHROPIC_API_KEY: НЕ УСТАНОВЛЕН
+2026-02-04 16:09:02,000 [INFO] 🔑 GEMINI_API_KEY: установлен (AIzaSyAHhd...)
+2026-02-04 16:09:02,000 [INFO] 🖼️ Картинки через OpenRouter: ДА
+2026-02-04 16:09:02,000 [INFO] 🎛️ Inline Keyboards: ДА
+2026-02-04 16:09:02,000 [INFO] 📊 Dashboard API: ДА
+2026-02-04 16:09:02,000 [INFO] 🧠 Memory System: ДА
+2026-02-04 16:09:02,000 [INFO] ✨ Self-Refine: ДА
+2026-02-04 16:09:02,000 [INFO] 🔄 Reflexion: ДА
+2026-02-04 16:09:02,000 [INFO] 📝 Prompt Manager: ДА
+2026-02-04 16:09:02,001 [INFO] 🎚️ Autonomy: ДА
+2026-02-04 16:09:02,001 [INFO] 📊 Confidence: ДА
+2026-02-04 16:09:02,001 [INFO] 🚦 Monitoring: ДА
+2026-02-04 16:09:02,001 [INFO] 🔙 Rollback: ДА
+2026-02-04 23:13:28,234 [INFO] ============================================================
+2026-02-04 23:13:28,235 [INFO] 🚀 СБОРКА SMM Bot v5.2 — Initializing...
+2026-02-04 23:13:28,235 [INFO] ============================================================
+2026-02-04 23:13:28,235 [INFO] 📦 Загрузка inline_keyboards...
+2026-02-04 23:13:28,243 [INFO] ✅ inline_keyboards загружен
+2026-02-04 23:13:28,243 [INFO] 📦 Загрузка api_client...
+2026-02-04 23:13:28,244 [INFO] ✅ api_client загружен
+2026-02-04 23:13:28,244 [INFO] 📦 Загрузка memory_manager...
+2026-02-04 23:13:28,245 [INFO] ✅ memory_manager загружен
+2026-02-04 23:13:28,245 [INFO] 📦 Загрузка self_refine...
+2026-02-04 23:13:28,246 [INFO] ✅ self_refine загружен
+2026-02-04 23:13:28,246 [INFO] 📦 Загрузка reflexion...
+2026-02-04 23:13:28,248 [INFO] ✅ reflexion загружен
+2026-02-04 23:13:28,248 [INFO] 📦 Загрузка prompt_manager...
+2026-02-04 23:13:28,249 [INFO] ✅ prompt_manager загружен
+2026-02-04 23:13:28,249 [INFO] 📦 Загрузка autonomy...
+2026-02-04 23:13:28,250 [INFO] ✅ autonomy загружен
+2026-02-04 23:13:28,250 [INFO] 📦 Загрузка confidence...
+2026-02-04 23:13:28,251 [INFO] ✅ confidence загружен
+2026-02-04 23:13:28,251 [INFO] 📦 Загрузка monitoring...
+2026-02-04 23:13:28,252 [INFO] ✅ monitoring загружен
+2026-02-04 23:13:28,252 [INFO] 📦 Загрузка rollback...
+2026-02-04 23:13:28,253 [INFO] ✅ rollback загружен
+2026-02-04 23:13:28,253 [INFO] 📦 Загрузка linkedin_publisher...
+2026-02-04 23:13:28,254 [WARNING] ⚠️ LINKEDIN_ACCESS_TOKEN not set - LinkedIn публикация отключена
+2026-02-04 23:13:28,254 [WARNING] ⚠️ LINKEDIN_PERSON_ID not set - LinkedIn публикация отключена
+2026-02-04 23:13:28,254 [INFO] ⚠️ linkedin_publisher загружен, но не настроен (нет токена)
+2026-02-04 23:13:28,254 [INFO] 📦 Все модули обработаны
+2026-02-04 23:13:28,255 [INFO] 🔑 GROQ_API_KEY: установлен (gsk_cot0tr...)
+2026-02-04 23:13:28,256 [INFO] 🔑 OPENROUTER_API_KEY: установлен (sk-or-v1-c...)
+2026-02-04 23:13:28,256 [INFO] 🔑 ANTHROPIC_API_KEY: НЕ УСТАНОВЛЕН
+2026-02-04 23:13:28,256 [INFO] 🔑 GEMINI_API_KEY: установлен (AIzaSyAHhd...)
+2026-02-04 23:13:28,256 [INFO] 🖼️ Картинки через OpenRouter: ДА
+2026-02-04 23:13:28,256 [INFO] 🎛️ Inline Keyboards: ДА
+2026-02-04 23:13:28,256 [INFO] 📊 Dashboard API: ДА
+2026-02-04 23:13:28,256 [INFO] 🧠 Memory System: ДА
+2026-02-04 23:13:28,256 [INFO] ✨ Self-Refine: ДА
+2026-02-04 23:13:28,256 [INFO] 🔄 Reflexion: ДА
+2026-02-04 23:13:28,256 [INFO] 📝 Prompt Manager: ДА
+2026-02-04 23:13:28,256 [INFO] 🎚️ Autonomy: ДА
+2026-02-04 23:13:28,256 [INFO] 📊 Confidence: ДА
+2026-02-04 23:13:28,256 [INFO] 🚦 Monitoring: ДА
+2026-02-04 23:13:28,256 [INFO] 🔙 Rollback: ДА

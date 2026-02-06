@@ -12,6 +12,7 @@ from crewai import Crew, Task, Process
 from .agents import (
     create_manager_agent,
     create_accountant_agent,
+    create_smm_agent,
     create_automator_agent,
 )
 
@@ -45,6 +46,7 @@ class AICorporation:
         self.config = load_crew_config()
         self.manager = None
         self.accountant = None
+        self.smm = None
         self.automator = None
         self.crew = None
         self._initialized = False
@@ -60,14 +62,23 @@ class AICorporation:
             # Create agents
             self.manager = create_manager_agent()
             self.accountant = create_accountant_agent()
+            self.smm = create_smm_agent()
             self.automator = create_automator_agent()
 
             if not all([self.manager, self.accountant, self.automator]):
                 return False
 
+            # SMM agent is optional (uses free model, may fail)
+            if not self.smm:
+                print("WARNING: SMM agent (Yuki) failed to init — continuing without her")
+
             # Create crew with sequential process (no embeddings needed)
+            all_agents = [self.manager, self.accountant, self.automator]
+            if self.smm:
+                all_agents.append(self.smm)
+
             self.crew = Crew(
-                agents=[self.manager, self.accountant, self.automator],
+                agents=all_agents,
                 process=Process.sequential,
                 verbose=True,
                 memory=False,
@@ -95,6 +106,7 @@ class AICorporation:
         agent_map = {
             "manager": self.manager,
             "accountant": self.accountant,
+            "smm": self.smm,
             "automator": self.automator,
         }
 
@@ -197,6 +209,54 @@ class AICorporation:
         Дай краткий отчёт по каждой интеграции и рекомендации.
         """
         return self.execute_task(task_desc, "automator")
+
+    def generate_post(self, topic: str = "", author: str = "kristina") -> str:
+        """Generate a post with Yuki"""
+        if not self.smm:
+            return "❌ Юки не инициализирована. Проверьте конфигурацию."
+        task_desc = f"""
+        Сгенерируй пост для LinkedIn.
+
+        1. Используй Yuki Memory с action='get_brand_voice' для загрузки профиля автора
+        2. Используй Yuki Memory с action='get_forbidden' для списка запрещённых фраз
+        3. Используй Content Generator с action='generate', topic='{topic or "карьерный рост"}', author='{author}'
+        4. Если score < 0.8 — используй Content Generator с action='refine'
+        5. Используй Yuki Memory с action='record_generation' для сохранения результата
+
+        Верни финальный текст поста.
+        """
+        return self.execute_task(task_desc, "smm")
+
+    def content_review(self, content: str) -> str:
+        """Review content with Yuki"""
+        if not self.smm:
+            return "❌ Юки не инициализирована. Проверьте конфигурацию."
+        task_desc = f"""
+        Оцени и критикуй этот пост:
+
+        1. Используй Content Generator с action='critique', content=(текст ниже)
+        2. Используй Yuki Memory с action='get_rules' для проверки по правилам
+        3. Дай рекомендации по улучшению
+
+        ТЕКСТ ДЛЯ ОЦЕНКИ:
+        {content[:2000]}
+        """
+        return self.execute_task(task_desc, "smm")
+
+    def linkedin_status(self) -> str:
+        """Check LinkedIn integration status"""
+        if not self.smm:
+            return "❌ Юки не инициализирована. Проверьте конфигурацию."
+        task_desc = """
+        Проверь статус LinkedIn:
+
+        1. Используй LinkedIn Publisher с action='status' для общего статуса
+        2. Используй LinkedIn Publisher с action='check_token' для проверки токена
+        3. Используй Yuki Memory с action='get_stats' для статистики генераций
+
+        Дай краткий отчёт.
+        """
+        return self.execute_task(task_desc, "smm")
 
 
 # Singleton instance

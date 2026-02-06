@@ -1,0 +1,23 @@
+{
+  "version": "1.0.0",
+  "agent": {
+    "autonomy_level": 2,
+    "autonomy_name": "DRAFT",
+    "last_action": null,
+    "circuit_breaker": {
+      "state": "closed",
+      "history": [],
+      "opened_at": null
+    }
+  },
+  "prompt": {
+    "current_version": "v1.0.0",
+    "changes_today": 0,
+    "last_change": null
+  },
+  "learning": {
+    "last_reflexion": null,
+    "generations_since_reflexion": 0
+  },
+  "updated_at": "2026-02-04T04:22:00Z"
+}
