@@ -4,9 +4,10 @@ Orchestrates the multi-agent system
 """
 
 import os
+import logging
 import yaml
-import traceback
-from typing import Optional, List
+from typing import Optional
+from pydantic import BaseModel, Field
 from crewai import Crew, Task, Process
 
 from .agents import (
@@ -14,6 +15,59 @@ from .agents import (
     create_accountant_agent,
     create_smm_agent,
     create_automator_agent,
+)
+
+logger = logging.getLogger(__name__)
+
+# ──────────────────────────────────────────────────────────
+# Memory configuration — ONNX embedder (free, no API keys)
+# ──────────────────────────────────────────────────────────
+EMBEDDER_CONFIG = {
+    "provider": "onnx",
+    "config": {},
+}
+os.environ.setdefault("CREWAI_STORAGE_DIR", "ai_corporation")
+
+
+# ──────────────────────────────────────────────────────────
+# Pydantic output models for structured responses
+# ──────────────────────────────────────────────────────────
+class FinancialReport(BaseModel):
+    summary: str = Field(description="Краткая сводка финансового состояния")
+    total_revenue_rub: float = Field(default=0, description="Общий доход в рублях")
+    total_expenses_rub: float = Field(default=0, description="Общие расходы в рублях")
+    mrr_rub: float = Field(default=0, description="Ежемесячный повторяющийся доход")
+    api_costs_usd: float = Field(default=0, description="Расходы на API в долларах")
+    recommendations: list[str] = Field(default_factory=list, description="Рекомендации")
+
+
+class HealthCheckReport(BaseModel):
+    overall_status: str = Field(description="Общий статус: healthy, degraded, critical")
+    services_up: int = Field(default=0, description="Сервисов работает")
+    services_down: int = Field(default=0, description="Сервисов не работает")
+    details: list[str] = Field(default_factory=list, description="Детали по каждому сервису")
+    recommendations: list[str] = Field(default_factory=list, description="Рекомендации")
+
+
+# ──────────────────────────────────────────────────────────
+# Task quality wrappers
+# ──────────────────────────────────────────────────────────
+EXPECTED_OUTPUT = (
+    "Содержательный, конкретный и полный ответ на русском языке. "
+    "Минимум 200 слов. "
+    "Включай: конкретные шаги, рекомендации и примеры. "
+    "НЕ останавливайся на приветствии — дай полный ответ по существу вопроса. "
+    "⛔ НИКОГДА не выдумывай цифры, данные или факты. Если данных нет — скажи прямо."
+)
+
+TASK_WRAPPER = (
+    "\n\nВАЖНО: Дай ПОЛНЫЙ содержательный ответ. "
+    "Приветствие — максимум 1 строка, потом СРАЗУ переходи к сути. "
+    "Ответ должен содержать конкретные детали, шаги и рекомендации.\n\n"
+    "⛔ ЗАПРЕТ НА ВЫДУМКИ: НИКОГДА не придумывай цифры, данные, метрики или факты. "
+    "Используй ТОЛЬКО реальные данные из инструментов. "
+    "Если данных нет — честно скажи: 'У меня нет данных по этому вопросу'. "
+    "Ложь КАТЕГОРИЧЕСКИ ЗАПРЕЩЕНА — Тим принимает решения на основе твоих ответов."
 )
 
 
@@ -30,13 +84,18 @@ def load_crew_config() -> dict:
     return {}
 
 
-def create_task(description: str, expected_output: str, agent) -> Task:
+def create_task(description: str, expected_output: str, agent, context=None, output_pydantic=None) -> Task:
     """Create a task for an agent"""
-    return Task(
-        description=description,
-        expected_output=expected_output,
-        agent=agent,
-    )
+    kwargs = {
+        "description": description,
+        "expected_output": expected_output,
+        "agent": agent,
+    }
+    if context:
+        kwargs["context"] = context
+    if output_pydantic:
+        kwargs["output_pydantic"] = output_pydantic
+    return Task(**kwargs)
 
 
 class AICorporation:
@@ -57,6 +116,7 @@ class AICorporation:
             # Check API key
             api_key = os.getenv("OPENROUTER_API_KEY")
             if not api_key:
+                logger.error("OPENROUTER_API_KEY not set")
                 return False
 
             # Create agents
@@ -66,13 +126,14 @@ class AICorporation:
             self.automator = create_automator_agent()
 
             if not all([self.manager, self.accountant, self.automator]):
+                logger.error("Core agents failed to initialize")
                 return False
 
-            # SMM agent is optional (uses free model, may fail)
+            # SMM agent is optional
             if not self.smm:
-                print("WARNING: SMM agent (Yuki) failed to init — continuing without her")
+                logger.warning("SMM agent (Yuki) failed to init — continuing without her")
 
-            # Create crew with sequential process (no embeddings needed)
+            # Create crew with memory enabled
             all_agents = [self.manager, self.accountant, self.automator]
             if self.smm:
                 all_agents.append(self.smm)
@@ -81,16 +142,16 @@ class AICorporation:
                 agents=all_agents,
                 process=Process.sequential,
                 verbose=True,
-                memory=False,
+                memory=True,
+                embedder=EMBEDDER_CONFIG,
             )
 
             self._initialized = True
-            print("AI Corporation initialized successfully!")
+            logger.info("AI Corporation initialized successfully with memory enabled")
             return True
 
         except Exception as e:
-            print(f"Failed to initialize AI Corporation: {e}")
-            traceback.print_exc()
+            logger.error(f"Failed to initialize AI Corporation: {e}", exc_info=True)
             return False
 
     @property
@@ -112,54 +173,110 @@ class AICorporation:
 
         agent = agent_map.get(agent_name, self.manager)
 
-        # Build expected output with substance requirement
-        expected = (
-            "Содержательный, конкретный и полный ответ на русском языке. "
-            "Минимум 200 слов. "
-            "Включай: конкретные шаги, рекомендации и примеры. "
-            "НЕ останавливайся на приветствии — дай полный ответ по существу вопроса. "
-            "⛔ НИКОГДА не выдумывай цифры, данные или факты. Если данных нет — скажи прямо."
-        )
-
-        # Wrap the task with explicit instruction
-        full_description = (
-            f"{task_description}\n\n"
-            "ВАЖНО: Дай ПОЛНЫЙ содержательный ответ. "
-            "Приветствие — максимум 1 строка, потом СРАЗУ переходи к сути. "
-            "Ответ должен содержать конкретные детали, шаги и рекомендации.\n\n"
-            "⛔ ЗАПРЕТ НА ВЫДУМКИ: НИКОГДА не придумывай цифры, данные, метрики или факты. "
-            "Используй ТОЛЬКО реальные данные из инструментов. "
-            "Если данных нет — честно скажи: 'У меня нет данных по этому вопросу'. "
-            "Ложь КАТЕГОРИЧЕСКИ ЗАПРЕЩЕНА — Тим принимает решения на основе твоих ответов."
-        )
+        full_description = f"{task_description}{TASK_WRAPPER}"
 
         task = create_task(
             description=full_description,
-            expected_output=expected,
+            expected_output=EXPECTED_OUTPUT,
             agent=agent,
         )
 
+        # Try with memory first, fallback without
         try:
             crew = Crew(
                 agents=[agent],
                 tasks=[task],
                 process=Process.sequential,
                 verbose=True,
-                memory=False,
+                memory=True,
+                embedder=EMBEDDER_CONFIG,
             )
             result = crew.kickoff()
             return str(result)
         except Exception as e:
-            return f"❌ Ошибка выполнения: {e}"
+            logger.error(f"Task failed for {agent_name}: {e}", exc_info=True)
+            try:
+                task_retry = create_task(
+                    description=full_description,
+                    expected_output=EXPECTED_OUTPUT,
+                    agent=agent,
+                )
+                crew_fallback = Crew(
+                    agents=[agent],
+                    tasks=[task_retry],
+                    process=Process.sequential,
+                    verbose=True,
+                    memory=False,
+                )
+                result = crew_fallback.kickoff()
+                return f"⚠️ _(восстановлено после ошибки памяти)_\n\n{result}"
+            except Exception as e2:
+                logger.error(f"Fallback also failed for {agent_name}: {e2}", exc_info=True)
+                return f"❌ Ошибка выполнения: {e}\n\nПовторная попытка: {e2}"
+
+    # ──────────────────────────────────────────────────────────
+    # Multi-agent tasks with context passing
+    # ──────────────────────────────────────────────────────────
 
     def strategic_review(self) -> str:
-        """Run strategic review task"""
-        task_desc = """
-        Проанализируй текущее состояние AI-корпорации.
-        Дай рекомендации по приоритетам на эту неделю.
-        Учти: фокус на Крипто и Сборке (приносят деньги).
-        """
-        return self.execute_task(task_desc, "manager")
+        """Run strategic review: Amara + Niraj feed data → Santoro synthesizes"""
+        if not self.is_ready:
+            return "❌ AI Corporation не инициализирована."
+
+        task_finance = create_task(
+            description=(
+                "Подготовь краткую финансовую сводку:\n"
+                "1. Вызови Financial Tracker с action='report'\n"
+                "2. Вызови Subscription Monitor с action='status'\n"
+                "3. Вызови API Usage Tracker с action='usage'\n"
+                "Дай сводку: доходы, расходы, MRR, API расходы."
+                + TASK_WRAPPER
+            ),
+            expected_output="Краткая финансовая сводка с реальными данными из инструментов.",
+            agent=self.accountant,
+        )
+
+        task_health = create_task(
+            description=(
+                "Проверь здоровье систем:\n"
+                "1. Вызови System Health Checker с action='status'\n"
+                "2. Вызови Integration Manager с action='list'\n"
+                "Дай сводку: что работает, что нет."
+                + TASK_WRAPPER
+            ),
+            expected_output="Краткий отчёт о состоянии систем и интеграций.",
+            agent=self.automator,
+        )
+
+        task_strategy = create_task(
+            description=(
+                "На основе финансовых данных от Амары и технического отчёта от Нираджа "
+                "подготовь стратегический обзор:\n"
+                "- Статус каждого проекта\n"
+                "- Приоритеты на неделю (фокус на Крипто и Сборке)\n"
+                "- Конкретные задачи для каждого агента\n"
+                "- Риски и рекомендации"
+                + TASK_WRAPPER
+            ),
+            expected_output=EXPECTED_OUTPUT,
+            agent=self.manager,
+            context=[task_finance, task_health],
+        )
+
+        try:
+            crew = Crew(
+                agents=[self.accountant, self.automator, self.manager],
+                tasks=[task_finance, task_health, task_strategy],
+                process=Process.sequential,
+                verbose=True,
+                memory=True,
+                embedder=EMBEDDER_CONFIG,
+            )
+            result = crew.kickoff()
+            return str(result)
+        except Exception as e:
+            logger.error(f"Strategic review failed: {e}", exc_info=True)
+            return f"❌ Ошибка стратегического обзора: {e}"
 
     def financial_report(self) -> str:
         """Run full financial report from Amara"""
@@ -278,6 +395,96 @@ class AICorporation:
         Дай краткий отчёт.
         """
         return self.execute_task(task_desc, "smm")
+
+    def full_corporation_report(self) -> str:
+        """Full weekly report: all agents contribute, Santoro synthesizes."""
+        if not self.is_ready:
+            return "❌ AI Corporation не инициализирована."
+
+        agents = [self.accountant, self.automator, self.manager]
+        tasks = []
+
+        # Task 1: Amara — financial report
+        task_fin = create_task(
+            description=(
+                "Подготовь полный финансовый отчёт:\n"
+                "1. Financial Tracker action='report'\n"
+                "2. Subscription Monitor action='status' и action='forecast'\n"
+                "3. API Usage Tracker action='usage' и action='alerts'\n"
+                "Включи: доходы, расходы, MRR, API расходы, ROI."
+                + TASK_WRAPPER
+            ),
+            expected_output="Полный финансовый отчёт с данными из инструментов.",
+            agent=self.accountant,
+        )
+        tasks.append(task_fin)
+
+        # Task 2: Niraj — system health
+        task_tech = create_task(
+            description=(
+                "Проведи полную проверку систем:\n"
+                "1. System Health Checker action='status'\n"
+                "2. Integration Manager action='list'\n"
+                "Включи: статус каждого сервиса, время отклика, ошибки."
+                + TASK_WRAPPER
+            ),
+            expected_output="Полный технический отчёт с реальными данными.",
+            agent=self.automator,
+        )
+        tasks.append(task_tech)
+
+        # Task 3: Yuki — content stats (if available)
+        if self.smm:
+            task_smm = create_task(
+                description=(
+                    "Подготовь отчёт по контенту:\n"
+                    "1. Yuki Memory action='get_stats'\n"
+                    "2. LinkedIn Publisher action='status'\n"
+                    "Включи: кол-во генераций, публикаций, статус LinkedIn."
+                    + TASK_WRAPPER
+                ),
+                expected_output="Краткий отчёт по контенту и LinkedIn.",
+                agent=self.smm,
+            )
+            tasks.append(task_smm)
+            agents.insert(2, self.smm)
+
+        # Task 4: Santoro — synthesis with context from all
+        task_ceo = create_task(
+            description=(
+                "На основе данных от всех агентов подготовь еженедельный отчёт для Тима:\n"
+                "- Общее состояние корпорации\n"
+                "- Финансовые показатели (от Амары)\n"
+                "- Техническое здоровье (от Нираджа)\n"
+                "- Контент и публикации (от Юки)\n"
+                "- Приоритеты на следующую неделю\n"
+                "- Конкретные задачи для каждого агента\n"
+                "- Риски и рекомендации"
+                + TASK_WRAPPER
+            ),
+            expected_output=(
+                "Полный еженедельный отчёт CEO с данными от всех агентов. "
+                "Минимум 400 слов."
+            ),
+            agent=self.manager,
+            context=tasks[:-1] if len(tasks) > 1 else tasks,
+        )
+        tasks.append(task_ceo)
+
+        try:
+            crew = Crew(
+                agents=agents,
+                tasks=tasks,
+                process=Process.sequential,
+                verbose=True,
+                memory=True,
+                embedder=EMBEDDER_CONFIG,
+            )
+            result = crew.kickoff()
+            return str(result)
+        except Exception as e:
+            logger.error(f"Full corporation report failed: {e}", exc_info=True)
+            return f"❌ Ошибка при формировании отчёта: {e}"
 
 
 # Singleton instance

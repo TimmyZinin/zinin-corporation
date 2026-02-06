@@ -3,10 +3,12 @@
 """
 
 import os
+import logging
 import yaml
-import traceback
 from typing import Optional
 from crewai import Agent, LLM
+
+logger = logging.getLogger(__name__)
 
 
 def load_agent_config(agent_name: str) -> dict:
@@ -38,7 +40,7 @@ def _load_web_tools() -> list:
         from .tools.web_tools import WebSearchTool, WebPageReaderTool
         return [WebSearchTool(), WebPageReaderTool()]
     except Exception as e:
-        print(f"WARNING: Could not load web tools: {e}")
+        logger.warning(f"Could not load web tools: {e}")
         return []
 
 
@@ -46,7 +48,7 @@ def create_manager_agent() -> Optional[Agent]:
     """Create the Manager agent with web search"""
     config = load_agent_config("manager")
     if not config:
-        print("ERROR: manager.yaml not found")
+        logger.error("manager.yaml not found")
         return None
 
     tools = _load_web_tools()
@@ -64,10 +66,10 @@ def create_manager_agent() -> Optional[Agent]:
             memory=False,
             allow_delegation=True,
             max_iter=15,
+            max_retry_limit=3,
         )
     except Exception as e:
-        print(f"ERROR creating manager: {e}")
-        traceback.print_exc()
+        logger.error(f"Error creating manager: {e}", exc_info=True)
         return None
 
 
@@ -75,7 +77,7 @@ def create_accountant_agent() -> Optional[Agent]:
     """Create the Accountant (Amara) agent with financial tools"""
     config = load_agent_config("accountant")
     if not config:
-        print("ERROR: accountant.yaml not found")
+        logger.error("accountant.yaml not found")
         return None
 
     try:
@@ -86,7 +88,7 @@ def create_accountant_agent() -> Optional[Agent]:
         )
         tools = [FinancialTracker(), SubscriptionMonitor(), APIUsageTracker()]
     except Exception as e:
-        print(f"WARNING: Could not load financial tools: {e}")
+        logger.warning(f"Could not load financial tools: {e}")
         tools = []
 
     try:
@@ -102,10 +104,10 @@ def create_accountant_agent() -> Optional[Agent]:
             memory=False,
             allow_delegation=False,
             max_iter=10,
+            max_retry_limit=3,
         )
     except Exception as e:
-        print(f"ERROR creating accountant: {e}")
-        traceback.print_exc()
+        logger.error(f"Error creating accountant: {e}", exc_info=True)
         return None
 
 
@@ -113,14 +115,14 @@ def create_smm_agent() -> Optional[Agent]:
     """Create the SMM (Yuki) agent with content tools"""
     config = load_agent_config("yuki")
     if not config:
-        print("ERROR: yuki.yaml not found")
+        logger.error("yuki.yaml not found")
         return None
 
     try:
         from .tools.smm_tools import ContentGenerator, YukiMemory, LinkedInPublisherTool
         tools = [ContentGenerator(), YukiMemory(), LinkedInPublisherTool()]
     except Exception as e:
-        print(f"WARNING: Could not load smm tools: {e}")
+        logger.warning(f"Could not load smm tools: {e}")
         tools = []
 
     try:
@@ -136,10 +138,10 @@ def create_smm_agent() -> Optional[Agent]:
             memory=False,
             allow_delegation=False,
             max_iter=10,
+            max_retry_limit=3,
         )
     except Exception as e:
-        print(f"ERROR creating smm agent: {e}")
-        traceback.print_exc()
+        logger.error(f"Error creating smm agent: {e}", exc_info=True)
         return None
 
 
@@ -147,14 +149,14 @@ def create_automator_agent() -> Optional[Agent]:
     """Create the Automator (Niraj) agent with tech tools"""
     config = load_agent_config("automator")
     if not config:
-        print("ERROR: automator.yaml not found")
+        logger.error("automator.yaml not found")
         return None
 
     try:
         from .tools.tech_tools import SystemHealthChecker, IntegrationManager
         tools = [SystemHealthChecker(), IntegrationManager()] + _load_web_tools()
     except Exception as e:
-        print(f"WARNING: Could not load tech tools: {e}")
+        logger.warning(f"Could not load tech tools: {e}")
         tools = _load_web_tools()
 
     try:
@@ -170,8 +172,8 @@ def create_automator_agent() -> Optional[Agent]:
             memory=False,
             allow_delegation=False,
             max_iter=20,
+            max_retry_limit=3,
         )
     except Exception as e:
-        print(f"ERROR creating automator: {e}")
-        traceback.print_exc()
+        logger.error(f"Error creating automator: {e}", exc_info=True)
         return None

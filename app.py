@@ -438,6 +438,12 @@ railway variables set OPENROUTER_API_KEY=sk-or-v1-ваш-ключ
                 "description": "Все внешние сервисы и cron-задачи",
                 "method": "integration_status",
             },
+            {
+                "name": "📋 Полный отчёт корпорации",
+                "agent": "manager",
+                "description": "Все агенты готовят данные → CEO синтезирует еженедельный отчёт",
+                "method": "full_corporation_report",
+            },
         ]
 
         # Handle task execution via session_state
