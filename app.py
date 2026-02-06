@@ -344,7 +344,7 @@ railway variables set OPENROUTER_API_KEY=sk-or-v1-ваш-ключ
                 "key": "manager",
                 "yaml": "manager",
                 "model": "Claude Sonnet 4",
-                "role": "CEO, координация, стратегия",
+                "role": "CEO, стратегия, веб-поиск",
             },
             {
                 "key": "accountant",
@@ -362,7 +362,7 @@ railway variables set OPENROUTER_API_KEY=sk-or-v1-ваш-ключ
                 "key": "automator",
                 "yaml": "automator",
                 "model": "Claude Sonnet 4",
-                "role": "Интеграции, автоматизация, код",
+                "role": "Интеграции, автоматизация, веб-поиск",
             },
         ]
 

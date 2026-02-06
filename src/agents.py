@@ -32,12 +32,24 @@ def create_llm(model: str) -> LLM:
     )
 
 
+def _load_web_tools() -> list:
+    """Load web search/scrape tools (shared by manager and automator)"""
+    try:
+        from .tools.web_tools import WebSearchTool, WebScrapeTool
+        return [WebSearchTool(), WebScrapeTool()]
+    except Exception as e:
+        print(f"WARNING: Could not load web tools: {e}")
+        return []
+
+
 def create_manager_agent() -> Optional[Agent]:
-    """Create the Manager agent"""
+    """Create the Manager agent with web search"""
     config = load_agent_config("manager")
     if not config:
         print("ERROR: manager.yaml not found")
         return None
+
+    tools = _load_web_tools()
 
     try:
         model = config.get("llm", "openrouter/anthropic/claude-sonnet-4")
@@ -47,6 +59,7 @@ def create_manager_agent() -> Optional[Agent]:
             goal=config.get("goal", "Координировать работу всех агентов"),
             backstory=config.get("backstory", "Ты — CEO AI-корпорации"),
             llm=llm,
+            tools=tools,
             verbose=True,
             memory=False,
             allow_delegation=True,
@@ -139,10 +152,10 @@ def create_automator_agent() -> Optional[Agent]:
 
     try:
         from .tools.tech_tools import SystemHealthChecker, IntegrationManager
-        tools = [SystemHealthChecker(), IntegrationManager()]
+        tools = [SystemHealthChecker(), IntegrationManager()] + _load_web_tools()
     except Exception as e:
         print(f"WARNING: Could not load tech tools: {e}")
-        tools = []
+        tools = _load_web_tools()
 
     try:
         model = config.get("llm", "openrouter/anthropic/claude-sonnet-4")
