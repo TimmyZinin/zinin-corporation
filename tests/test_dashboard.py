@@ -222,6 +222,49 @@ class TestDataInjection:
         data = json.loads(json_str)
         assert data["completedCount"] == 10
 
+    def test_recent_events_default_empty(self):
+        html = generate_dashboard_html()
+        assert '"recentEvents": []' in html or '"recentEvents":[]' in html
+
+    def test_recent_events_injected(self):
+        events = [
+            {"agent": "manager", "action": "task_start", "description": "Test task"},
+            {"agent": "smm", "action": "task_end", "description": "Post created"},
+        ]
+        html = generate_dashboard_html(recent_events=events)
+        assert "Test task" in html
+        assert "Post created" in html
+
+    def test_recent_events_in_initial_json(self):
+        events = [{"agent": "automator", "action": "communication", "description": "ping"}]
+        html = generate_dashboard_html(recent_events=events)
+        start = html.find("const INITIAL = ") + len("const INITIAL = ")
+        end = html.find(";", start)
+        data = json.loads(html[start:end])
+        assert len(data["recentEvents"]) == 1
+        assert data["recentEvents"][0]["agent"] == "automator"
+
+
+# ── Real Data Loading ──────────────────────────────────────
+
+class TestRealDataLoading:
+    def test_load_real_data_function_exists(self):
+        html = generate_dashboard_html()
+        assert "loadRealData" in html
+
+    def test_load_real_data_reads_agent_statuses(self):
+        html = generate_dashboard_html()
+        assert "INITIAL.agentStatuses" in html
+
+    def test_load_real_data_reads_recent_events(self):
+        html = generate_dashboard_html()
+        assert "INITIAL.recentEvents" in html
+
+    def test_demo_only_when_no_real_data(self):
+        """Demo scenarios should only run when there's no real activity."""
+        html = generate_dashboard_html()
+        assert "!hasReal" in html
+
 
 # ── Status Config ────────────────────────────────────────
 

@@ -1,5 +1,5 @@
 """
-🎮 AI Corporation — Agent Dashboard
+🎮 Zinin Corp — Agent Dashboard
 Interactive visualization of multi-agent system behavior and task tracking.
 Generates self-contained HTML/CSS/JS dashboard for Streamlit embedding.
 """
@@ -7,12 +7,13 @@ Generates self-contained HTML/CSS/JS dashboard for Streamlit embedding.
 import json
 
 
-def generate_dashboard_html(completed_count=0, agent_statuses=None):
+def generate_dashboard_html(completed_count=0, agent_statuses=None, recent_events=None):
     """Generate self-contained HTML dashboard.
 
     Args:
         completed_count: Initial completed tasks counter.
         agent_statuses: Dict of agent statuses from activity_tracker (optional).
+        recent_events: List of recent events from activity_tracker (optional).
 
     Returns:
         Complete HTML string ready for st_components.html().
@@ -20,7 +21,8 @@ def generate_dashboard_html(completed_count=0, agent_statuses=None):
     initial_data = json.dumps({
         "completedCount": completed_count,
         "agentStatuses": agent_statuses or {},
-    })
+        "recentEvents": recent_events or [],
+    }, default=str)
     return _HTML_TEMPLATE.replace("__INITIAL_DATA__", initial_data)
 
 
@@ -682,6 +684,91 @@ function selectScenario(idx) {
 }
 
 // ═══════════════════════════════════════════════
+// LOAD REAL DATA FROM ACTIVITY TRACKER
+// ═══════════════════════════════════════════════
+function loadRealData() {
+  var hasRealActivity = false;
+
+  // Load real agent statuses
+  if (INITIAL.agentStatuses) {
+    var taskMap = {
+      "финанс": "report", "отчёт": "report", "бюджет": "report", "p&l": "report",
+      "контент": "content", "пост": "post", "linkedin": "post",
+      "api": "api", "интеграц": "api", "webhook": "api", "деплой": "api",
+      "стратег": "strategy", "обзор": "strategy", "координац": "strategy",
+      "дизайн": "design", "баннер": "design", "визуал": "design",
+    };
+    function guessTaskType(desc) {
+      if (!desc) return "strategy";
+      var lower = desc.toLowerCase();
+      for (var kw in taskMap) { if (lower.indexOf(kw) >= 0) return taskMap[kw]; }
+      return "strategy";
+    }
+
+    for (var agentId in INITIAL.agentStatuses) {
+      var real = INITIAL.agentStatuses[agentId];
+      if (real.status === "working" && real.task) {
+        hasRealActivity = true;
+        var tt = guessTaskType(real.task);
+        var task = findTask(tt);
+        var elapsed = 0;
+        if (real.started_at) {
+          try { elapsed = Date.now() - new Date(real.started_at).getTime(); } catch(e) {}
+        }
+        var jid = ++S.jobId;
+        S.agentJobs[agentId] = {
+          status: "working", task: task,
+          startTime: performance.now() - elapsed,
+          duration: Math.max(elapsed * 1.3, 30000),
+          jobId: jid,
+        };
+        refreshAgent(agentId);
+        addLog(findAgent(agentId).icon + " " + findAgent(agentId).name + ": работает над «" + (real.task || task.label) + "»", task.color);
+      }
+      if (real.communicating_with) {
+        hasRealActivity = true;
+        var other = findAgent(real.communicating_with);
+        var self = findAgent(agentId);
+        if (other && self) {
+          addLog(self.icon + " " + self.name + " 💬 → " + other.icon + " " + other.name, self.color);
+        }
+      }
+    }
+  }
+
+  // Load recent events into log
+  if (INITIAL.recentEvents && INITIAL.recentEvents.length > 0) {
+    var evts = INITIAL.recentEvents.slice(-15).reverse();
+    evts.forEach(function(evt) {
+      var ts = evt.timestamp || "";
+      var timeStr = "";
+      try { timeStr = new Date(ts).toLocaleTimeString("ru-RU", {hour:"2-digit",minute:"2-digit",second:"2-digit"}); } catch(e) { timeStr = ts.substring(11,19); }
+
+      if (evt.type === "task_start") {
+        var a = findAgent(evt.agent);
+        if (a) S.logEntries.push({text: a.icon + " " + a.name + ": начал «" + (evt.task||"") + "»", color: a.color, time: timeStr, id: Math.random()});
+      } else if (evt.type === "task_end") {
+        var a2 = findAgent(evt.agent);
+        var icon = evt.success !== false ? "✅" : "❌";
+        var dur = evt.duration_sec ? " (" + evt.duration_sec + "с)" : "";
+        if (a2) S.logEntries.push({text: icon + " " + a2.icon + " " + a2.name + ": завершил «" + (evt.task||"") + "»" + dur, color: evt.success !== false ? "#3dff8a" : "#ff4057", time: timeStr, id: Math.random()});
+      } else if (evt.type === "communication") {
+        var f = findAgent(evt.from_agent), t = findAgent(evt.to_agent);
+        if (f && t) S.logEntries.push({text: f.icon + " " + f.name + " → " + t.icon + " " + t.name + ": " + (evt.description||""), color: "#3dd8ff", time: timeStr, id: Math.random()});
+      }
+    });
+    if (S.logEntries.length > 0) {
+      hasRealActivity = true;
+      S.logEntries.reverse();
+      if (S.logEntries.length > 20) S.logEntries.length = 20;
+      renderLog();
+    }
+  }
+
+  return hasRealActivity;
+}
+
+// ═══════════════════════════════════════════════
 // INIT
 // ═══════════════════════════════════════════════
 buildAgentCards();
@@ -690,8 +777,11 @@ document.getElementById("completed-count").textContent = S.completedTasks;
 updateScenarioBtns();
 requestAnimationFrame(animate);
 
+var hasReal = loadRealData();
+
+// Start demo scenarios only if no real agent activity
 setTimeout(function() {
-  if (S.isRunning) runScenario(0);
+  if (S.isRunning && !hasReal) runScenario(0);
 }, 600);
 </script>
 </body>

@@ -321,7 +321,7 @@ def render_chat_html(messages: list) -> str:
 
 # Page config
 st.set_page_config(
-    page_title="AI Corporation",
+    page_title="Zinin Corp",
     page_icon="🏢",
     layout="wide",
     initial_sidebar_state="collapsed"
@@ -758,7 +758,7 @@ def get_corporation():
 
 def main():
     # Header
-    st.markdown('<h1 class="main-header">🏢 AI Corporation</h1>', unsafe_allow_html=True)
+    st.markdown('<h1 class="main-header">🏢 Zinin Corp</h1>', unsafe_allow_html=True)
     st.caption("Мульти-агентная система для управления сообществами")
 
     env_status = check_env_vars()
@@ -784,8 +784,8 @@ def main():
 
         st.divider()
 
-        # CrewAI Status
-        st.subheader("🤖 CrewAI")
+        # Agent Status
+        st.subheader("🤖 Агенты")
         if api_ready:
             corp = get_corporation()
             if corp and corp.is_ready:
@@ -806,7 +806,7 @@ def main():
         st.caption(f"Запущено: {datetime.now().strftime('%d.%m.%Y %H:%M')}")
 
     # Main content - Tabs
-    tab1, tab2, tab3, tab5, tab6, tab7, tab4 = st.tabs(["💬 Чат", "👥 Агенты", "📋 Задачи", "📱 Контент", "📡 Мониторинг", "🎮 Дашборд", "📊 Статистика"])
+    tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs(["💬 Чат", "👥 Агенты", "📋 Задачи", "📱 Контент", "📡 Мониторинг", "🎮 Дашборд", "📊 Статистика"])
 
     # Tab 1: Chat
     with tab1:
@@ -961,7 +961,7 @@ def main():
                 else:
                     st.session_state.messages.append({
                         "role": "assistant",
-                        "content": "**CrewAI инициализируется...** Попробуйте перезагрузить страницу.",
+                        "content": "**Zinin Corp инициализируется...** Попробуйте перезагрузить страницу.",
                         "agent_key": "manager",
                         "agent_name": "Алексей",
                         "time": datetime.now().strftime("%H:%M"),
@@ -1174,7 +1174,7 @@ def main():
                         save_chat_history(st.session_state.messages)
                         st.rerun()
                     else:
-                        st.error("❌ CrewAI не инициализирован")
+                        st.error("❌ Zinin Corp не инициализирован")
 
             # Show result FULL WIDTH if exists
             result_key = f"task_result_{task['method']}"
@@ -1190,8 +1190,8 @@ def main():
         if not api_ready:
             st.info("💡 Добавьте OPENROUTER_API_KEY для активации задач")
 
-    # Tab 5: Content (Yuki SMM)
-    with tab5:
+    # Tab 4: Content (Yuki SMM)
+    with tab4:
         st.subheader("📱 Контент-студия Юки")
         st.caption("🇰🇷 Генерация, оценка и публикация постов для LinkedIn")
 
@@ -1309,8 +1309,8 @@ def main():
                         st.session_state["yuki_last_post"] = result
                         st.rerun()
 
-    # Tab 6: Monitoring
-    with tab6:
+    # Tab 5: Monitoring
+    with tab5:
         st.subheader("📡 Мониторинг агентов")
 
         # Import tracker
@@ -1478,24 +1478,29 @@ def main():
                         to_emoji = AGENT_EMOJI.get(to_a, "")
                         st.caption(f"`{time_str}` 💬 {from_emoji} **{from_name}** → {to_emoji} **{to_name}**: _{event.get('description', '')}_")
 
-    # Tab 7: Agent Dashboard
-    with tab7:
+    # Tab 6: Agent Dashboard
+    with tab6:
         try:
             from src.dashboard import generate_dashboard_html
-            from src.activity_tracker import get_all_statuses as dash_get_statuses
+            from src.activity_tracker import get_all_statuses as dash_get_statuses, get_recent_events as dash_get_events, get_agent_task_count as dash_task_count
             dash_statuses = dash_get_statuses()
+            dash_events = dash_get_events(hours=24, limit=30)
+            dash_completed = sum(dash_task_count(a, hours=24) for a in ["manager", "accountant", "smm", "automator"])
         except Exception:
             dash_statuses = {}
+            dash_events = []
+            dash_completed = 0
 
-        completed = st.session_state.get('tasks_completed', 0)
+        completed = max(st.session_state.get('tasks_completed', 0), dash_completed)
         dash_html = generate_dashboard_html(
             completed_count=completed,
             agent_statuses=dash_statuses,
+            recent_events=dash_events,
         )
         st_components.html(dash_html, height=750, scrolling=False)
 
-    # Tab 4: Stats
-    with tab4:
+    # Tab 7: Stats
+    with tab7:
         st.subheader("Статистика")
 
         col1, col2, col3, col4 = st.columns(4)

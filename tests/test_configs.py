@@ -86,7 +86,7 @@ class TestCrewConfig:
     def test_crew_has_name(self):
         cfg = self._load_crew()
         assert "name" in cfg
-        assert "Corporation" in cfg["name"] or "AI" in cfg["name"]
+        assert "Zinin Corp" in cfg["name"]
 
     def test_crew_has_agents(self):
         cfg = self._load_crew()
