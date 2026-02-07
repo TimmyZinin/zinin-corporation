@@ -103,3 +103,4 @@ ai_corporation/
 ---
 
 *AI Corporation · Февраль 2025*
+# Auto-deploy from GitHub enabled
