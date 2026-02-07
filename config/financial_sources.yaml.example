@@ -1,0 +1,52 @@
+# ═══════════════════════════════════════════════════════════
+# Financial Sources Configuration
+# Copy to financial_sources.yaml and fill in real addresses.
+# NEVER commit financial_sources.yaml — it's in .gitignore!
+# ═══════════════════════════════════════════════════════════
+
+banks:
+  tbank:
+    enabled: true
+    accounts: []  # Fill after getting API access
+  tbc:
+    enabled: false
+    mode: manual
+    accounts: []
+  vakifbank:
+    enabled: false
+    accounts: []
+  krungsri:
+    enabled: false
+    accounts: []
+
+crypto_wallets:
+  evm:
+    enabled: true
+    addresses: []  # ["0x..."]
+    chains: ["eth", "polygon", "arbitrum", "base", "bsc"]
+  stacks:
+    enabled: true
+    addresses: []  # ["SP..."]
+  solana:
+    enabled: true
+    addresses: []  # ["..."]
+  ton:
+    enabled: true
+    addresses: []  # ["UQ..."]
+
+manual_sources:
+  telegram_wallet:
+    name: "Telegram @wallet (Crypto tab)"
+    description: "Custodial wallet, no API — ask Tim for balance"
+    last_known_balance: ""
+    last_updated: ""
+
+payments:
+  tribute:
+    enabled: true
+  stripe:
+    enabled: false
+
+prices:
+  primary: coingecko
+  cache_ttl_seconds: 300

@@ -38,6 +38,9 @@ data/*.csv
 # Bank statements — SENSITIVE
 *.csv
 
+# Financial config with real wallet addresses — SENSITIVE
+config/financial_sources.yaml
+
 # CrewAI storage
 ai_corporation/
 
