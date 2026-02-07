@@ -838,12 +838,12 @@ def main():
         col_hdr, col_clr = st.columns([8, 1])
         with col_hdr:
             msg_text = ru_plural(msg_count, "сообщение", "сообщения", "сообщений")
-            st.markdown(f'''<div class="zc-header">
+            st.html(f'''<div class="zc-header">
   <div>
     <div class="zc-header-title">💬 Корпоративный чат</div>
     <div class="zc-header-sub"><span class="zc-online" style="background:{dot_color}"></span>{online_text} &middot; {msg_text}</div>
   </div>
-</div>''', unsafe_allow_html=True)
+</div>''')
         with col_clr:
             # #21: two-step clear confirmation
             if st.session_state.get("confirm_clear"):
@@ -889,7 +889,7 @@ def main():
   </div>
 </div>'''
 
-        st.markdown(chat_html + typing_html, unsafe_allow_html=True)
+        st.html(chat_html + typing_html)
 
         # #18: auto-scroll to bottom using components.html (allows JS execution)
         st_components.html("""
@@ -993,10 +993,9 @@ def main():
         if sel:
             sel_info = AGENTS[sel]
             sel_color = AGENT_COLORS[sel]
-            st.markdown(
+            st.html(
                 f'<div style="text-align:center;font-size:12px;padding:2px;color:{sel_color}">'
-                f'Адресат: {sel_info["emoji"]} <b>@{sel_info["name"]}</b> (нажмите снова чтобы сбросить)</div>',
-                unsafe_allow_html=True,
+                f'Адресат: {sel_info["emoji"]} <b>@{sel_info["name"]}</b> (нажмите снова чтобы сбросить)</div>'
             )
 
         # Chat input
