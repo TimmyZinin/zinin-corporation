@@ -8,7 +8,7 @@ import re
 import sys
 import yaml
 import streamlit as st
-from datetime import datetime
+from datetime import datetime, timedelta
 
 # Add src to path for imports
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -256,7 +256,7 @@ def main():
         st.caption(f"Запущено: {datetime.now().strftime('%d.%m.%Y %H:%M')}")
 
     # Main content - Tabs
-    tab1, tab2, tab3, tab5, tab4 = st.tabs(["💬 Чат", "👥 Агенты", "📋 Задачи", "📱 Контент", "📊 Статистика"])
+    tab1, tab2, tab3, tab5, tab6, tab4 = st.tabs(["💬 Чат", "👥 Агенты", "📋 Задачи", "📱 Контент", "📡 Мониторинг", "📊 Статистика"])
 
     # Tab 1: Chat
     with tab1:
@@ -639,6 +639,175 @@ def main():
                             result = corp.generate_post(topic=topic, author=author_key)
                         st.session_state["yuki_last_post"] = result
                         st.rerun()
+
+    # Tab 6: Monitoring
+    with tab6:
+        st.subheader("📡 Мониторинг агентов")
+
+        # Import tracker
+        try:
+            from src.activity_tracker import (
+                get_all_statuses,
+                get_recent_events,
+                get_agent_task_count,
+                get_task_progress,
+                AGENT_NAMES,
+                AGENT_EMOJI,
+            )
+            tracker_available = True
+        except Exception:
+            tracker_available = False
+
+        if not tracker_available:
+            st.warning("Модуль мониторинга недоступен")
+        else:
+            # Auto-refresh hint
+            col_ref1, col_ref2 = st.columns([4, 1])
+            with col_ref1:
+                st.caption("Данные обновляются при перезагрузке страницы")
+            with col_ref2:
+                if st.button("🔄 Обновить", key="refresh_monitor"):
+                    st.rerun()
+
+            statuses = get_all_statuses()
+
+            # Agent status table
+            for agent_key in ["manager", "accountant", "automator", "smm"]:
+                info = AGENTS.get(agent_key, {})
+                status = statuses.get(agent_key, {})
+                agent_status = status.get("status", "idle")
+                current_task = status.get("task")
+                communicating_with = status.get("communicating_with")
+                last_task = status.get("last_task")
+                last_task_time = status.get("last_task_time")
+                last_task_success = status.get("last_task_success", True)
+                last_duration = status.get("last_task_duration_sec", 0)
+                tasks_24h = get_agent_task_count(agent_key, hours=24)
+                progress = get_task_progress(agent_key)
+
+                # Container for each agent
+                with st.container():
+                    cols = st.columns([1, 2, 2, 1, 1])
+
+                    # Col 1: Agent identity
+                    with cols[0]:
+                        st.markdown(f"### {info.get('emoji', '')} {info.get('name', agent_key)}")
+                        st.caption(f"{info.get('flag', '')} {info.get('title', '')}")
+
+                    # Col 2: Current status + progress
+                    with cols[1]:
+                        if agent_status == "working":
+                            st.markdown("🟢 **Работает**")
+                            if current_task:
+                                st.caption(f"📝 {current_task}")
+                            # Animated typing indicator
+                            st.markdown(
+                                '<span style="color: #00cec9; animation: pulse 1.5s infinite;">⌨️ печатает...</span>',
+                                unsafe_allow_html=True,
+                            )
+                            # Progress bar
+                            if progress is not None:
+                                st.progress(progress, text=f"{int(progress * 100)}%")
+                            else:
+                                st.progress(0.5, text="⏳ в процессе")
+                        elif communicating_with:
+                            other_name = AGENT_NAMES.get(communicating_with, communicating_with)
+                            other_emoji = AGENT_EMOJI.get(communicating_with, "")
+                            st.markdown(f"🔵 **Общается**")
+                            st.markdown(
+                                f'<span style="color: #6c5ce7;">💬 → {other_emoji} {other_name}</span>',
+                                unsafe_allow_html=True,
+                            )
+                        else:
+                            st.markdown("⚪ **Свободен**")
+
+                    # Col 3: Last task info
+                    with cols[2]:
+                        if last_task:
+                            icon = "✅" if last_task_success else "❌"
+                            st.caption(f"{icon} {last_task}")
+                            if last_task_time:
+                                try:
+                                    t = datetime.fromisoformat(last_task_time)
+                                    elapsed = datetime.now() - t
+                                    if elapsed < timedelta(minutes=1):
+                                        ago = "только что"
+                                    elif elapsed < timedelta(hours=1):
+                                        ago = f"{int(elapsed.total_seconds() // 60)} мин назад"
+                                    elif elapsed < timedelta(hours=24):
+                                        ago = f"{int(elapsed.total_seconds() // 3600)} ч назад"
+                                    else:
+                                        ago = t.strftime("%d.%m %H:%M")
+                                    duration_str = f" ({last_duration}с)" if last_duration else ""
+                                    st.caption(f"🕐 {ago}{duration_str}")
+                                except Exception:
+                                    pass
+                        else:
+                            st.caption("Нет выполненных задач")
+
+                    # Col 4: 24h stats
+                    with cols[3]:
+                        st.metric("24ч", tasks_24h, help="Задач за 24 часа")
+
+                    # Col 5: Quick action
+                    with cols[4]:
+                        if agent_status == "working":
+                            st.markdown("🔴")
+                        elif communicating_with:
+                            st.markdown("🟡")
+                        else:
+                            st.markdown("⚪")
+
+                st.divider()
+
+            # CSS for pulse animation
+            st.markdown("""
+            <style>
+                @keyframes pulse {
+                    0%, 100% { opacity: 1; }
+                    50% { opacity: 0.3; }
+                }
+            </style>
+            """, unsafe_allow_html=True)
+
+            # Recent activity feed
+            st.subheader("📜 Последняя активность")
+            events = get_recent_events(hours=24, limit=20)
+
+            if not events:
+                st.info("Пока нет событий. Запустите задачу, чтобы увидеть активность.")
+            else:
+                for event in reversed(events):
+                    etype = event.get("type", "")
+                    ts = event.get("timestamp", "")
+                    try:
+                        t = datetime.fromisoformat(ts)
+                        time_str = t.strftime("%H:%M:%S")
+                    except Exception:
+                        time_str = ts[:8] if ts else ""
+
+                    if etype == "task_start":
+                        agent = event.get("agent", "")
+                        name = AGENT_NAMES.get(agent, agent)
+                        emoji = AGENT_EMOJI.get(agent, "")
+                        st.caption(f"`{time_str}` {emoji} **{name}** начал: _{event.get('task', '')}_")
+                    elif etype == "task_end":
+                        agent = event.get("agent", "")
+                        name = AGENT_NAMES.get(agent, agent)
+                        emoji = AGENT_EMOJI.get(agent, "")
+                        success = event.get("success", True)
+                        icon = "✅" if success else "❌"
+                        dur = event.get("duration_sec", 0)
+                        dur_str = f" ({dur}с)" if dur else ""
+                        st.caption(f"`{time_str}` {icon} {emoji} **{name}** завершил: _{event.get('task', '')}_{dur_str}")
+                    elif etype == "communication":
+                        from_a = event.get("from_agent", "")
+                        to_a = event.get("to_agent", "")
+                        from_name = AGENT_NAMES.get(from_a, from_a)
+                        to_name = AGENT_NAMES.get(to_a, to_a)
+                        from_emoji = AGENT_EMOJI.get(from_a, "")
+                        to_emoji = AGENT_EMOJI.get(to_a, "")
+                        st.caption(f"`{time_str}` 💬 {from_emoji} **{from_name}** → {to_emoji} **{to_name}**: _{event.get('description', '')}_")
 
     # Tab 4: Stats
     with tab4:

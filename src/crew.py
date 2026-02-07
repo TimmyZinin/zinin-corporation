@@ -16,6 +16,12 @@ from .agents import (
     create_smm_agent,
     create_automator_agent,
 )
+from .activity_tracker import (
+    log_task_start,
+    log_task_end,
+    log_communication,
+    log_communication_end,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -172,6 +178,10 @@ class AICorporation:
         }
 
         agent = agent_map.get(agent_name, self.manager)
+        short_desc = task_description.strip()[:100].split("\n")[0]
+
+        # Track: task started
+        log_task_start(agent_name, short_desc)
 
         full_description = f"{task_description}{TASK_WRAPPER}"
 
@@ -192,6 +202,7 @@ class AICorporation:
                 embedder=EMBEDDER_CONFIG,
             )
             result = crew.kickoff()
+            log_task_end(agent_name, short_desc, success=True)
             return str(result)
         except Exception as e:
             logger.error(f"Task failed for {agent_name}: {e}", exc_info=True)
@@ -209,9 +220,11 @@ class AICorporation:
                     memory=False,
                 )
                 result = crew_fallback.kickoff()
+                log_task_end(agent_name, short_desc, success=True)
                 return f"⚠️ _(восстановлено после ошибки памяти)_\n\n{result}"
             except Exception as e2:
                 logger.error(f"Fallback also failed for {agent_name}: {e2}", exc_info=True)
+                log_task_end(agent_name, short_desc, success=False)
                 return f"❌ Ошибка выполнения: {e}\n\nПовторная попытка: {e2}"
 
     # ──────────────────────────────────────────────────────────
@@ -222,6 +235,9 @@ class AICorporation:
         """Run strategic review: Amara + Niraj feed data → Santoro synthesizes"""
         if not self.is_ready:
             return "❌ AI Corporation не инициализирована."
+
+        log_task_start("accountant", "Финансовая сводка (стратобзор)")
+        log_task_start("automator", "Проверка систем (стратобзор)")
 
         task_finance = create_task(
             description=(
@@ -273,9 +289,22 @@ class AICorporation:
                 embedder=EMBEDDER_CONFIG,
             )
             result = crew.kickoff()
+
+            # Track completion and communication
+            log_task_end("accountant", "Финансовая сводка (стратобзор)", success=True)
+            log_task_end("automator", "Проверка систем (стратобзор)", success=True)
+            log_communication("accountant", "manager", "Передача финансовых данных для стратобзора")
+            log_communication("automator", "manager", "Передача техотчёта для стратобзора")
+            log_task_start("manager", "Стратегический обзор (синтез)")
+            log_task_end("manager", "Стратегический обзор (синтез)", success=True)
+            log_communication_end("accountant")
+            log_communication_end("automator")
+
             return str(result)
         except Exception as e:
             logger.error(f"Strategic review failed: {e}", exc_info=True)
+            log_task_end("accountant", "Финансовая сводка (стратобзор)", success=False)
+            log_task_end("automator", "Проверка систем (стратобзор)", success=False)
             return f"❌ Ошибка стратегического обзора: {e}"
 
     def financial_report(self) -> str:
@@ -404,6 +433,10 @@ class AICorporation:
         agents = [self.accountant, self.automator, self.manager]
         tasks = []
 
+        # Track start for all agents
+        log_task_start("accountant", "Финансовый отчёт (полный)")
+        log_task_start("automator", "Техотчёт (полный)")
+
         # Task 1: Amara — financial report
         task_fin = create_task(
             description=(
@@ -435,6 +468,7 @@ class AICorporation:
 
         # Task 3: Yuki — content stats (if available)
         if self.smm:
+            log_task_start("smm", "Отчёт по контенту (полный)")
             task_smm = create_task(
                 description=(
                     "Подготовь отчёт по контенту:\n"
@@ -481,9 +515,30 @@ class AICorporation:
                 embedder=EMBEDDER_CONFIG,
             )
             result = crew.kickoff()
+
+            # Track completion and communication
+            log_task_end("accountant", "Финансовый отчёт (полный)", success=True)
+            log_task_end("automator", "Техотчёт (полный)", success=True)
+            if self.smm:
+                log_task_end("smm", "Отчёт по контенту (полный)", success=True)
+                log_communication("smm", "manager", "Передача контент-отчёта для CEO")
+
+            log_communication("accountant", "manager", "Передача финотчёта для CEO")
+            log_communication("automator", "manager", "Передача техотчёта для CEO")
+            log_task_start("manager", "Еженедельный отчёт CEO (синтез)")
+            log_task_end("manager", "Еженедельный отчёт CEO (синтез)", success=True)
+
+            # Clear communication flags
+            for agent_key in ["accountant", "automator", "smm"]:
+                log_communication_end(agent_key)
+
             return str(result)
         except Exception as e:
             logger.error(f"Full corporation report failed: {e}", exc_info=True)
+            log_task_end("accountant", "Финансовый отчёт (полный)", success=False)
+            log_task_end("automator", "Техотчёт (полный)", success=False)
+            if self.smm:
+                log_task_end("smm", "Отчёт по контенту (полный)", success=False)
             return f"❌ Ошибка при формировании отчёта: {e}"
 
 
