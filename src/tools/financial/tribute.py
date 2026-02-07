@@ -128,19 +128,24 @@ class TributeRevenueTool(FinancialBaseTool):
         finally:
             client.close()
 
-        products = data if isinstance(data, list) else data.get("items", data.get("products", []))
+        products = data if isinstance(data, list) else data.get("rows", data.get("items", data.get("products", [])))
         if not products:
             return "No products found on Tribute."
 
         lines = ["TRIBUTE PRODUCTS:"]
         for p in products:
-            name = p.get("title", p.get("name", "Unnamed"))
-            price = p.get("price", p.get("amount", 0))
-            currency = p.get("currency", "USD")
+            name = p.get("name", p.get("title", "Unnamed"))
+            # Tribute returns amount in minor units (kopecks/cents)
+            raw_amount = p.get("amount", 0)
+            currency = p.get("currency", "USD").upper()
+            # Convert from minor units if > 100 (likely kopecks/cents)
+            price = raw_amount / 100 if raw_amount > 100 else raw_amount
             ptype = p.get("type", "unknown")
             status = p.get("status", p.get("is_active", "unknown"))
+            link = p.get("webLink", p.get("link", ""))
             lines.append(
-                f"  - {name}: {price} {currency} ({ptype}) [{status}]"
+                f"  - {name}: {price:,.2f} {currency} ({ptype}) [{status}]"
+                + (f" {link}" if link else "")
             )
         return "\n".join(lines)
 
@@ -189,7 +194,82 @@ class TributeRevenueTool(FinancialBaseTool):
         return "\n".join(lines)
 
     def _subscription_stats(self) -> str:
-        """Analyze subscription data from stored webhook events."""
+        """Get live subscription data from Tribute API."""
+        # Try live API first (/subscribers endpoint)
+        try:
+            creds = self._get_credentials()
+            headers = {
+                "Api-Key": creds["api_key"],
+                "Content-Type": "application/json",
+            }
+            client = httpx.Client(
+                base_url="https://tribute.tg/api/v1",
+                headers=headers,
+                timeout=30.0,
+            )
+            try:
+                response = client.get("/subscribers")
+                response.raise_for_status()
+                data = response.json()
+            finally:
+                client.close()
+
+            subscribers = data.get("result", data) if isinstance(data, dict) else data
+
+            if not subscribers:
+                return "TRIBUTE SUBSCRIPTIONS:\n  No active subscribers."
+
+            active = [s for s in subscribers if s.get("status") == "active"]
+            expired = [s for s in subscribers if s.get("status") != "active"]
+
+            lines = ["TRIBUTE SUBSCRIPTIONS (live data):"]
+            lines.append(f"  Active subscribers: {len(active)}")
+            if expired:
+                lines.append(f"  Expired/cancelled: {len(expired)}")
+
+            # Show details
+            from datetime import datetime
+            now = datetime.utcnow()
+            expiring_soon = []
+            for sub in active:
+                expire_str = sub.get("expireAt", "")
+                sub_id = sub.get("subscriptionId", "?")
+                tg_id = sub.get("telegramUserId", "?")
+                activated = sub.get("activatedAt", "")[:10]
+
+                expire_date = None
+                if expire_str:
+                    try:
+                        expire_date = datetime.fromisoformat(expire_str.replace("Z", "+00:00")).replace(tzinfo=None)
+                    except (ValueError, TypeError):
+                        pass
+
+                days_left = (expire_date - now).days if expire_date else None
+                expire_short = expire_str[:10] if expire_str else "N/A"
+
+                alert = ""
+                if days_left is not None and days_left <= 30:
+                    alert = f" ⚠️ EXPIRING IN {days_left} DAYS"
+                    expiring_soon.append(tg_id)
+
+                lines.append(
+                    f"  - TG:{tg_id} | sub #{sub_id} | "
+                    f"since {activated} | expires {expire_short}"
+                    f" ({days_left}d left){alert}" if days_left is not None else
+                    f"  - TG:{tg_id} | sub #{sub_id} | since {activated}"
+                )
+
+            if expiring_soon:
+                lines.append(f"\n  ⚠️ ALERT: {len(expiring_soon)} subscriber(s) expiring within 30 days!")
+
+            return "\n".join(lines)
+
+        except Exception as e:
+            # Fallback to webhook-collected data
+            return self._subscription_stats_from_webhooks()
+
+    def _subscription_stats_from_webhooks(self) -> str:
+        """Fallback: analyze subscription data from stored webhook events."""
         payments = _load_payments()
         sub_events = [
             p for p in payments
@@ -215,7 +295,7 @@ class TributeRevenueTool(FinancialBaseTool):
         total_cancelled = sum(1 for e in sub_events if e["event"] == "cancelledSubscription")
 
         lines = [
-            "TRIBUTE SUBSCRIPTIONS:",
+            "TRIBUTE SUBSCRIPTIONS (webhook data):",
             f"  Active now: ~{len(active)}",
             f"  Total new: {total_new}",
             f"  Renewals: {total_renewed}",

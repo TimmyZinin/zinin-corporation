@@ -368,15 +368,19 @@ class TestTributeMocked:
             with patch("httpx.Client") as mock_client:
                 mock_resp = MagicMock()
                 mock_resp.status_code = 200
-                mock_resp.json.return_value = [
-                    {
-                        "title": "Premium Subscription",
-                        "price": 9.99,
-                        "currency": "USD",
-                        "type": "digital",
-                        "status": "active",
-                    },
-                ]
+                mock_resp.json.return_value = {
+                    "rows": [
+                        {
+                            "name": "Premium Subscription",
+                            "amount": 999,
+                            "currency": "usd",
+                            "type": "digital",
+                            "status": "active",
+                            "webLink": "https://web.tribute.tg/p/test",
+                        },
+                    ],
+                    "meta": {"total": 1},
+                }
                 mock_resp.raise_for_status = MagicMock()
                 mock_client.return_value.__enter__ = lambda s: s
                 mock_client.return_value.__exit__ = MagicMock(return_value=False)
