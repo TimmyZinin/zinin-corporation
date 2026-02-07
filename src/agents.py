@@ -44,14 +44,24 @@ def _load_web_tools() -> list:
         return []
 
 
+def _load_delegation_tool() -> list:
+    """Load delegation tool for manager agent"""
+    try:
+        from .tools.delegation_tool import DelegateTaskTool
+        return [DelegateTaskTool()]
+    except Exception as e:
+        logger.warning(f"Could not load delegation tool: {e}")
+        return []
+
+
 def create_manager_agent() -> Optional[Agent]:
-    """Create the Manager agent with web search"""
+    """Create the Manager agent with web search and delegation"""
     config = load_agent_config("manager")
     if not config:
         logger.error("manager.yaml not found")
         return None
 
-    tools = _load_web_tools()
+    tools = _load_web_tools() + _load_delegation_tool()
 
     try:
         model = config.get("llm", "openrouter/anthropic/claude-sonnet-4")
