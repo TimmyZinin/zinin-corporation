@@ -206,10 +206,10 @@ class TestActivityTrackerIsEventLogOnly:
     a pure event logger. Task extraction is in task_extractor.py."""
 
     def test_tracker_event_types_are_only_logging(self):
-        """The only event types are: task_start, task_end, communication."""
+        """The only event types are: task_start, task_end, communication, delegation."""
         source = _read(TRACKER_PATH)
         type_matches = re.findall(r'"type":\s*"(\w+)"', source)
-        expected_types = {"task_start", "task_end", "communication"}
+        expected_types = {"task_start", "task_end", "communication", "delegation"}
         actual_types = set(type_matches)
         assert actual_types == expected_types
 

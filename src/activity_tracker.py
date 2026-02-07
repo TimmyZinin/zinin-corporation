@@ -162,6 +162,24 @@ def log_communication(from_agent: str, to_agent: str, description: str = ""):
         _save_log(data)
 
 
+def log_delegation(from_agent: str, to_agent: str, task_desc: str):
+    """Log that one agent delegated a task to another."""
+    with _lock:
+        data = _load_log()
+        now = datetime.now().isoformat()
+
+        data["events"].append({
+            "type": "delegation",
+            "from_agent": from_agent,
+            "to_agent": to_agent,
+            "description": task_desc[:120],
+            "timestamp": now,
+        })
+
+        _trim_events(data)
+        _save_log(data)
+
+
 def log_communication_end(agent_key: str):
     """Clear communication indicator for an agent."""
     with _lock:
@@ -172,27 +190,49 @@ def log_communication_end(agent_key: str):
 
 
 def get_agent_status(agent_key: str) -> dict:
-    """Get current status for one agent."""
+    """Get current status for one agent, including queued_tasks count."""
     data = _load_log()
-    return data.get("agent_status", {}).get(agent_key, {
+    status = data.get("agent_status", {}).get(agent_key, {
         "status": "idle",
         "task": None,
         "started_at": None,
         "communicating_with": None,
     })
 
+    # Count queued (delegated) tasks for this agent
+    cutoff = (datetime.now() - timedelta(hours=24)).isoformat()
+    queued = sum(
+        1 for e in data.get("events", [])
+        if e.get("type") == "delegation"
+        and e.get("to_agent") == agent_key
+        and e.get("timestamp", "") >= cutoff
+    )
+    status["queued_tasks"] = queued
+
+    return status
+
 
 def get_all_statuses() -> dict:
-    """Get current status for all agents."""
+    """Get current status for all agents, including queued_tasks."""
     data = _load_log()
+    cutoff = (datetime.now() - timedelta(hours=24)).isoformat()
     result = {}
     for key in AGENT_NAMES:
-        result[key] = data.get("agent_status", {}).get(key, {
+        status = data.get("agent_status", {}).get(key, {
             "status": "idle",
             "task": None,
             "started_at": None,
             "communicating_with": None,
         })
+        # Count queued (delegated) tasks
+        queued = sum(
+            1 for e in data.get("events", [])
+            if e.get("type") == "delegation"
+            and e.get("to_agent") == key
+            and e.get("timestamp", "") >= cutoff
+        )
+        status["queued_tasks"] = queued
+        result[key] = status
     return result
 
 
@@ -205,11 +245,15 @@ def get_recent_events(hours: int = 24, limit: int = 50) -> list:
 
 
 def get_agent_task_count(agent_key: str, hours: int = 24) -> int:
-    """Count completed tasks for an agent in the last N hours."""
+    """Count tasks for an agent in the last N hours.
+
+    Includes both completed tasks (task_end) and delegated tasks (delegation).
+    """
     events = get_recent_events(hours=hours, limit=500)
     return sum(
         1 for e in events
-        if e.get("type") == "task_end" and e.get("agent") == agent_key
+        if (e.get("type") == "task_end" and e.get("agent") == agent_key)
+        or (e.get("type") == "delegation" and e.get("to_agent") == agent_key)
     )
 
 

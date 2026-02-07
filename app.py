@@ -79,6 +79,50 @@ from src.task_extractor import (
     load_task_queue,
     complete_task,
 )
+from src.delegation_parser import parse_delegations
+from src.activity_tracker import log_communication, log_delegation
+
+
+def process_delegations(delegations: list, corp, session_state: dict, max_delegations: int = 3):
+    """Execute delegated tasks from agent responses.
+
+    When an agent (e.g. CEO) delegates work to another agent,
+    this function invokes the target agent and adds their response to chat.
+
+    Args:
+        delegations: List of dicts with agent_key and task_description
+        corp: ZininCorporation instance
+        session_state: Streamlit session state (or dict with 'messages' key)
+        max_delegations: Maximum delegations to process (safety limit)
+    """
+    if not delegations or not corp:
+        return
+
+    for delegation in delegations[:max_delegations]:
+        target_key = delegation["agent_key"]
+        task_desc = delegation["task_description"]
+
+        try:
+            response = corp.execute_task(task_desc, target_key)
+        except Exception as e:
+            response = f"Ошибка делегации: `{type(e).__name__}: {str(e)[:200]}`"
+
+        session_state["messages"].append({
+            "role": "assistant",
+            "content": response,
+            "agent_key": target_key,
+            "agent_name": AGENTS[target_key]["name"],
+            "time": datetime.now().strftime("%H:%M"),
+            "date": datetime.now().strftime("%d.%m.%Y"),
+            "delegated": True,
+        })
+
+        try:
+            source = delegation.get("source_agent", "manager")
+            log_delegation(source, target_key, task_desc[:120])
+            log_communication(source, target_key, task_desc[:120])
+        except Exception:
+            pass
 
 
 def detect_agents(message: str) -> list[str]:
@@ -941,6 +985,13 @@ def main():
 
                         # Extract action items from agent response
                         extract_and_store(response, source_agent=target_key)
+
+                        # Auto-delegate: if agent delegated to others, invoke them
+                        delegations = parse_delegations(response, source_agent=target_key)
+                        if delegations:
+                            for d in delegations:
+                                d["source_agent"] = target_key
+                            process_delegations(delegations, corp, st.session_state)
 
                     st.session_state.last_agent_key = targets[-1]
                 else:

@@ -265,6 +265,7 @@ const STATUS_CFG = {
   sending:   { color:"#9d5cff", label:"Отправляет", pulse:true  },
   working:   { color:"#3dff8a", label:"Работает",   pulse:true  },
   receiving: { color:"#3dd8ff", label:"Получает",   pulse:true  },
+  queued:    { color:"#f39c12", label:"В очереди",   pulse:true  },
 };
 
 // ═══════════════════════════════════════════════
@@ -435,7 +436,10 @@ function updateSidebar(agentId) {
   var info = document.getElementById("sinfo-" + agentId);
   if (info) {
     if (job) {
-      var act = job.status === "working" ? "Выполняет" : "Передаёт";
+      var act;
+      if (job.status === "working") act = "Выполняет";
+      else if (job.status === "queued") act = "В очереди (" + (job.queuedCount || 1) + ")";
+      else act = "Передаёт";
       info.innerHTML = '<span style="color:'+sc.color+';font-weight:500">'+act+': '+job.task.emoji+' '+job.task.label+'</span>';
     } else {
       info.innerHTML = '<span style="color:#444">Ожидает задач</span>';
@@ -729,6 +733,22 @@ function loadRealData() {
         refreshAgent(agentId);
         addLog(findAgent(agentId).icon + " " + findAgent(agentId).name + ": работает над «" + (real.task || task.label) + "»", task.color);
       }
+      // Show queued status for agents with queued_tasks
+      if (real.queued_tasks && real.queued_tasks > 0 && real.status !== "working") {
+        hasRealActivity = true;
+        var qjid = ++S.jobId;
+        var qTask = findTask("strategy");
+        S.agentJobs[agentId] = {
+          status: "queued", task: qTask,
+          startTime: performance.now(),
+          duration: 60000,
+          jobId: qjid,
+          queuedCount: real.queued_tasks,
+        };
+        refreshAgent(agentId);
+        var qa = findAgent(agentId);
+        if (qa) addLog(qa.icon + " " + qa.name + ": в очереди (" + real.queued_tasks + " задач)", "#f39c12");
+      }
       if (real.communicating_with) {
         hasRealActivity = true;
         var other = findAgent(real.communicating_with);
@@ -756,6 +776,9 @@ function loadRealData() {
         var icon = evt.success !== false ? "✅" : "❌";
         var dur = evt.duration_sec ? " (" + evt.duration_sec + "с)" : "";
         if (a2) S.logEntries.push({text: icon + " " + a2.icon + " " + a2.name + ": завершил «" + (evt.task||"") + "»" + dur, color: evt.success !== false ? "#3dff8a" : "#ff4057", time: timeStr, id: Math.random()});
+      } else if (evt.type === "delegation") {
+        var df = findAgent(evt.from_agent), dt = findAgent(evt.to_agent);
+        if (df && dt) S.logEntries.push({text: "📋 " + df.icon + " " + df.name + " → " + dt.icon + " " + dt.name + ": " + (evt.description||""), color: "#f39c12", time: timeStr, id: Math.random()});
       } else if (evt.type === "communication") {
         var f = findAgent(evt.from_agent), t = findAgent(evt.to_agent);
         if (f && t) S.logEntries.push({text: f.icon + " " + f.name + " → " + t.icon + " " + t.name + ": " + (evt.description||""), color: "#3dd8ff", time: timeStr, id: Math.random()});

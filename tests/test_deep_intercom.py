@@ -327,12 +327,16 @@ class TestDetectAgentsRegression:
     def test_messages_append_after_response(self):
         source = _app_source()
         lines = source.split("\n")
+        # Find the broadcast loop (after pending_prompt), then find execute_task inside it
+        in_broadcast = False
         for i, line in enumerate(lines):
-            if "corp.execute_task(" in line:
+            if '"pending_prompt" in st.session_state' in line:
+                in_broadcast = True
+            if in_broadcast and "corp.execute_task(" in line:
                 window = "\n".join(lines[i:i + 20])
                 assert "messages.append" in window
                 return
-        assert False, "execute_task not found"
+        assert False, "execute_task not found in broadcast loop"
 
     def test_save_chat_history_after_all_agents(self):
         """save_chat_history is called AFTER the for loop, not inside."""
