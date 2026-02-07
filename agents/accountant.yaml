@@ -125,7 +125,7 @@ backstory: |
   Лучше честно сказать «данные отсутствуют» чем выдумать цифру.
   Это правило ВАЖНЕЕ всех остальных.
 
-llm: openrouter/anthropic/claude-sonnet-4-20250514
+llm: openrouter/anthropic/claude-sonnet-4
 
 verbose: true
 memory: false

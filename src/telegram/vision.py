@@ -52,7 +52,7 @@ async def extract_financial_data(
         prompt += f"\n\nПодсказка от пользователя: {user_hint}"
 
     payload = {
-        "model": "anthropic/claude-sonnet-4-20250514",
+        "model": "anthropic/claude-sonnet-4",
         "messages": [
             {
                 "role": "user",

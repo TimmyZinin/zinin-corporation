@@ -752,7 +752,7 @@ def check_env_vars() -> dict:
     required = {
         'OPENROUTER_API_KEY': os.getenv('OPENROUTER_API_KEY'),
         'OPENAI_API_BASE': os.getenv('OPENAI_API_BASE', 'https://openrouter.ai/api/v1'),
-        'OPENAI_MODEL_NAME': os.getenv('OPENAI_MODEL_NAME', 'openrouter/anthropic/claude-sonnet-4-20250514'),
+        'OPENAI_MODEL_NAME': os.getenv('OPENAI_MODEL_NAME', 'openrouter/anthropic/claude-sonnet-4'),
     }
     optional = {
         'OPENAI_API_KEY': os.getenv('OPENAI_API_KEY'),

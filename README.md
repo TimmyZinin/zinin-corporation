@@ -13,7 +13,7 @@
 3. Добавь переменные:
    ```
    OPENROUTER_API_KEY=sk-or-v1-твой-ключ
-   OPENAI_MODEL_NAME=openrouter/anthropic/claude-sonnet-4-20250514
+   OPENAI_MODEL_NAME=openrouter/anthropic/claude-sonnet-4
    OPENAI_API_BASE=https://openrouter.ai/api/v1
    OPENAI_API_KEY=sk-твой-openai-ключ  # для embeddings
    ```
@@ -34,7 +34,7 @@ railway init
 
 # Добавь переменные
 railway variables set OPENROUTER_API_KEY=sk-or-v1-xxx
-railway variables set OPENAI_MODEL_NAME=openrouter/anthropic/claude-sonnet-4-20250514
+railway variables set OPENAI_MODEL_NAME=openrouter/anthropic/claude-sonnet-4
 railway variables set OPENAI_API_BASE=https://openrouter.ai/api/v1
 railway variables set OPENAI_API_KEY=sk-xxx
 

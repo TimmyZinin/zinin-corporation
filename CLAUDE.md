@@ -84,7 +84,7 @@
 
 ### LLM
 - **OpenRouter** — провайдер для всех моделей
-- Управленец: `openrouter/anthropic/claude-sonnet-4-20250514`
+- Управленец: `openrouter/anthropic/claude-sonnet-4`
 - Остальные: `openrouter/anthropic/claude-3-5-haiku-latest`
 
 ### Память (embeddings)
@@ -146,7 +146,7 @@ ai_corporation/
 ```bash
 # LLM через OpenRouter
 OPENROUTER_API_KEY=sk-or-v1-xxx
-OPENAI_MODEL_NAME=openrouter/anthropic/claude-sonnet-4-20250514
+OPENAI_MODEL_NAME=openrouter/anthropic/claude-sonnet-4
 OPENAI_API_BASE=https://openrouter.ai/api/v1
 
 # Embeddings (выбери один)
