@@ -19,13 +19,18 @@ class AuthMiddleware(BaseMiddleware):
 
     def __init__(self, allowed_ids: list[int]):
         self.allowed_ids = allowed_ids
+        logger.info(f"AuthMiddleware: allowed_ids={allowed_ids}")
 
     async def __call__(self, handler, event: Message, data: dict):
         if not self.allowed_ids:
+            logger.debug("AuthMiddleware: no whitelist, allowing all")
             return await handler(event, data)
         if hasattr(event, "from_user") and event.from_user:
-            if event.from_user.id in self.allowed_ids:
+            uid = event.from_user.id
+            if uid in self.allowed_ids:
                 return await handler(event, data)
+            else:
+                logger.warning(f"AuthMiddleware: blocked user {uid}")
         return None
 
 
@@ -36,6 +41,7 @@ async def main():
     )
 
     config = TelegramConfig.from_env()
+    logger.info(f"Config: token={'set' if config.bot_token else 'EMPTY'}, allowed_ids={config.allowed_user_ids}")
     if not config.bot_token:
         logger.error("TELEGRAM_BOT_TOKEN not set — bot not starting")
         return
@@ -58,6 +64,10 @@ async def main():
         dp.include_router(photos.router)
     except ImportError as e:
         logger.warning(f"Photo handler not available: {e}")
+
+    # Document handler (CSV statements)
+    from .handlers import documents
+    dp.include_router(documents.router)
 
     dp.include_router(messages.router)  # catch-all, must be last
 

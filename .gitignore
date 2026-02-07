@@ -24,13 +24,19 @@ venv*/
 .DS_Store
 Thumbs.db
 
-# Data (runtime-generated)
+# Data (runtime-generated) — NEVER commit financial data!
 data/activity_log.json
 data/chat_history.json
 data/financial_data.json
 data/tech_data.json
 data/screenshot_data.json
 data/tribute_payments.json
+data/tinkoff_transactions.json
+data/tinkoff_*.json
+data/*.csv
+
+# Bank statements — SENSITIVE
+*.csv
 
 # CrewAI storage
 ai_corporation/

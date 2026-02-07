@@ -273,3 +273,99 @@ class TestScreenshotDataTool:
             tool = ScreenshotDataTool()
             result = tool._run()
             assert "нет" in result.lower() or "not available" in result.lower()
+
+
+# ──────────────────────────────────────────────────────────
+# Test: Tinkoff CSV Parser
+# ──────────────────────────────────────────────────────────
+
+class TestTinkoffParser:
+    def test_is_tinkoff_csv(self):
+        from src.telegram.tinkoff_parser import is_tinkoff_csv
+        header = '"Дата операции";"Дата платежа";"Номер карты";"Статус";"Сумма операции"'
+        assert is_tinkoff_csv(header) is True
+        assert is_tinkoff_csv("random,csv,header") is False
+
+    def test_parse_basic(self):
+        from src.telegram.tinkoff_parser import parse_tinkoff_csv
+        csv_content = (
+            '"Дата операции";"Дата платежа";"Номер карты";"Статус";"Сумма операции";"Валюта операции";"Сумма платежа";"Валюта платежа";"Кэшбэк";"Категория";"MCC";"Описание";"Бонусы (включая кэшбэк)";"Округление на инвесткопилку";"Сумма операции с округлением"\n'
+            '"01.02.2026 17:23:58";"01.02.2026";"*5736";"OK";"-500,00";"RUB";"-500,00";"RUB";"";"Мобильная связь";"";"Билайн";"0,00";"0,00";"-500,00"\n'
+            '"26.01.2026 10:47:30";"26.01.2026";"*5450";"OK";"5000,00";"RUB";"5000,00";"RUB";"";"Переводы";"";"Между своими счетами";"0,00";"0,00";"5000,00"\n'
+        )
+        parsed = parse_tinkoff_csv(csv_content)
+        assert parsed["total_count"] == 2
+        assert parsed["source"] == "tinkoff"
+        assert "*5736" in parsed["cards"]
+        assert parsed["summary"]["expenses"] == 500.0
+
+    def test_skip_failed(self):
+        from src.telegram.tinkoff_parser import parse_tinkoff_csv
+        csv_content = (
+            '"Дата операции";"Дата платежа";"Номер карты";"Статус";"Сумма операции";"Валюта операции";"Сумма платежа";"Валюта платежа";"Кэшбэк";"Категория";"MCC";"Описание";"Бонусы (включая кэшбэк)";"Округление на инвесткопилку";"Сумма операции с округлением"\n'
+            '"05.01.2026 11:55:21";"";"*5736";"FAILED";"-400,00";"RUB";"-400,00";"RUB";"";"Фастфуд";"";"Покупка";"0,00";"0,00";"-400,00"\n'
+        )
+        parsed = parse_tinkoff_csv(csv_content)
+        assert parsed["total_count"] == 0
+
+    def test_format_summary(self):
+        from src.telegram.tinkoff_parser import parse_tinkoff_csv, format_summary_text
+        csv_content = (
+            '"Дата операции";"Дата платежа";"Номер карты";"Статус";"Сумма операции";"Валюта операции";"Сумма платежа";"Валюта платежа";"Кэшбэк";"Категория";"MCC";"Описание";"Бонусы (включая кэшбэк)";"Округление на инвесткопилку";"Сумма операции с округлением"\n'
+            '"01.02.2026 10:00:00";"01.02.2026";"*5736";"OK";"-1000,00";"RUB";"-1000,00";"RUB";"";"Супермаркеты";"5411";"Магнит";"0,00";"0,00";"-1000,00"\n'
+        )
+        parsed = parse_tinkoff_csv(csv_content)
+        text = format_summary_text(parsed)
+        assert "Т-Банк" in text
+        assert "1,000.00" in text
+
+
+# ──────────────────────────────────────────────────────────
+# Test: Transaction Storage
+# ──────────────────────────────────────────────────────────
+
+class TestTransactionStorage:
+    def test_save_and_load(self, tmp_path):
+        from src.telegram.transaction_storage import save_statement, load_transactions, _storage_path
+
+        json_path = str(tmp_path / "tinkoff_transactions.json")
+        with patch("src.telegram.transaction_storage._storage_path", return_value=json_path):
+            parsed = {
+                "transactions": [
+                    {"date": "2026-01-01T10:00:00", "amount": -500, "description": "Test", "card": "*1234", "op_type": "debit"},
+                    {"date": "2026-01-02T10:00:00", "amount": 1000, "description": "Salary", "card": "*1234", "op_type": "credit"},
+                ],
+            }
+            new_count = save_statement(parsed)
+            assert new_count == 2
+
+            txs = load_transactions(limit=10)
+            assert len(txs) == 2
+
+    def test_deduplication(self, tmp_path):
+        from src.telegram.transaction_storage import save_statement
+
+        json_path = str(tmp_path / "tinkoff_transactions.json")
+        with patch("src.telegram.transaction_storage._storage_path", return_value=json_path):
+            parsed = {
+                "transactions": [
+                    {"date": "2026-01-01T10:00:00", "amount": -500, "description": "Test", "card": "*1234", "op_type": "debit"},
+                ],
+            }
+            save_statement(parsed)
+            new_count = save_statement(parsed)  # same data again
+            assert new_count == 0  # no new transactions
+
+
+# ──────────────────────────────────────────────────────────
+# Test: TinkoffDataTool
+# ──────────────────────────────────────────────────────────
+
+class TestTinkoffDataTool:
+    def test_no_data(self):
+        from src.tools.financial.tinkoff_data import TinkoffDataTool
+
+        with patch("src.telegram.transaction_storage.get_summary", return_value=None):
+            tool = TinkoffDataTool()
+            result = tool._run("action=summary")
+            assert "нет данных" in result.lower()

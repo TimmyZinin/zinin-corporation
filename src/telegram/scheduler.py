@@ -45,15 +45,24 @@ def setup_scheduler(bot: Bot, config: TelegramConfig) -> AsyncIOScheduler:
         replace_existing=True,
     )
 
-    # 2) Screenshot reminder (Friday 10:00 UTC)
+    # 2) Screenshot + CSV reminder (Friday 10:00 UTC)
     async def screenshot_reminder():
+        from .transaction_storage import get_summary
+        summary = get_summary()
+        last_date = ""
+        if summary and summary.get("period", {}).get("end"):
+            last_date = summary["period"]["end"][:10]
+
         await bot.send_message(
             chat_id,
             "Маттиас напоминает:\n\n"
             "Тим, для финансового отчёта мне нужны актуальные данные:\n\n"
-            "1. Скриншот баланса TBC Bank (TBC Online)\n"
-            "2. Скриншот баланса Telegram @wallet (вкладка Crypto)\n\n"
-            "Просто пришли фото в этот чат — я автоматически распознаю данные.",
+            "1. CSV-выписка из Т-Банка\n"
+            f"   (последние данные: {last_date or 'нет'})\n"
+            "   Приложение → Счёт → Выписка → CSV → отправь сюда\n\n"
+            "2. Скриншот баланса TBC Bank\n"
+            "3. Скриншот баланса @wallet (вкладка Crypto)\n\n"
+            "Файлы и фото пришли прямо в этот чат.",
         )
 
     scheduler.add_job(

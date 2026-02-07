@@ -12,6 +12,7 @@ from .krungsri import KrungsriBalanceTool, KrungsriStatementTool
 from .stripe_tool import StripeRevenueTool
 from .portfolio_summary import PortfolioSummaryTool
 from .screenshot_data import ScreenshotDataTool
+from .tinkoff_data import TinkoffDataTool
 
 __all__ = [
     "CryptoPriceTool",
@@ -33,4 +34,5 @@ __all__ = [
     "StripeRevenueTool",
     "PortfolioSummaryTool",
     "ScreenshotDataTool",
+    "TinkoffDataTool",
 ]
