@@ -28,6 +28,9 @@ tenacity>=8.0.0
 aiogram>=3.13.0
 apscheduler>=3.10.0
 
+# Charts & visualization
+matplotlib>=3.8.0
+
 # Testing
 pytest>=8.0.0
 pytest-mock>=3.12.0

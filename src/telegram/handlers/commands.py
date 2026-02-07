@@ -1,14 +1,15 @@
-"""Telegram command handlers (/start, /help, /report, etc.)."""
+"""Telegram command handlers (/start, /help, /report, /chart, etc.)."""
 
 import asyncio
 import logging
 
 from aiogram import Router
 from aiogram.filters import CommandStart, Command
-from aiogram.types import Message
+from aiogram.types import Message, BufferedInputFile
+from aiogram.enums import ParseMode
 
 from ..bridge import AgentBridge
-from ..formatters import format_for_telegram
+from ..formatters import format_for_telegram, mono_table, sparkline, progress_bar
 from ..screenshot_storage import get_latest_balances
 
 logger = logging.getLogger(__name__)
@@ -57,6 +58,8 @@ async def cmd_start(message: Message):
         "Команды:\n"
         "/report — Финансовый отчёт\n"
         "/portfolio — Сводка портфеля\n"
+        "/chart — 📊 График портфеля\n"
+        "/expenses — 📉 График расходов\n"
         "/tinkoff — Сводка по Т-Банку\n"
         "/balances — Данные из скриншотов\n"
         "/help — Справка\n\n"
@@ -146,6 +149,146 @@ async def cmd_tinkoff(message: Message):
     await message.answer("\n".join(lines))
 
 
+@router.message(Command("chart"))
+async def cmd_chart(message: Message):
+    """Generate portfolio pie chart from real data."""
+    status = await message.answer("📊 Строю график...")
+    stop = asyncio.Event()
+    typing_task = asyncio.create_task(keep_typing(message, stop))
+
+    try:
+        portfolio = await asyncio.to_thread(_collect_portfolio_data)
+        if not portfolio:
+            await message.answer("Нет данных для графика. Попробуйте /portfolio сначала.")
+            return
+
+        from ..charts import portfolio_pie
+        png = portfolio_pie(portfolio, "Портфель Zinin Corp")
+        if not png:
+            await message.answer("Не удалось построить график.")
+            return
+
+        total = sum(portfolio.values())
+        top3 = sorted(portfolio.items(), key=lambda x: -x[1])[:3]
+        caption = (
+            f"<b>Портфель — ${total:,.0f}</b>\n"
+            + "\n".join(f"  {name}: ${val:,.0f}" for name, val in top3)
+        )
+
+        photo = BufferedInputFile(png, filename="portfolio.png")
+        await message.answer_photo(photo=photo, caption=caption, parse_mode=ParseMode.HTML)
+
+    except Exception as e:
+        logger.error(f"Chart error: {e}", exc_info=True)
+        await message.answer(f"Ошибка графика: {str(e)[:300]}")
+    finally:
+        stop.set()
+        await typing_task
+        try:
+            await status.delete()
+        except Exception:
+            pass
+
+
+@router.message(Command("expenses"))
+async def cmd_expenses(message: Message):
+    """Generate expense bar chart from Tinkoff data."""
+    from ..transaction_storage import get_summary
+    summary = get_summary()
+    if not summary or not summary.get("top_categories"):
+        await message.answer("Нет данных по расходам. Пришлите CSV-выписку из Т-Банка.")
+        return
+
+    categories = dict(summary["top_categories"][:10])
+
+    from ..charts import expense_bars
+    png = expense_bars(categories, "Расходы — Т-Банк")
+    if not png:
+        await message.answer("Не удалось построить график расходов.")
+        return
+
+    total = sum(categories.values())
+    caption = f"<b>Расходы — ₽{total:,.0f}</b>\nТоп {len(categories)} категорий"
+
+    photo = BufferedInputFile(png, filename="expenses.png")
+    await message.answer_photo(photo=photo, caption=caption, parse_mode=ParseMode.HTML)
+
+
+def _collect_portfolio_data() -> dict[str, float]:
+    """Collect balance data from all tools for chart generation."""
+    import os
+    portfolio = {}
+
+    # EVM via Moralis
+    if os.environ.get("MORALIS_API_KEY"):
+        try:
+            from src.tools.financial.moralis_evm import EVMPortfolioTool
+            tool = EVMPortfolioTool()
+            result = tool._run("")
+            # Parse total from first line
+            if "total" in result.lower():
+                import re
+                m = re.search(r"\$([0-9,.]+)\s+USD\s+total", result)
+                if m:
+                    portfolio["EVM (5 chains)"] = float(m.group(1).replace(",", ""))
+        except Exception as e:
+            logger.debug(f"EVM data: {e}")
+
+    # Papaya
+    try:
+        from src.tools.financial.papaya import PapayaPositionsTool
+        tool = PapayaPositionsTool()
+        result = tool._run()
+        if "ИТОГО" in result:
+            import re
+            m = re.search(r"\$([0-9,.]+)", result.split("ИТОГО")[-1])
+            if m:
+                portfolio["Papaya"] = float(m.group(1).replace(",", ""))
+    except Exception as e:
+        logger.debug(f"Papaya data: {e}")
+
+    # Eventum
+    try:
+        from src.tools.financial.eventum import EventumPortfolioTool
+        tool = EventumPortfolioTool()
+        result = tool._run()
+        if "ИТОГО" in result:
+            import re
+            m = re.search(r"\$([0-9,.]+)", result.split("ИТОГО")[-1])
+            if m:
+                portfolio["Eventum L3"] = float(m.group(1).replace(",", ""))
+    except Exception as e:
+        logger.debug(f"Eventum data: {e}")
+
+    # Solana
+    try:
+        from src.tools.financial.helius_solana import SolanaPortfolioTool
+        tool = SolanaPortfolioTool()
+        result = tool._run("")
+        if "total" in result.lower():
+            import re
+            m = re.search(r"\$([0-9,.]+)\s+USD\s+total", result)
+            if m:
+                portfolio["Solana"] = float(m.group(1).replace(",", ""))
+    except Exception as e:
+        logger.debug(f"Solana data: {e}")
+
+    # TON
+    try:
+        from src.tools.financial.tonapi import TONPortfolioTool
+        tool = TONPortfolioTool()
+        result = tool._run("")
+        if "total" in result.lower():
+            import re
+            m = re.search(r"\$([0-9,.]+)\s+USD\s+total", result)
+            if m:
+                portfolio["TON"] = float(m.group(1).replace(",", ""))
+    except Exception as e:
+        logger.debug(f"TON data: {e}")
+
+    return portfolio
+
+
 @router.message(Command("help"))
 async def cmd_help(message: Message):
     await message.answer(
@@ -154,6 +297,8 @@ async def cmd_help(message: Message):
         "Фото/скриншоты → распознавание данных\n\n"
         "/report — Финансовый отчёт\n"
         "/portfolio — Портфель (банки + крипто)\n"
+        "/chart — Круговая диаграмма портфеля\n"
+        "/expenses — График расходов (Т-Банк)\n"
         "/tinkoff — Сводка по Т-Банку\n"
         "/balances — Данные из скриншотов\n"
     )
