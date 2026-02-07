@@ -26,6 +26,35 @@ from .activity_tracker import (
 logger = logging.getLogger(__name__)
 
 # ──────────────────────────────────────────────────────────
+# Progress callback — set by bridge to send Telegram progress messages
+# ──────────────────────────────────────────────────────────
+_progress_callback = None
+
+
+def set_progress_callback(callback):
+    """Set a callable(str) that sends progress messages to Telegram."""
+    global _progress_callback
+    _progress_callback = callback
+
+
+def _send_progress(text: str):
+    """Send a progress message if callback is set."""
+    global _progress_callback
+    if _progress_callback:
+        try:
+            _progress_callback(text)
+        except Exception as e:
+            logger.warning(f"Progress callback failed: {e}")
+
+
+AGENT_LABELS = {
+    "manager": "👑 Алексей",
+    "accountant": "🏦 Маттиас",
+    "automator": "⚙️ Мартин",
+    "smm": "📱 Юки",
+}
+
+# ──────────────────────────────────────────────────────────
 # Memory configuration — ONNX embedder (free, no API keys)
 # ──────────────────────────────────────────────────────────
 EMBEDDER_CONFIG = {
@@ -68,7 +97,7 @@ EXPECTED_OUTPUT = (
 
 TASK_WRAPPER = (
     "\n\nВАЖНО: Дай ПОЛНЫЙ содержательный ответ. "
-    "Приветствие — максимум 1 строка, потом СРАЗУ переходи к сути. "
+    "НИКОГДА НЕ ПРЕДСТАВЛЯЙСЯ. Тим знает кто ты. СРАЗУ переходи к сути. "
     "Ответ должен содержать конкретные детали, шаги и рекомендации.\n\n"
     "⛔ ЗАПРЕТ НА ВЫДУМКИ: НИКОГДА не придумывай цифры, данные, метрики или факты. "
     "Используй ТОЛЬКО реальные данные из инструментов. "
@@ -192,13 +221,14 @@ class AICorporation:
         return self._initialized and self.crew is not None
 
     def _run_agent(self, agent, task_description: str, agent_name: str = "",
-                    use_memory: bool = True) -> str:
+                    use_memory: bool = True, guardrail=None) -> str:
         """Run a single agent task with memory fallback. Returns result string."""
         full_description = f"{task_description}{TASK_WRAPPER}"
         task = create_task(
             description=full_description,
             expected_output=EXPECTED_OUTPUT,
             agent=agent,
+            guardrail=guardrail,
         )
         if not use_memory:
             crew = Crew(
@@ -299,7 +329,9 @@ class AICorporation:
                 specialist_key = delegation["agent_key"]
                 specialist_agent = agent_map.get(specialist_key)
                 if specialist_agent:
+                    spec_label = AGENT_LABELS.get(specialist_key, specialist_key)
                     logger.info(f"Auto-delegation: manager → {specialist_key}")
+                    _send_progress(f"{spec_label} готовит данные...")
                     log_task_start(specialist_key, short_desc)
                     try:
                         specialist_result = self._run_agent(
@@ -312,19 +344,25 @@ class AICorporation:
                         log_task_end(specialist_key, short_desc, success=False)
                         specialist_result = f"❌ Ошибка: {e}"
 
+                    _send_progress(f"{spec_label} → 👑 Алексей: передача данных")
+
                     # Now pass to CEO for synthesis
                     enriched = (
                         f"{task_description}\n\n"
                         f"--- Результат от специалиста ({specialist_key}) ---\n"
                         f"{specialist_result}\n"
                         f"--- Конец результата ---\n\n"
+                        f"НИКОГДА НЕ ПРЕДСТАВЛЯЙСЯ. СРАЗУ к делу.\n"
                         f"Добавь свой краткий комментарий CEO к результату выше. "
                         f"Не повторяй весь результат — дай стратегическую оценку."
                     )
                     log_task_start(agent_name, short_desc)
                     try:
-                        ceo_result = self._run_agent(agent, enriched, agent_name,
-                                                         use_memory=use_memory)
+                        ceo_result = self._run_agent(
+                            agent, enriched, agent_name,
+                            use_memory=use_memory,
+                            guardrail=_manager_guardrail,
+                        )
                         log_task_end(agent_name, short_desc, success=True)
                         return ceo_result
                     except Exception as e:
@@ -336,9 +374,12 @@ class AICorporation:
         # Track: task started
         log_task_start(agent_name, short_desc)
 
+        # Add guardrail for CEO to prevent empty/introduction-only responses
+        grl = _manager_guardrail if agent_name == "manager" else None
+
         try:
             result = self._run_agent(agent, task_description, agent_name,
-                                        use_memory=use_memory)
+                                        use_memory=use_memory, guardrail=grl)
             log_task_end(agent_name, short_desc, success=True)
             return result
         except Exception as e:
@@ -357,6 +398,7 @@ class AICorporation:
 
         log_task_start("accountant", "Финансовая сводка (стратобзор)")
         log_task_start("automator", "Проверка систем (стратобзор)")
+        _send_progress("📋 Стратегический обзор запущен\n🏦 Маттиас готовит финансовую сводку...\n⚙️ Мартин проверяет системы...")
 
         task_finance = create_task(
             description=(
@@ -402,6 +444,20 @@ class AICorporation:
             guardrail=_manager_guardrail,
         )
 
+        # Progress messages after each step
+        _step_messages = [
+            "✅ 🏦 Маттиас: финансовая сводка готова\n⚙️ Мартин работает...",
+            "✅ ⚙️ Мартин: техотчёт готов\n🏦→👑 Маттиас передаёт данные Алексею\n⚙️→👑 Мартин передаёт данные Алексею\n👑 Алексей анализирует...",
+            None,  # Final — result is sent by handler
+        ]
+        _step_idx = [0]
+
+        def _on_task_done(output):
+            idx = _step_idx[0]
+            _step_idx[0] += 1
+            if idx < len(_step_messages) and _step_messages[idx]:
+                _send_progress(_step_messages[idx])
+
         try:
             crew = Crew(
                 agents=[self.accountant, self.automator, self.manager],
@@ -410,6 +466,7 @@ class AICorporation:
                 verbose=True,
                 memory=True,
                 embedder=EMBEDDER_CONFIG,
+                task_callback=_on_task_done,
             )
             result = crew.kickoff()
 
@@ -558,6 +615,12 @@ class AICorporation:
         # Track start for all agents
         log_task_start("accountant", "Финансовый отчёт (полный)")
         log_task_start("automator", "Техотчёт (полный)")
+        _send_progress(
+            "📊 Полный отчёт корпорации запущен\n"
+            "🏦 Маттиас готовит финансовый отчёт...\n"
+            "⚙️ Мартин проверяет системы...\n"
+            "📱 Юки готовит отчёт по контенту..."
+        )
 
         # Task 1: Маттиас — financial report
         task_fin = create_task(
@@ -631,6 +694,28 @@ class AICorporation:
         )
         tasks.append(task_ceo)
 
+        # Progress messages after each step
+        has_smm = self.smm is not None
+        _report_steps = [
+            "✅ 🏦 Маттиас: финансовый отчёт готов\n⚙️ Мартин работает...",
+            ("✅ ⚙️ Мартин: техотчёт готов\n📱 Юки работает..." if has_smm
+             else "✅ ⚙️ Мартин: техотчёт готов\n👑 Алексей анализирует..."),
+            ("✅ 📱 Юки: контент-отчёт готов\n"
+             "🏦→👑 Маттиас передаёт данные Алексею\n"
+             "⚙️→👑 Мартин передаёт данные Алексею\n"
+             "📱→👑 Юки передаёт данные Алексею\n"
+             "👑 Алексей готовит синтез..." if has_smm
+             else None),
+            None,
+        ]
+        _report_idx = [0]
+
+        def _on_report_task_done(output):
+            idx = _report_idx[0]
+            _report_idx[0] += 1
+            if idx < len(_report_steps) and _report_steps[idx]:
+                _send_progress(_report_steps[idx])
+
         try:
             crew = Crew(
                 agents=agents,
@@ -639,6 +724,7 @@ class AICorporation:
                 verbose=True,
                 memory=True,
                 embedder=EMBEDDER_CONFIG,
+                task_callback=_on_report_task_done,
             )
             result = crew.kickoff()
 

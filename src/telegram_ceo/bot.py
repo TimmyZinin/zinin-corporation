@@ -7,6 +7,7 @@ from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
 
 from ..telegram.bot import AuthMiddleware
+from ..telegram.bridge import AgentBridge
 from .config import CeoTelegramConfig
 from .handlers import commands, messages
 
@@ -47,6 +48,14 @@ async def main():
         logger.info("CEO scheduler started")
     except ImportError:
         logger.warning("APScheduler not available — CEO proactive messages disabled")
+
+    # Pre-initialize corporation to avoid cold start on first message
+    logger.info("Pre-initializing corporation (agents + ONNX embedder)...")
+    try:
+        await asyncio.to_thread(lambda: AgentBridge._get_corp())
+        logger.info("Corporation pre-initialized and ready")
+    except Exception as e:
+        logger.error(f"Corporation pre-init failed: {e} — will retry on first message")
 
     logger.info("Алексей CEO Telegram bot starting...")
 

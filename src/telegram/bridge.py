@@ -2,7 +2,7 @@
 
 import asyncio
 import logging
-from typing import Optional
+from typing import Optional, Callable
 
 logger = logging.getLogger(__name__)
 
@@ -11,6 +11,9 @@ class AgentBridge:
     """Async wrapper around AICorporation.execute_task()."""
 
     _corp = None
+    _bot = None
+    _chat_id = None
+    _loop = None
 
     @classmethod
     def _get_corp(cls):
@@ -26,11 +29,42 @@ class AgentBridge:
         return cls._corp
 
     @classmethod
+    def _setup_progress(cls, bot, chat_id: int):
+        """Setup progress message sending for the current request."""
+        from ..crew import set_progress_callback
+
+        cls._bot = bot
+        cls._chat_id = chat_id
+        cls._loop = asyncio.get_event_loop()
+
+        def _sync_send_progress(text: str):
+            """Send a Telegram message from sync thread via event loop."""
+            if cls._bot and cls._chat_id and cls._loop:
+                try:
+                    future = asyncio.run_coroutine_threadsafe(
+                        cls._bot.send_message(cls._chat_id, text),
+                        cls._loop,
+                    )
+                    future.result(timeout=10)
+                except Exception as e:
+                    logger.warning(f"Progress send failed: {e}")
+
+        set_progress_callback(_sync_send_progress)
+
+    @classmethod
+    def _clear_progress(cls):
+        """Clear progress callback after request completes."""
+        from ..crew import set_progress_callback
+        set_progress_callback(None)
+
+    @classmethod
     async def send_to_agent(
         cls,
         message: str,
         agent_name: str = "accountant",
         chat_context: str = "",
+        bot=None,
+        chat_id: int = None,
     ) -> str:
         """Send a message to a CrewAI agent (runs in thread)."""
         task_desc = message
@@ -40,6 +74,9 @@ class AgentBridge:
                 f"---\nНовое сообщение от Тима: {message}"
             )
 
+        if bot and chat_id:
+            cls._setup_progress(bot, chat_id)
+
         def _sync():
             print(f"[Bridge] _sync: agent={agent_name}, msg={message[:60]}", flush=True)
             corp = cls._get_corp()
@@ -48,7 +85,10 @@ class AgentBridge:
             print(f"[Bridge] _sync: done, {len(result)} chars", flush=True)
             return result
 
-        return await asyncio.to_thread(_sync)
+        try:
+            return await asyncio.to_thread(_sync)
+        finally:
+            cls._clear_progress()
 
     @classmethod
     async def run_financial_report(cls) -> str:
@@ -71,20 +111,34 @@ class AgentBridge:
         return await asyncio.to_thread(_sync)
 
     @classmethod
-    async def run_strategic_review(cls) -> str:
+    async def run_strategic_review(cls, bot=None, chat_id: int = None) -> str:
         """Run strategic review: Маттиас + Мартин → Алексей synthesis."""
+        if bot and chat_id:
+            cls._setup_progress(bot, chat_id)
+
         def _sync():
             corp = cls._get_corp()
             return corp.strategic_review()
-        return await asyncio.to_thread(_sync)
+
+        try:
+            return await asyncio.to_thread(_sync)
+        finally:
+            cls._clear_progress()
 
     @classmethod
-    async def run_corporation_report(cls) -> str:
+    async def run_corporation_report(cls, bot=None, chat_id: int = None) -> str:
         """Run full corporation report: all agents → CEO synthesis."""
+        if bot and chat_id:
+            cls._setup_progress(bot, chat_id)
+
         def _sync():
             corp = cls._get_corp()
             return corp.full_corporation_report()
-        return await asyncio.to_thread(_sync)
+
+        try:
+            return await asyncio.to_thread(_sync)
+        finally:
+            cls._clear_progress()
 
     @classmethod
     async def run_generate_post(cls, topic: str = "", author: str = "kristina") -> str:

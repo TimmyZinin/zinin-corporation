@@ -39,6 +39,8 @@ async def handle_text(message: Message):
             message=user_text,
             agent_name="manager",
             chat_context=context_str,
+            bot=message.bot,
+            chat_id=message.chat.id,
         )
         print(f"[CEO] AgentBridge returned {len(response)} chars", flush=True)
         _chat_context.append({"role": "assistant", "text": response})

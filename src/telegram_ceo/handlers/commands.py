@@ -39,7 +39,7 @@ async def cmd_start(message: Message):
 async def cmd_review(message: Message):
     await run_with_typing(
         message,
-        AgentBridge.run_strategic_review(),
+        AgentBridge.run_strategic_review(bot=message.bot, chat_id=message.chat.id),
         "📋 Готовлю стратегический обзор... (60–120 сек)",
     )
 
@@ -48,7 +48,7 @@ async def cmd_review(message: Message):
 async def cmd_report(message: Message):
     await run_with_typing(
         message,
-        AgentBridge.run_corporation_report(),
+        AgentBridge.run_corporation_report(bot=message.bot, chat_id=message.chat.id),
         "📊 Готовлю полный отчёт корпорации... (90–180 сек)",
     )
 
@@ -140,7 +140,7 @@ async def cmd_delegate(message: Message):
 
     await run_with_typing(
         message,
-        AgentBridge.send_to_agent(task_text, agent_name=agent_key),
+        AgentBridge.send_to_agent(task_text, agent_name=agent_key, bot=message.bot, chat_id=message.chat.id),
         f"📨 Делегирую задачу → {agent_key}... (30–60 сек)",
     )
 
