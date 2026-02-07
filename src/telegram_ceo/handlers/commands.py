@@ -1,4 +1,4 @@
-"""CEO Telegram command handlers (/start, /help, /review, /report, /status, /delegate)."""
+"""CEO Telegram command handlers (/start, /help, /review, /report, /status, /delegate, /content, /linkedin)."""
 
 import logging
 
@@ -26,10 +26,12 @@ async def cmd_start(message: Message):
         "/review — Стратегический обзор\n"
         "/report — Полный отчёт корпорации\n"
         "/status — Статус агентов\n"
+        "/content <тема> — Юки готовит пост для LinkedIn\n"
+        "/linkedin — Статус LinkedIn от Юки\n"
         "/delegate <агент> <задача> — Делегировать задачу\n"
         "/help — Справка\n\n"
         "Можете написать любой вопрос — я отвечу как CEO "
-        "и при необходимости привлеку специалистов.",
+        "и при необходимости привлеку специалистов (включая Юки для контента).",
     )
 
 
@@ -80,6 +82,38 @@ async def cmd_status(message: Message):
     await message.answer("\n".join(lines))
 
 
+@router.message(Command("content"))
+async def cmd_content(message: Message):
+    """Ask Yuki to generate a LinkedIn post: /content AI-агенты в бизнесе."""
+    text = message.text or ""
+    parts = text.split(maxsplit=1)
+    topic = parts[1] if len(parts) > 1 else ""
+
+    if not topic:
+        await message.answer(
+            "Формат: /content <тема поста>\n\n"
+            "Пример: /content AI-агенты в бизнесе\n"
+            "Пример: /content карьерный рост в IT"
+        )
+        return
+
+    await run_with_typing(
+        message,
+        AgentBridge.run_generate_post(topic=topic),
+        f"✍️ Юки готовит пост на тему: {topic[:50]}... (30–60 сек)",
+    )
+
+
+@router.message(Command("linkedin"))
+async def cmd_linkedin(message: Message):
+    """Check LinkedIn integration status via Yuki."""
+    await run_with_typing(
+        message,
+        AgentBridge.run_linkedin_status(),
+        "📱 Юки проверяет статус LinkedIn... (20–40 сек)",
+    )
+
+
 @router.message(Command("delegate"))
 async def cmd_delegate(message: Message):
     """Delegate a task to a specific agent: /delegate accountant бюджет на Q1."""
@@ -116,9 +150,14 @@ async def cmd_help(message: Message):
     await message.answer(
         "Алексей Воронов — CEO Zinin Corp\n\n"
         "Текст → Алексей отвечает как CEO (с авто-делегацией)\n\n"
+        "Стратегия:\n"
         "/review — Стратегический обзор (Маттиас + Мартин → Алексей)\n"
-        "/report — Полный отчёт (все агенты → синтез)\n"
-        "/status — Статус агентов (мгновенно)\n"
+        "/report — Полный отчёт (все агенты включая Юки → синтез)\n"
+        "/status — Статус агентов (мгновенно)\n\n"
+        "Контент (Юки SMM):\n"
+        "/content <тема> — Юки генерирует пост для LinkedIn\n"
+        "/linkedin — Статус LinkedIn-интеграции\n\n"
+        "Делегация:\n"
         "/delegate <агент> <задача> — Прямая делегация\n"
         "/help — Эта справка\n\n"
         "Агенты: accountant (Маттиас), automator (Мартин), smm (Юки)"

@@ -77,3 +77,27 @@ class AgentBridge:
             corp = cls._get_corp()
             return corp.full_corporation_report()
         return await asyncio.to_thread(_sync)
+
+    @classmethod
+    async def run_generate_post(cls, topic: str = "", author: str = "kristina") -> str:
+        """Generate a LinkedIn post with Yuki (SMM)."""
+        def _sync():
+            corp = cls._get_corp()
+            return corp.generate_post(topic=topic, author=author)
+        return await asyncio.to_thread(_sync)
+
+    @classmethod
+    async def run_content_review(cls, content: str) -> str:
+        """Review content with Yuki (SMM)."""
+        def _sync():
+            corp = cls._get_corp()
+            return corp.content_review(content)
+        return await asyncio.to_thread(_sync)
+
+    @classmethod
+    async def run_linkedin_status(cls) -> str:
+        """Check LinkedIn status with Yuki (SMM)."""
+        def _sync():
+            corp = cls._get_corp()
+            return corp.linkedin_status()
+        return await asyncio.to_thread(_sync)

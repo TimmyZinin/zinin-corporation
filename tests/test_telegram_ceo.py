@@ -86,6 +86,31 @@ class TestBridgeCeoMethods:
         sig = inspect.signature(AgentBridge.send_to_agent)
         assert "agent_name" in sig.parameters
 
+    def test_run_generate_post_exists(self):
+        from src.telegram.bridge import AgentBridge
+        assert hasattr(AgentBridge, "run_generate_post")
+        assert asyncio.iscoroutinefunction(AgentBridge.run_generate_post)
+
+    def test_run_content_review_exists(self):
+        from src.telegram.bridge import AgentBridge
+        assert hasattr(AgentBridge, "run_content_review")
+        assert asyncio.iscoroutinefunction(AgentBridge.run_content_review)
+
+    def test_run_linkedin_status_exists(self):
+        from src.telegram.bridge import AgentBridge
+        assert hasattr(AgentBridge, "run_linkedin_status")
+        assert asyncio.iscoroutinefunction(AgentBridge.run_linkedin_status)
+
+    def test_run_generate_post_calls_corp(self):
+        from src.telegram.bridge import AgentBridge
+        src = inspect.getsource(AgentBridge.run_generate_post)
+        assert "generate_post" in src
+
+    def test_run_content_review_calls_corp(self):
+        from src.telegram.bridge import AgentBridge
+        src = inspect.getsource(AgentBridge.run_content_review)
+        assert "content_review" in src
+
 
 # ──────────────────────────────────────────────────────────
 # Test: Exported typing helpers
@@ -134,6 +159,14 @@ class TestCeoCommands:
         from src.telegram_ceo.handlers.commands import cmd_help
         assert asyncio.iscoroutinefunction(cmd_help)
 
+    def test_content_command_exists(self):
+        from src.telegram_ceo.handlers.commands import cmd_content
+        assert asyncio.iscoroutinefunction(cmd_content)
+
+    def test_linkedin_command_exists(self):
+        from src.telegram_ceo.handlers.commands import cmd_linkedin
+        assert asyncio.iscoroutinefunction(cmd_linkedin)
+
     def test_valid_agents_includes_specialists(self):
         from src.telegram_ceo.handlers.commands import VALID_AGENTS
         assert "accountant" in VALID_AGENTS
@@ -151,6 +184,14 @@ class TestCeoCommands:
         assert "CEO" in text
 
     @pytest.mark.asyncio
+    async def test_start_mentions_yuki(self):
+        from src.telegram_ceo.handlers.commands import cmd_start
+        msg = AsyncMock()
+        await cmd_start(msg)
+        text = msg.answer.call_args[0][0]
+        assert "Юки" in text or "/content" in text
+
+    @pytest.mark.asyncio
     async def test_help_lists_all_commands(self):
         from src.telegram_ceo.handlers.commands import cmd_help
         msg = AsyncMock()
@@ -160,6 +201,9 @@ class TestCeoCommands:
         assert "/report" in text
         assert "/status" in text
         assert "/delegate" in text
+        assert "/content" in text
+        assert "/linkedin" in text
+        assert "Юки" in text
 
     @pytest.mark.asyncio
     async def test_status_no_llm_call(self):
@@ -231,6 +275,38 @@ class TestCeoCommands:
             await cmd_report(msg)
             mock_rwt.assert_called_once()
             assert "отчёт" in mock_rwt.call_args[0][2].lower()
+
+    @pytest.mark.asyncio
+    async def test_content_no_topic_shows_help(self):
+        from src.telegram_ceo.handlers.commands import cmd_content
+        msg = AsyncMock()
+        msg.text = "/content"
+        await cmd_content(msg)
+        text = msg.answer.call_args[0][0]
+        assert "Формат" in text or "тема" in text.lower()
+
+    @pytest.mark.asyncio
+    async def test_content_with_topic_calls_yuki(self):
+        from src.telegram_ceo.handlers.commands import cmd_content
+        msg = AsyncMock()
+        msg.text = "/content AI-агенты в бизнесе"
+        with patch("src.telegram_ceo.handlers.commands.run_with_typing") as mock_rwt:
+            mock_rwt.return_value = None
+            await cmd_content(msg)
+            mock_rwt.assert_called_once()
+            wait_msg = mock_rwt.call_args[0][2]
+            assert "Юки" in wait_msg
+
+    @pytest.mark.asyncio
+    async def test_linkedin_calls_yuki(self):
+        from src.telegram_ceo.handlers.commands import cmd_linkedin
+        msg = AsyncMock()
+        with patch("src.telegram_ceo.handlers.commands.run_with_typing") as mock_rwt:
+            mock_rwt.return_value = None
+            await cmd_linkedin(msg)
+            mock_rwt.assert_called_once()
+            wait_msg = mock_rwt.call_args[0][2]
+            assert "Юки" in wait_msg or "LinkedIn" in wait_msg
 
 
 # ──────────────────────────────────────────────────────────
