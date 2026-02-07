@@ -145,6 +145,41 @@ async def cmd_delegate(message: Message):
     )
 
 
+@router.message(Command("test"))
+async def cmd_test(message: Message):
+    """Quick diagnostic — tests bridge without LLM."""
+    import time
+    lines = ["Диагностика CEO бота:\n"]
+
+    # Test 1: Bridge import
+    t0 = time.time()
+    try:
+        from ...telegram.bridge import AgentBridge
+        lines.append(f"1. Bridge import: OK ({time.time()-t0:.1f}s)")
+    except Exception as e:
+        lines.append(f"1. Bridge import: FAIL ({e})")
+
+    # Test 2: Corp creation
+    t0 = time.time()
+    try:
+        corp = AgentBridge._get_corp()
+        lines.append(f"2. Corporation: ready={corp.is_ready} ({time.time()-t0:.1f}s)")
+        lines.append(f"   Manager: {corp.manager is not None}")
+        lines.append(f"   SMM (Yuki): {corp.smm is not None}")
+    except Exception as e:
+        lines.append(f"2. Corporation: FAIL ({e})")
+
+    # Test 3: Activity tracker
+    try:
+        statuses = get_all_statuses()
+        lines.append(f"3. Activity tracker: {len(statuses)} agents")
+    except Exception as e:
+        lines.append(f"3. Activity tracker: FAIL ({e})")
+
+    lines.append(f"\nВсё ОК — можно писать текстовые сообщения.")
+    await message.answer("\n".join(lines))
+
+
 @router.message(Command("help"))
 async def cmd_help(message: Message):
     await message.answer(
