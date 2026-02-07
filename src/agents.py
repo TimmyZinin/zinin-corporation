@@ -74,7 +74,7 @@ def create_manager_agent() -> Optional[Agent]:
 
 
 def create_accountant_agent() -> Optional[Agent]:
-    """Create the Accountant (Amara) agent with financial tools"""
+    """Create the Accountant (Маттиас) agent with financial tools"""
     config = load_agent_config("accountant")
     if not config:
         logger.error("accountant.yaml not found")
@@ -95,7 +95,7 @@ def create_accountant_agent() -> Optional[Agent]:
         model = config.get("llm", "openrouter/anthropic/claude-3.5-haiku")
         llm = create_llm(model)
         return Agent(
-            role=config.get("role", "Финансовый директор Амара"),
+            role=config.get("role", "CFO Маттиас Бруннер"),
             goal=config.get("goal", "Максимизировать прибыль и контролировать расходы"),
             backstory=config.get("backstory", "Ты — финансовый директор AI-корпорации"),
             llm=llm,
@@ -146,7 +146,7 @@ def create_smm_agent() -> Optional[Agent]:
 
 
 def create_automator_agent() -> Optional[Agent]:
-    """Create the Automator (Niraj) agent with tech tools"""
+    """Create the Automator (Мартин) agent with tech tools"""
     config = load_agent_config("automator")
     if not config:
         logger.error("automator.yaml not found")
@@ -163,7 +163,7 @@ def create_automator_agent() -> Optional[Agent]:
         model = config.get("llm", "openrouter/anthropic/claude-sonnet-4")
         llm = create_llm(model)
         return Agent(
-            role=config.get("role", "Технический директор Нирадж"),
+            role=config.get("role", "CTO Мартин Эчеверрия"),
             goal=config.get("goal", "Обеспечивать техническую инфраструктуру"),
             backstory=config.get("backstory", "Ты — технический директор"),
             llm=llm,

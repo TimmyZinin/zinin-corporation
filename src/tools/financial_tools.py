@@ -1,5 +1,5 @@
 """
-Financial tools for Amara (Accountant agent)
+Financial tools for Маттиас (CFO agent)
 """
 
 import json
@@ -77,7 +77,7 @@ def _default_data() -> dict:
         },
         "api_usage": {
             "manager": {"name": "Управленец", "used_usd": 0, "limit_usd": 50},
-            "accountant": {"name": "Амара", "used_usd": 0, "limit_usd": 30},
+            "accountant": {"name": "Маттиас", "used_usd": 0, "limit_usd": 30},
             "automator": {"name": "Автоматизатор", "used_usd": 0, "limit_usd": 100},
         },
         "last_updated": datetime.now().isoformat(),

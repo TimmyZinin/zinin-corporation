@@ -1,5 +1,5 @@
 """
-Technical tools for Niraj (CTO agent)
+Technical tools for Мартин (CTO agent)
 
 Real system checks: HTTP pings, API verification, service health.
 """
@@ -236,10 +236,10 @@ class SystemHealthChecker(BaseTool):
         if action == "agents":
             lines = ["═══ AGENT STATUS ═══"]
             agents_info = [
-                ("👑 Санторо", "CEO", "claude-sonnet-4", ["Web Search", "Web Page Reader"]),
-                ("📊 Амара", "CFO", "claude-3.5-haiku", ["Financial Tracker", "Subscription Monitor", "API Usage Tracker"]),
-                ("📱 Юки", "SMM", "claude-3.5-haiku", ["Content Generator", "Yuki Memory", "LinkedIn Publisher"]),
-                ("⚙️ Нирадж", "CTO", "claude-sonnet-4", ["System Health Checker", "Integration Manager", "Web Search", "Web Page Reader"]),
+                ("👑 Алексей", "CEO", "claude-sonnet-4", ["Web Search", "Web Page Reader"]),
+                ("🏦 Маттиас", "CFO", "claude-3.5-haiku", ["Financial Tracker", "Subscription Monitor", "API Usage Tracker"]),
+                ("📱 Юки", "Head of SMM", "claude-3.5-haiku", ["Content Generator", "Yuki Memory", "LinkedIn Publisher"]),
+                ("⚙️ Мартин", "CTO", "claude-sonnet-4", ["System Health Checker", "Integration Manager", "Web Search", "Web Page Reader"]),
             ]
             api_key = os.getenv("OPENROUTER_API_KEY", "")
             for name, role, model, tools in agents_info:

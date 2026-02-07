@@ -137,7 +137,7 @@ class AICorporation:
 
             # SMM agent is optional
             if not self.smm:
-                logger.warning("SMM agent (Yuki) failed to init — continuing without her")
+                logger.warning("SMM agent (Юки) failed to init — continuing without her")
 
             # Create crew with memory enabled
             all_agents = [self.manager, self.accountant, self.automator]
@@ -232,7 +232,7 @@ class AICorporation:
     # ──────────────────────────────────────────────────────────
 
     def strategic_review(self) -> str:
-        """Run strategic review: Amara + Niraj feed data → Santoro synthesizes"""
+        """Run strategic review: Маттиас + Мартин feed data → Алексей synthesizes"""
         if not self.is_ready:
             return "❌ AI Corporation не инициализирована."
 
@@ -266,7 +266,7 @@ class AICorporation:
 
         task_strategy = create_task(
             description=(
-                "На основе финансовых данных от Амары и технического отчёта от Нираджа "
+                "На основе финансовых данных от Маттиаса и технического отчёта от Мартина "
                 "подготовь стратегический обзор:\n"
                 "- Статус каждого проекта\n"
                 "- Приоритеты на неделю (фокус на Крипто и Сборке)\n"
@@ -308,7 +308,7 @@ class AICorporation:
             return f"❌ Ошибка стратегического обзора: {e}"
 
     def financial_report(self) -> str:
-        """Run full financial report from Amara"""
+        """Run full financial report from Маттиас"""
         task_desc = """
         Используй свои инструменты для подготовки финансового отчёта:
 
@@ -326,7 +326,7 @@ class AICorporation:
         return self.execute_task(task_desc, "accountant")
 
     def api_budget_check(self) -> str:
-        """Check API budget status from Amara"""
+        """Check API budget status from Маттиас"""
         task_desc = """
         Проверь текущее состояние API бюджетов:
 
@@ -339,7 +339,7 @@ class AICorporation:
         return self.execute_task(task_desc, "accountant")
 
     def subscription_analysis(self) -> str:
-        """Analyze subscriptions from Amara"""
+        """Analyze subscriptions from Маттиас"""
         task_desc = """
         Проанализируй состояние подписок в клубах:
 
@@ -366,7 +366,7 @@ class AICorporation:
         return self.execute_task(task_desc, "automator")
 
     def integration_status(self) -> str:
-        """Check integration status from Niraj"""
+        """Check integration status from Мартин"""
         task_desc = """
         Проверь статус всех интеграций:
 
@@ -426,7 +426,7 @@ class AICorporation:
         return self.execute_task(task_desc, "smm")
 
     def full_corporation_report(self) -> str:
-        """Full weekly report: all agents contribute, Santoro synthesizes."""
+        """Full weekly report: all agents contribute, Алексей synthesizes."""
         if not self.is_ready:
             return "❌ AI Corporation не инициализирована."
 
@@ -437,7 +437,7 @@ class AICorporation:
         log_task_start("accountant", "Финансовый отчёт (полный)")
         log_task_start("automator", "Техотчёт (полный)")
 
-        # Task 1: Amara — financial report
+        # Task 1: Маттиас — financial report
         task_fin = create_task(
             description=(
                 "Подготовь полный финансовый отчёт:\n"
@@ -452,7 +452,7 @@ class AICorporation:
         )
         tasks.append(task_fin)
 
-        # Task 2: Niraj — system health
+        # Task 2: Мартин — system health
         task_tech = create_task(
             description=(
                 "Проведи полную проверку систем:\n"
@@ -483,13 +483,13 @@ class AICorporation:
             tasks.append(task_smm)
             agents.insert(2, self.smm)
 
-        # Task 4: Santoro — synthesis with context from all
+        # Task 4: Алексей — synthesis with context from all
         task_ceo = create_task(
             description=(
                 "На основе данных от всех агентов подготовь еженедельный отчёт для Тима:\n"
                 "- Общее состояние корпорации\n"
-                "- Финансовые показатели (от Амары)\n"
-                "- Техническое здоровье (от Нираджа)\n"
+                "- Финансовые показатели (от Маттиаса)\n"
+                "- Техническое здоровье (от Мартина)\n"
                 "- Контент и публикации (от Юки)\n"
                 "- Приоритеты на следующую неделю\n"
                 "- Конкретные задачи для каждого агента\n"
