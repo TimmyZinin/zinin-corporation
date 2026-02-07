@@ -806,7 +806,7 @@ def main():
         st.caption(f"Запущено: {datetime.now().strftime('%d.%m.%Y %H:%M')}")
 
     # Main content - Tabs
-    tab1, tab2, tab3, tab5, tab6, tab4 = st.tabs(["💬 Чат", "👥 Агенты", "📋 Задачи", "📱 Контент", "📡 Мониторинг", "📊 Статистика"])
+    tab1, tab2, tab3, tab5, tab6, tab7, tab4 = st.tabs(["💬 Чат", "👥 Агенты", "📋 Задачи", "📱 Контент", "📡 Мониторинг", "🎮 Дашборд", "📊 Статистика"])
 
     # Tab 1: Chat
     with tab1:
@@ -1477,6 +1477,22 @@ def main():
                         from_emoji = AGENT_EMOJI.get(from_a, "")
                         to_emoji = AGENT_EMOJI.get(to_a, "")
                         st.caption(f"`{time_str}` 💬 {from_emoji} **{from_name}** → {to_emoji} **{to_name}**: _{event.get('description', '')}_")
+
+    # Tab 7: Agent Dashboard
+    with tab7:
+        try:
+            from src.dashboard import generate_dashboard_html
+            from src.activity_tracker import get_all_statuses as dash_get_statuses
+            dash_statuses = dash_get_statuses()
+        except Exception:
+            dash_statuses = {}
+
+        completed = st.session_state.get('tasks_completed', 0)
+        dash_html = generate_dashboard_html(
+            completed_count=completed,
+            agent_statuses=dash_statuses,
+        )
+        st_components.html(dash_html, height=750, scrolling=False)
 
     # Tab 4: Stats
     with tab4:
