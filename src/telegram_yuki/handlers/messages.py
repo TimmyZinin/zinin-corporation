@@ -66,10 +66,8 @@ async def handle_text(message: Message):
         topic = PODCAST_TRIGGERS.sub("", user_text).strip()
         if not topic:
             topic = user_text
-        from .commands import cmd_podcast
-        # Simulate command by calling the handler directly
-        message.text = f"/подкаст {topic}"
-        await cmd_podcast(message)
+        from .commands import _generate_podcast_flow
+        await _generate_podcast_flow(message, topic)
         return
 
     # Check for natural language post triggers

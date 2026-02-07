@@ -23,6 +23,23 @@ AUDIO_DIR = os.path.join(PODCASTS_DIR, "audio")
 MAX_CHUNK_CHARS = 4500  # ElevenLabs limit is 5000, leave margin
 
 
+def _hard_split_words(text: str, max_chars: int) -> list[str]:
+    """Last-resort split: break text at word boundaries to fit max_chars."""
+    words = text.split()
+    chunks = []
+    current = ""
+    for word in words:
+        if len(current) + len(word) + 1 > max_chars:
+            if current:
+                chunks.append(current.strip())
+            current = word
+        else:
+            current = f"{current} {word}" if current else word
+    if current.strip():
+        chunks.append(current.strip())
+    return chunks
+
+
 def _split_text_chunks(text: str, max_chars: int = MAX_CHUNK_CHARS) -> list[str]:
     """Split text at sentence boundaries, respecting max_chars."""
     sentences = re.split(r'(?<=[.!?…])\s+', text.strip())
@@ -40,19 +57,32 @@ def _split_text_chunks(text: str, max_chars: int = MAX_CHUNK_CHARS) -> list[str]
                 for part in parts:
                     if len(sub) + len(part) + 1 > max_chars:
                         if sub:
-                            chunks.append(sub.strip())
+                            # Hard split sub if still over limit
+                            if len(sub) > max_chars:
+                                chunks.extend(_hard_split_words(sub, max_chars))
+                            else:
+                                chunks.append(sub.strip())
                         sub = part
                     else:
                         sub = f"{sub} {part}" if sub else part
                 if sub:
-                    current = sub
+                    # Hard split final sub if over limit
+                    if len(sub) > max_chars:
+                        hard = _hard_split_words(sub, max_chars)
+                        chunks.extend(hard[:-1])
+                        current = hard[-1] if hard else ""
+                    else:
+                        current = sub
             else:
                 current = sentence
         else:
             current = f"{current} {sentence}" if current else sentence
 
     if current.strip():
-        chunks.append(current.strip())
+        if len(current) > max_chars:
+            chunks.extend(_hard_split_words(current, max_chars))
+        else:
+            chunks.append(current.strip())
 
     return chunks
 
@@ -173,6 +203,8 @@ def generate_podcast_audio(
 
     # Clean script: remove metadata headers from CrewAI output
     clean_script = _clean_script(script)
+    if not clean_script:
+        raise RuntimeError("Empty script — nothing to generate audio from")
 
     # Split into chunks
     chunks_text = _split_text_chunks(clean_script)

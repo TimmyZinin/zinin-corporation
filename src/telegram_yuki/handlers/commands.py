@@ -227,6 +227,11 @@ async def cmd_podcast(message: Message):
         )
         return
 
+    await _generate_podcast_flow(message, topic)
+
+
+async def _generate_podcast_flow(message: Message, topic: str):
+    """Core podcast generation flow — used by /подкаст command and natural language triggers."""
     if circuit_breaker.is_open:
         await message.answer(
             f"Circuit breaker активен: {circuit_breaker.status}\n"
@@ -341,12 +346,20 @@ async def cmd_status(message: Message):
 
     scheduled = PostScheduler.get_scheduled()
 
+    # Podcast episode count
+    try:
+        from ..rss_feed import PodcastRSSManager
+        podcast_count = PodcastRSSManager().get_episode_count()
+    except Exception:
+        podcast_count = 0
+
     await message.answer(
         f"Юки Пак — SMM статус\n\n"
         f"{status_emoji} Статус: {smm_status.get('status', 'idle')}\n"
         f"📝 Задач за 24ч: {tasks_24h}\n"
         f"📋 Черновиков: {DraftManager.active_count()}\n"
         f"📅 В очереди: {len(scheduled)}\n"
+        f"🎙 Подкастов: {podcast_count}\n"
         f"🔒 Автономность: {autonomy.status}\n"
         f"🔌 Circuit breaker: {circuit_breaker.status}\n"
     )
@@ -374,6 +387,12 @@ async def cmd_health(message: Message):
     # Threads
     threads_token = os.getenv("THREADS_ACCESS_TOKEN", "")
     lines.append(f"{'✅' if threads_token else '⚠️'} Threads: {'настроен' if threads_token else 'не настроен'}")
+
+    # ElevenLabs (podcast)
+    el_key = os.getenv("ELEVENLABS_API_KEY", "")
+    el_voice = os.getenv("ELEVENLABS_VOICE_ID", "")
+    lines.append(f"{'✅' if el_key else '⚠️'} ElevenLabs API: {'set' if el_key else 'не настроен'}")
+    lines.append(f"{'✅' if el_voice else '⚠️'} ElevenLabs Voice: {'set' if el_voice else 'не настроен'}")
 
     # Publishers
     configured = get_configured_publishers()

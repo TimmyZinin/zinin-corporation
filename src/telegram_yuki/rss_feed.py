@@ -105,9 +105,9 @@ class PodcastRSSManager:
         fg.language(PODCAST_LANGUAGE)
         fg.generator("AI Corporation Podcast Generator")
 
-        if self._base_url:
-            fg.link(href=f"{self._base_url}/feed.xml", rel="self")
-            fg.link(href=self._base_url, rel="alternate")
+        base = self._base_url or "https://example.com/podcast"
+        fg.link(href=f"{base}/feed.xml", rel="self")
+        fg.link(href=base, rel="alternate")
 
         # iTunes/Podcast extensions (required by Yandex.Music and VK)
         fg.podcast.itunes_author(PODCAST_AUTHOR)
