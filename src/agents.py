@@ -112,6 +112,7 @@ def create_accountant_agent() -> Optional[Agent]:
             ElevenLabsUsageTool,
             OpenAIUsageTool,
             PapayaPositionsTool,
+            StacksPortfolioTool,
         )
         tools.extend([
             TBankBalanceTool(),
@@ -131,6 +132,7 @@ def create_accountant_agent() -> Optional[Agent]:
             ElevenLabsUsageTool(),
             OpenAIUsageTool(),
             PapayaPositionsTool(),
+            StacksPortfolioTool(),
         ])
         logger.info(f"Loaded {len(tools)} financial tools for Маттиас")
     except Exception as e:
