@@ -6,6 +6,7 @@ Used by other tools for USD conversion.
 """
 
 import logging
+import os
 import time
 from typing import Optional, Type
 
@@ -146,16 +147,15 @@ def get_usd_price(coin_id: str) -> Optional[float]:
         data = _price_cache[cache_key]
         return data.get(coin_id, {}).get("usd")
 
-    # Try fetching
+    # Try fetching (CoinGecko free API works without key)
     try:
-        from .base import CredentialBroker
-        creds = CredentialBroker.get("coingecko")
         import httpx
-        headers = {
-            "x-cg-demo-key": creds.get("api_key", ""),
-        }
+        headers = {}
+        api_key = os.environ.get("COINGECKO_API_KEY")
+        if api_key:
+            headers["x-cg-demo-key"] = api_key
         client = httpx.Client(
-            base_url=creds["base_url"],
+            base_url="https://api.coingecko.com/api/v3",
             headers=headers,
             timeout=15.0,
         )
