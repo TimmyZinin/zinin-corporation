@@ -84,7 +84,7 @@ async def main():
     logger.info("Маттиас Telegram bot starting...")
 
     try:
-        await dp.start_polling(bot)
+        await dp.start_polling(bot, drop_pending_updates=True)
     finally:
         if scheduler:
             scheduler.shutdown(wait=False)

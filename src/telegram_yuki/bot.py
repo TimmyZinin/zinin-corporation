@@ -124,7 +124,7 @@ async def main():
     logger.info("Юки SMM Telegram bot starting...")
 
     try:
-        await dp.start_polling(bot)
+        await dp.start_polling(bot, drop_pending_updates=True)
     finally:
         scheduler_task.cancel()
         try:
