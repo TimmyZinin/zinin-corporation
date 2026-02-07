@@ -469,13 +469,14 @@ class TestAgentIntegration:
         assert "ElevenLabs Usage" in tool_names
         assert "OpenAI API Usage" in tool_names
         assert "stacks_portfolio" in tool_names
+        assert "forex_rates" in tool_names
 
     def test_accountant_tool_count(self):
         os.environ["OPENROUTER_API_KEY"] = "test-key"
         from src.agents import create_accountant_agent
         agent = create_accountant_agent()
-        # 18 real-time financial tools (no legacy)
-        assert len(agent.tools) == 18
+        # 19 real-time financial tools (no legacy)
+        assert len(agent.tools) == 19
 
     def test_accountant_goal_updated(self):
         os.environ["OPENROUTER_API_KEY"] = "test-key"

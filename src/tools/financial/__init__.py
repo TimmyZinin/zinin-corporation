@@ -18,6 +18,7 @@ from .elevenlabs_usage import ElevenLabsUsageTool
 from .openai_usage import OpenAIUsageTool
 from .papaya import PapayaPositionsTool
 from .stacks import StacksPortfolioTool
+from .forex import ForexRatesTool
 
 __all__ = [
     "CryptoPriceTool",
@@ -45,4 +46,5 @@ __all__ = [
     "OpenAIUsageTool",
     "PapayaPositionsTool",
     "StacksPortfolioTool",
+    "ForexRatesTool",
 ]
