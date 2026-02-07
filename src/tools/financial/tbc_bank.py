@@ -1,10 +1,8 @@
 """
-TBC Bank — Georgian banking API (PSD2 Open Banking).
+TBC Bank — Georgian banking (personal account).
 
-API Docs: https://developers.tbcbank.ge
-Auth: OAuth 2.0 + mTLS (JWS signature)
-
-STATUS: Not connected yet. Requires PSD2/eIDAS certificate.
+API Status: DBI request sent to bank, pending approval.
+Current mode: MANUAL — Маттиас asks Тим for screenshots.
 """
 
 from typing import Optional, Type
@@ -20,16 +18,18 @@ class TBCBalanceTool(FinancialBaseTool):
     name: str = "tbc_balance"
     description: str = (
         "Get TBC Bank account balances (Georgia, GEL/USD). "
-        "Currently not connected — requires PSD2 certificate setup."
+        "Currently manual mode — ask Тим for a screenshot."
     )
     args_schema: Type[BaseModel] = TBCBalanceInput
     service_name: str = "tbc"
 
     def _run(self, account_id: str = None) -> str:
         return (
-            "⚠️ TBC Bank (Georgia) is not connected yet. "
-            "Requires PSD2/eIDAS certificate for Open Banking API access. "
-            "Contact TBC developers portal: developers.tbcbank.ge"
+            "⚠️ TBC Bank (Грузия) — API пока не подключён (DBI запрос отправлен в банк).\n"
+            "ДЕЙСТВИЕ: Попроси Тима прислать скриншот баланса из TBC Online.\n"
+            "Формат: «Тим, для финансового отчёта мне нужен актуальный баланс TBC Bank. "
+            "Пришли, пожалуйста, скриншот из интернет-банка.»\n"
+            "После получения скриншота — распознай данные и включи в отчёт."
         )
 
 
@@ -43,13 +43,15 @@ class TBCStatementTool(FinancialBaseTool):
     name: str = "tbc_statement"
     description: str = (
         "Get TBC Bank statement (Georgia). "
-        "Currently not connected."
+        "Currently manual mode — ask Тим for screenshots."
     )
     args_schema: Type[BaseModel] = TBCStatementInput
     service_name: str = "tbc"
 
     def _run(self, account_id: str, date_from: str = None, date_to: str = None) -> str:
         return (
-            "⚠️ TBC Bank (Georgia) is not connected yet. "
-            "Requires PSD2/eIDAS certificate."
+            "⚠️ TBC Bank выписка — API пока не подключён.\n"
+            "ДЕЙСТВИЕ: Попроси Тима прислать скриншот выписки из TBC Online "
+            f"за период {date_from or '...'} — {date_to or 'сегодня'}.\n"
+            "После получения — распознай транзакции и включи в анализ."
         )
