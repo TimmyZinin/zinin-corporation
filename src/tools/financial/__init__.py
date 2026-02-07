@@ -11,6 +11,7 @@ from .vakifbank import VakifbankBalanceTool, VakifbankStatementTool
 from .krungsri import KrungsriBalanceTool, KrungsriStatementTool
 from .stripe_tool import StripeRevenueTool
 from .portfolio_summary import PortfolioSummaryTool
+from .screenshot_data import ScreenshotDataTool
 
 __all__ = [
     "CryptoPriceTool",
@@ -31,4 +32,5 @@ __all__ = [
     "KrungsriStatementTool",
     "StripeRevenueTool",
     "PortfolioSummaryTool",
+    "ScreenshotDataTool",
 ]

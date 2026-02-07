@@ -475,8 +475,8 @@ class TestAgentIntegration:
         os.environ["OPENROUTER_API_KEY"] = "test-key"
         from src.agents import create_accountant_agent
         agent = create_accountant_agent()
-        # 3 legacy + 11 new = 14
-        assert len(agent.tools) == 14
+        # 3 legacy + 12 new = 15
+        assert len(agent.tools) == 15
 
     def test_accountant_goal_updated(self):
         os.environ["OPENROUTER_API_KEY"] = "test-key"

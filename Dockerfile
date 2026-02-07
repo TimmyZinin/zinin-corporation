@@ -17,6 +17,8 @@ COPY crews/ /app/crews/
 COPY src/ /app/src/
 COPY data/ /app/data/
 COPY CLAUDE.md README.md /app/
-COPY app.py /app/app.py
+COPY app.py run_telegram.py start.sh /app/
+COPY config/ /app/config/
+RUN chmod +x /app/start.sh
 
-CMD streamlit run app.py --server.port=$PORT --server.address=0.0.0.0 --server.headless=true --server.enableCORS=false --server.enableXsrfProtection=false
+CMD ["/app/start.sh"]

@@ -29,6 +29,8 @@ data/activity_log.json
 data/chat_history.json
 data/financial_data.json
 data/tech_data.json
+data/screenshot_data.json
+data/tribute_payments.json
 
 # CrewAI storage
 ai_corporation/

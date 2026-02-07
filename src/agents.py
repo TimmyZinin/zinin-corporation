@@ -106,6 +106,7 @@ def create_accountant_agent() -> Optional[Agent]:
             TONTransactionsTool,
             CryptoPriceTool,
             PortfolioSummaryTool,
+            ScreenshotDataTool,
         )
         tools.extend([
             TBankBalanceTool(),
@@ -119,6 +120,7 @@ def create_accountant_agent() -> Optional[Agent]:
             TONTransactionsTool(),
             CryptoPriceTool(),
             PortfolioSummaryTool(),
+            ScreenshotDataTool(),
         ])
         logger.info(f"Loaded {len(tools)} financial tools for Маттиас")
     except Exception as e:
