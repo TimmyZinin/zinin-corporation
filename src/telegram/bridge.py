@@ -15,10 +15,13 @@ class AgentBridge:
     @classmethod
     def _get_corp(cls):
         if cls._corp is None:
+            logger.info("AgentBridge: creating AICorporation (first call)...")
             from ..crew import get_corporation
             cls._corp = get_corporation()
         if not cls._corp.is_ready:
+            logger.info("AgentBridge: initializing corporation...")
             cls._corp.initialize()
+            logger.info(f"AgentBridge: corporation ready={cls._corp.is_ready}")
         return cls._corp
 
     @classmethod
@@ -37,8 +40,12 @@ class AgentBridge:
             )
 
         def _sync():
+            logger.info(f"AgentBridge._sync: agent={agent_name}, msg={message[:60]}")
             corp = cls._get_corp()
-            return corp.execute_task(task_desc, agent_name, use_memory=False)
+            logger.info(f"AgentBridge._sync: corp ready, calling execute_task...")
+            result = corp.execute_task(task_desc, agent_name, use_memory=False)
+            logger.info(f"AgentBridge._sync: done, {len(result)} chars")
+            return result
 
         return await asyncio.to_thread(_sync)
 

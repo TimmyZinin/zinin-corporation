@@ -33,11 +33,14 @@ async def handle_text(message: Message):
     context_str = _format_context(_chat_context[-MAX_CONTEXT:])
 
     try:
+        logger.info(f"CEO msg from {message.from_user.id}: {user_text[:80]}")
+        logger.info("Calling AgentBridge.send_to_agent(manager)...")
         response = await AgentBridge.send_to_agent(
             message=user_text,
             agent_name="manager",
             chat_context=context_str,
         )
+        logger.info(f"AgentBridge returned {len(response)} chars")
         _chat_context.append({"role": "assistant", "text": response})
 
         for chunk in format_for_telegram(response):
