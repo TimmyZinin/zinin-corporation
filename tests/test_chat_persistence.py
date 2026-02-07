@@ -477,38 +477,38 @@ class TestFormatChatContextTruncation:
     """Prove that format_chat_context() truncates agent messages to 300
     characters, silently discarding potentially critical information."""
 
-    def test_agent_messages_truncated_to_300_chars(self):
-        """Agent replies are sliced at [:300], meaning any content beyond
-        300 characters is silently dropped from the context window."""
+    def test_agent_messages_truncated_to_800_chars(self):
+        """Agent replies are sliced at [:800] (FIXED from 300), meaning content
+        up to 800 characters is preserved in the context window."""
         ns = _build_chat_functions()
         fmt = ns["format_chat_context"]
 
-        long_reply = "A" * 500  # 500-char reply
+        long_reply = "A" * 900  # 900-char reply
         messages = [
             {"role": "assistant", "content": long_reply, "agent_name": "Matthias"},
             {"role": "user", "content": "follow up question"},
         ]
 
         result = fmt(messages)
-        # The agent message in context should be truncated
-        assert "A" * 300 in result, "Should contain first 300 chars"
-        assert "A" * 301 not in result, (
-            "Characters beyond 300 are dropped -- agent provided 500 chars "
-            "but only 300 survive into the context"
+        assert "A" * 800 in result, "Should contain first 800 chars"
+        assert "A" * 801 not in result, (
+            "Characters beyond 800 are dropped -- agent provided 900 chars "
+            "but only 800 survive into the context"
         )
 
-    def test_truncation_loses_critical_data(self):
-        """A realistic scenario: a financial report with key numbers at the
-        end is truncated, so the agent loses access to its own conclusions."""
+    def test_truncation_preserves_critical_data_under_800(self):
+        """A realistic scenario: a financial report with key numbers fits
+        within 800 chars, so the agent CAN reference its own conclusions (FIXED)."""
         ns = _build_chat_functions()
         fmt = ns["format_chat_context"]
 
-        # Pad to push the conclusion past 300 chars
+        # Pad to push past 300 but stay under 800
         padding = "Анализ финансовых показателей за Q4 2025. " * 8  # ~328 chars
         conclusion = "ИТОГО: чистая прибыль 2.4M USD, ROI 340%"
         full_report = padding + conclusion
 
-        assert len(full_report) > 300, "Report must exceed 300 chars for this test"
+        assert len(full_report) > 300, "Report must exceed 300 chars"
+        assert len(full_report) < 800, "Report must fit within 800 chars"
 
         messages = [
             {"role": "assistant", "content": full_report, "agent_name": "Matthias"},
@@ -516,9 +516,9 @@ class TestFormatChatContextTruncation:
         ]
 
         result = fmt(messages)
-        assert "ROI 340%" not in result, (
-            "The ROI figure is past the 300-char cutoff and is LOST from context. "
-            "The agent cannot reference its own previous conclusion."
+        assert "ROI 340%" in result, (
+            "FIX VERIFIED: The ROI figure is within the 800-char limit "
+            "and is now PRESERVED in context."
         )
 
     def test_user_messages_not_truncated(self):
@@ -558,20 +558,18 @@ class TestFormatChatContextTruncation:
         # Recent messages should be present
         assert "message_19" in result, "Recent messages should be in context"
 
-    def test_truncation_hardcoded_not_configurable(self):
-        """The 300-char limit is hardcoded in the source with [:300].
-        There is no parameter or env var to adjust it."""
+    def test_truncation_hardcoded_at_800(self):
+        """The 800-char limit is hardcoded in the source with [:800] (FIXED from 300)."""
         source = _load_app_source()
         tree = ast.parse(source)
 
         for node in ast.walk(tree):
             if isinstance(node, ast.FunctionDef) and node.name == "format_chat_context":
                 func_src = ast.get_source_segment(source, node)
-                assert "[:300]" in func_src, (
-                    "The 300-char truncation is hardcoded as [:300]"
+                assert "[:800]" in func_src, (
+                    "The 800-char truncation is hardcoded as [:800]"
                 )
-                # No configurable max_content_length parameter
-                assert "max_content" not in func_src
+                assert "[:300]" not in func_src, "Old 300-char truncation should be removed"
                 assert "max_length" not in func_src
                 assert "truncate_at" not in func_src
                 return

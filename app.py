@@ -153,9 +153,9 @@ def detect_agent(message: str) -> str:
     return agents[0] if agents else "manager"
 
 
-def format_chat_context(messages: list, max_messages: int = 10) -> str:
+def format_chat_context(messages: list, max_messages: int = 20) -> str:
     """Format recent chat history as context for the agent."""
-    recent = messages[-(max_messages + 1):-1]  # exclude the current message
+    recent = messages[-max_messages:]
     if not recent:
         return ""
 
@@ -165,7 +165,7 @@ def format_chat_context(messages: list, max_messages: int = 10) -> str:
             lines.append(f"Тим: {msg['content']}")
         else:
             agent_name = msg.get("agent_name", "Алексей")
-            lines.append(f"{agent_name}: {msg['content'][:300]}")
+            lines.append(f"{agent_name}: {msg['content'][:800]}")
     return "\n".join(lines)
 
 
@@ -932,12 +932,13 @@ def main():
             else:
                 corp = get_corporation()
                 if corp and corp.is_ready:
-                    context = format_chat_context(st.session_state.messages)
-                    task_with_context = prompt
-                    if context:
-                        task_with_context = f"{context}\n\n---\nНовое сообщение от Тима: {prompt}"
-
                     for target_key in targets:
+                        # Re-compute context for each agent so they see previous agents' responses
+                        context = format_chat_context(st.session_state.messages)
+                        task_with_context = prompt
+                        if context:
+                            task_with_context = f"{context}\n\n---\nНовое сообщение от Тима: {prompt}"
+
                         # Update typing indicator for current agent
                         st.session_state.thinking_agent = target_key
                         try:

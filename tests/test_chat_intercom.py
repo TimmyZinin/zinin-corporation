@@ -117,47 +117,47 @@ class TestBroadcastLoopFrozenContext:
     string (task_with_context) is computed ONCE before the loop, so
     agent #2 never sees agent #1's response from the same round."""
 
-    def test_context_computed_before_loop(self):
-        """format_chat_context() is called ONCE before the `for target_key
-        in targets` loop (line ~935).  The variable task_with_context is
-        reused for every agent without being updated between iterations.
-        This means agent #2 receives exactly the same prompt as agent #1."""
+    def test_context_computed_inside_loop(self):
+        """format_chat_context() is called INSIDE the `for target_key
+        in targets` loop (FIXED).  Context is re-computed after each agent
+        responds, so agent #2 sees agent #1's response."""
         source = _read_source(APP_PATH)
         lines = source.splitlines()
 
         # Find the key lines
-        context_line = None
         loop_line = None
+        context_line_after_loop = None
         execute_line = None
 
         for i, line in enumerate(lines):
             stripped = line.strip()
-            if "format_chat_context" in stripped and "context" in stripped and "=" in stripped:
-                context_line = i
             if "for target_key in targets" in stripped:
                 loop_line = i
-            if "corp.execute_task(task_with_context" in stripped:
+            if loop_line is not None and "format_chat_context" in stripped and "context" in stripped and "=" in stripped:
+                context_line_after_loop = i
+                break
+
+        for i, line in enumerate(lines):
+            if "corp.execute_task(task_with_context" in line.strip():
                 execute_line = i
 
-        assert context_line is not None, "format_chat_context call not found"
         assert loop_line is not None, "for-loop over targets not found"
+        assert context_line_after_loop is not None, "format_chat_context call not found after loop start"
         assert execute_line is not None, "execute_task call not found"
 
-        # context is computed BEFORE the loop
-        assert context_line < loop_line, (
-            "PROBLEM CONFIRMED: context is computed before the loop, "
-            "so it cannot include responses from agents within the same round."
+        # context is computed INSIDE the loop (FIXED)
+        assert context_line_after_loop > loop_line, (
+            "FIX VERIFIED: context is computed inside the loop, "
+            "so each agent sees previous agents' responses."
         )
-        # execute_task is called INSIDE the loop but with the same variable
-        assert execute_line > loop_line, (
-            "execute_task should be inside the loop"
+        assert execute_line > context_line_after_loop, (
+            "execute_task should be after context computation"
         )
 
-    def test_task_with_context_not_updated_inside_loop(self):
-        """Inside the for-loop, the code never re-computes task_with_context
-        after an agent responds.  The response is appended to
-        st.session_state.messages, but task_with_context is NOT refreshed
-        from the updated messages list."""
+    def test_task_with_context_updated_inside_loop(self):
+        """Inside the for-loop, the code re-computes task_with_context
+        after each agent responds (FIXED).  format_chat_context is called
+        inside the loop, and task_with_context is rebuilt for each agent."""
         source = _read_source(APP_PATH)
         lines = source.splitlines()
 
@@ -186,15 +186,15 @@ class TestBroadcastLoopFrozenContext:
 
         loop_body = "\n".join(loop_body_lines)
 
-        # The loop body must NOT re-assign task_with_context
-        assert "task_with_context =" not in loop_body, (
-            "Unexpectedly found task_with_context reassignment in loop — "
-            "this would mean context IS updated (good), but we expect it is not."
+        # FIX VERIFIED: task_with_context IS reassigned inside the loop
+        assert "task_with_context =" in loop_body, (
+            "FIX VERIFIED: task_with_context is reassigned in loop — "
+            "context IS updated for each agent."
         )
-        # Also confirm that format_chat_context is NOT called inside the loop
-        assert "format_chat_context" not in loop_body, (
-            "PROBLEM CONFIRMED: format_chat_context is never called inside "
-            "the per-agent loop, so each agent sees the same stale context."
+        # format_chat_context IS called inside the loop
+        assert "format_chat_context" in loop_body, (
+            "FIX VERIFIED: format_chat_context is called inside "
+            "the per-agent loop, so each agent sees fresh context."
         )
 
     def test_simulate_broadcast_all_agents_same_context(self):
@@ -270,12 +270,12 @@ class TestContextTruncation:
     characters and only includes the last 10 messages.  For a detailed
     financial report or technical audit, 300 chars is ~2 sentences."""
 
-    def test_truncation_limit_is_300_chars(self):
-        """The source code uses msg['content'][:300] — a hard-coded 300
-        character truncation that loses most of any substantive agent response."""
+    def test_truncation_limit_is_800_chars(self):
+        """The source code uses msg['content'][:800] — increased from 300
+        to preserve meaningful agent responses in context (FIXED)."""
         source = _read_source(APP_PATH)
-        assert "msg['content'][:300]" in source or 'msg["content"][:300]' in source, (
-            "Expected 300-char truncation in format_chat_context"
+        assert "msg['content'][:800]" in source or 'msg["content"][:800]' in source, (
+            "Expected 800-char truncation in format_chat_context"
         )
 
     def test_truncation_destroys_meaningful_content(self):
