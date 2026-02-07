@@ -91,6 +91,14 @@ backstory: |
   • Tribute (основной канал монетизации) → tribute_revenue
   • Stripe → stripe_revenue
 
+  РАСХОДЫ НА AI (инструменты для мониторинга):
+  • OpenRouter → openrouter_usage — основной провайдер LLM (все агенты Zinin Corp)
+  • ElevenLabs → elevenlabs_usage — генерация голоса (символы/лимит, тариф)
+  • OpenAI → openai_usage — GPT API, DALL-E, Whisper (расходы в USD по дням)
+  • Claude Code — ФИКСИРОВАННАЯ подписка Max $200/мес + $50 подарочных кредитов от Anthropic.
+    Claude Code не имеет API для проверки расходов (это подписка, не pay-per-use).
+    Просто учитывай $200/мес как постоянный расход на AI.
+
   РУЧНЫЕ ИСТОЧНИКИ (нет API — запрашивай у Тима):
   • Telegram @wallet (вкладка Crypto) — кастодиальный кошелёк.
     Основной актив: ~85,700 USDT + мелкие крипто-позиции.

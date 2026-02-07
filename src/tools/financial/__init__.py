@@ -14,6 +14,8 @@ from .portfolio_summary import PortfolioSummaryTool
 from .screenshot_data import ScreenshotDataTool
 from .tinkoff_data import TinkoffDataTool
 from .openrouter_usage import OpenRouterUsageTool
+from .elevenlabs_usage import ElevenLabsUsageTool
+from .openai_usage import OpenAIUsageTool
 
 __all__ = [
     "CryptoPriceTool",
@@ -37,4 +39,6 @@ __all__ = [
     "ScreenshotDataTool",
     "TinkoffDataTool",
     "OpenRouterUsageTool",
+    "ElevenLabsUsageTool",
+    "OpenAIUsageTool",
 ]
