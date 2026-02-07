@@ -1,13 +1,10 @@
-"""Tests proving chat history persistence problems on Railway (ephemeral filesystem).
+"""Tests for chat history persistence.
 
-These tests demonstrate that:
-- Chat history relies solely on a local JSON file
-- DATABASE_URL is checked in UI but never used for chat storage
-- Exceptions in save are silently swallowed
-- No volume mount or external storage is configured
-- No backup/restore mechanism exists
-- Fresh deploys lose all history, resetting to a single welcome message
-- format_chat_context() truncates agent replies to 300 chars, losing information
+Verifies:
+- Chat storage module provides PostgreSQL + JSON fallback
+- JSON fallback works correctly for local development
+- DATABASE_URL is now used for persistent storage (FIXED)
+- format_chat_context() truncates agent replies to 800 chars (FIXED from 300)
 """
 
 import sys
@@ -15,13 +12,13 @@ import os
 import json
 import inspect
 import ast
+import logging
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-# Import the functions under test directly from app.py.
-# We do a manual import to avoid Streamlit's runtime requirements.
 APP_DIR = os.path.join(os.path.dirname(__file__), "..")
 APP_PATH = os.path.join(APP_DIR, "app.py")
+STORAGE_PATH = os.path.join(APP_DIR, "src", "chat_storage.py")
 
 
 def _load_app_source() -> str:
@@ -29,33 +26,39 @@ def _load_app_source() -> str:
         return f.read()
 
 
+def _load_storage_source() -> str:
+    with open(STORAGE_PATH, "r", encoding="utf-8") as f:
+        return f.read()
+
+
 def _load_app_ast() -> ast.Module:
     return ast.parse(_load_app_source())
 
 
-# ---------------------------------------------------------------------------
-# Helpers: extract the three functions from app.py without importing Streamlit
-# We exec only the relevant function bodies inside a controlled namespace.
-# ---------------------------------------------------------------------------
 def _build_chat_functions(tmp_path=None):
-    """Build the chat persistence functions in an isolated namespace.
+    """Build chat functions from both app.py and chat_storage.py."""
+    ns = {"os": os, "json": json, "logging": logging}
 
-    If tmp_path is provided, the working directory context will make
-    _chat_path() resolve inside tmp_path.
-    """
-    ns = {"os": os, "json": json}
-    source = _load_app_source()
-    tree = ast.parse(source)
+    # Extract format_chat_context from app.py
+    app_source = _load_app_source()
+    app_tree = ast.parse(app_source)
+    for node in ast.walk(app_tree):
+        if isinstance(node, ast.FunctionDef) and node.name == "format_chat_context":
+            exec(ast.get_source_segment(app_source, node), ns)
 
-    func_names = {"_chat_path", "load_chat_history", "save_chat_history", "format_chat_context"}
-    func_sources = []
-    for node in ast.walk(tree):
-        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
-            if node.name in func_names:
-                func_sources.append(ast.get_source_segment(source, node))
+    # Extract storage functions from chat_storage.py
+    storage_source = _load_storage_source()
+    storage_tree = ast.parse(storage_source)
+    func_names = {"_chat_path", "save_to_json", "load_from_json"}
+    for node in ast.walk(storage_tree):
+        if isinstance(node, ast.FunctionDef) and node.name in func_names:
+            exec(ast.get_source_segment(storage_source, node), ns)
 
-    for src in func_sources:
-        exec(src, ns)
+    # Map to expected names
+    if "save_to_json" in ns:
+        ns["save_chat_history"] = ns["save_to_json"]
+    if "load_from_json" in ns:
+        ns["load_chat_history"] = ns["load_from_json"]
 
     return ns
 
@@ -64,43 +67,22 @@ def _build_chat_functions(tmp_path=None):
 # Test class: chat storage relies on local JSON file
 # ===================================================================
 
-class TestChatStorageIsLocalFile:
-    """Prove that all chat persistence goes through a local JSON file."""
+class TestChatStorageJsonFallback:
+    """Test the JSON fallback in chat_storage module."""
 
     def test_chat_path_returns_json_file_path(self):
-        """_chat_path() always returns a path ending in chat_history.json,
-        confirming storage is a plain file, not a database or external service."""
+        """_chat_path() returns a path ending in chat_history.json."""
         ns = _build_chat_functions()
         path = ns["_chat_path"]()
-        assert path.endswith("chat_history.json"), (
-            f"Expected path ending with chat_history.json, got: {path}"
-        )
+        assert path.endswith("chat_history.json")
 
-    def test_chat_path_only_checks_two_local_paths(self):
-        """_chat_path() only considers /app/data/ and data/ -- both are local
-        filesystem paths. No environment variable, no volume mount path, no
-        cloud storage URL is ever consulted."""
-        source = _load_app_source()
-        tree = ast.parse(source)
-
-        for node in ast.walk(tree):
-            if isinstance(node, ast.FunctionDef) and node.name == "_chat_path":
-                func_source = ast.get_source_segment(source, node)
-                # Must contain only these two hardcoded paths
-                assert "/app/data/chat_history.json" in func_source
-                assert "data/chat_history.json" in func_source
-                # Must NOT reference any env var for storage location
-                assert "os.getenv" not in func_source, (
-                    "_chat_path() does not read any environment variable for storage path"
-                )
-                assert "os.environ" not in func_source
-                return
-        raise AssertionError("_chat_path function not found in app.py")
+    def test_chat_path_in_storage_module(self):
+        """_chat_path is defined in src/chat_storage.py."""
+        source = _load_storage_source()
+        assert "def _chat_path" in source
 
     def test_save_writes_json_to_local_file(self, tmp_path):
-        """save_chat_history() writes a JSON file to the local filesystem.
-        This file will be lost on Railway redeploy because Railway containers
-        use ephemeral storage."""
+        """save_to_json writes a JSON file to the local filesystem."""
         ns = _build_chat_functions()
         data_dir = tmp_path / "data"
         data_dir.mkdir()
@@ -111,17 +93,15 @@ class TestChatStorageIsLocalFile:
             {"role": "user", "content": "Hi"},
         ]
 
-        # Patch _chat_path to use our tmp location
         ns["_chat_path"] = lambda: str(chat_file)
         ns["save_chat_history"](messages)
 
-        assert chat_file.exists(), "JSON file should have been created on disk"
+        assert chat_file.exists()
         loaded = json.loads(chat_file.read_text(encoding="utf-8"))
         assert loaded == messages
 
     def test_load_reads_from_local_file(self, tmp_path):
-        """load_chat_history() reads from a local JSON file -- the same file
-        that disappears when Railway rebuilds the container."""
+        """load_from_json reads from a local JSON file."""
         ns = _build_chat_functions()
         data_dir = tmp_path / "data"
         data_dir.mkdir()
@@ -139,128 +119,45 @@ class TestChatStorageIsLocalFile:
 # Test class: DATABASE_URL is cosmetic -- never used for chat storage
 # ===================================================================
 
-class TestDatabaseUrlIsCosmetic:
-    """Prove that DATABASE_URL is checked in the UI but never wired into
-    the chat persistence layer."""
+class TestDatabaseUrlUsed:
+    """Verify that DATABASE_URL is now actively used for persistent storage (FIXED)."""
 
-    def test_database_url_checked_in_env_status(self):
-        """check_env_vars() reads DATABASE_URL and the sidebar shows a green
-        checkmark when it is set, implying database storage is active."""
+    def test_database_url_in_app_ui(self):
+        """app.py shows DATABASE_URL status in the UI."""
         source = _load_app_source()
-        # DATABASE_URL is listed in optional env vars
         assert "DATABASE_URL" in source
-        # UI shows a success message when DATABASE_URL exists
-        assert "PostgreSQL" in source, (
-            "UI tells the user PostgreSQL is connected when DATABASE_URL is set"
-        )
+        assert "PostgreSQL" in source
 
-    def test_save_chat_history_never_references_database(self):
-        """save_chat_history() source code contains zero references to
-        DATABASE_URL, psycopg2, sqlalchemy, or any database driver.
-        It only writes to a local JSON file."""
-        source = _load_app_source()
-        tree = ast.parse(source)
+    def test_chat_storage_uses_database_url(self):
+        """chat_storage.py reads DATABASE_URL for PostgreSQL connection."""
+        source = _load_storage_source()
+        assert "DATABASE_URL" in source
 
-        for node in ast.walk(tree):
-            if isinstance(node, ast.FunctionDef) and node.name == "save_chat_history":
-                func_src = ast.get_source_segment(source, node)
-                for keyword in ["DATABASE_URL", "psycopg", "sqlalchemy", "postgres",
-                                "sqlite", "database", "cursor", "conn", "engine"]:
-                    assert keyword.lower() not in func_src.lower(), (
-                        f"save_chat_history should not reference '{keyword}' but it does"
-                    )
-                return
-        raise AssertionError("save_chat_history not found in source")
-
-    def test_load_chat_history_never_references_database(self):
-        """load_chat_history() likewise has no database logic -- only JSON file I/O."""
-        source = _load_app_source()
-        tree = ast.parse(source)
-
-        for node in ast.walk(tree):
-            if isinstance(node, ast.FunctionDef) and node.name == "load_chat_history":
-                func_src = ast.get_source_segment(source, node)
-                for keyword in ["DATABASE_URL", "psycopg", "sqlalchemy", "postgres",
-                                "sqlite", "database", "cursor", "conn", "engine"]:
-                    assert keyword.lower() not in func_src.lower(), (
-                        f"load_chat_history should not reference '{keyword}' but it does"
-                    )
-                return
-        raise AssertionError("load_chat_history not found in source")
+    def test_chat_storage_has_postgresql_logic(self):
+        """chat_storage.py has save_to_postgres and load_from_postgres."""
+        source = _load_storage_source()
+        assert "def save_to_postgres" in source
+        assert "def load_from_postgres" in source
+        assert "psycopg2" in source
 
 
 # ===================================================================
 # Test class: save_chat_history silently swallows all exceptions
 # ===================================================================
 
-class TestSaveSilentlySwallowsExceptions:
-    """Prove that save_chat_history() catches Exception and does nothing,
-    meaning data loss is completely invisible to the user."""
+class TestErrorHandling:
+    """Verify error handling in chat storage."""
 
-    def test_bare_except_in_save_source(self):
-        """The save function has a bare 'except Exception: pass' block,
-        which means ANY failure (disk full, permission denied, encoding error)
-        is silently ignored."""
-        source = _load_app_source()
-        tree = ast.parse(source)
+    def test_save_to_json_returns_false_on_error(self):
+        """save_to_json returns False when it can't write."""
+        from unittest.mock import patch
+        from src.chat_storage import save_to_json
+        with patch("src.chat_storage._chat_path", return_value="/nonexistent/deep/path/chat.json"):
+            result = save_to_json([{"role": "user", "content": "test"}])
+            assert result is False
 
-        for node in ast.walk(tree):
-            if isinstance(node, ast.FunctionDef) and node.name == "save_chat_history":
-                func_src = ast.get_source_segment(source, node)
-                assert "except Exception" in func_src, (
-                    "save_chat_history should have a broad except clause"
-                )
-                # Check that the except block only contains 'pass' (no logging)
-                assert "logging" not in func_src.lower()
-                assert "log(" not in func_src
-                assert "print(" not in func_src
-                assert "st.error" not in func_src
-                assert "st.warning" not in func_src
-                return
-        raise AssertionError("save_chat_history not found")
-
-    def test_save_to_readonly_path_raises_no_error(self, tmp_path):
-        """When saving to a path that cannot be written (e.g. read-only dir),
-        the function returns silently instead of raising or notifying."""
-        ns = _build_chat_functions()
-
-        # Point to a path inside a non-existent deeply nested structure
-        # under a read-only directory
-        readonly_dir = tmp_path / "readonly"
-        readonly_dir.mkdir()
-        os.chmod(str(readonly_dir), 0o444)
-
-        impossible_path = str(readonly_dir / "subdir" / "chat_history.json")
-        ns["_chat_path"] = lambda: impossible_path
-
-        # This must NOT raise -- that is the bug: silent failure
-        ns["save_chat_history"]([{"role": "user", "content": "lost message"}])
-
-        # The file was not created (data is lost), but no error was raised
-        assert not os.path.exists(impossible_path), (
-            "File should not exist because the directory is read-only"
-        )
-
-        # Cleanup: restore permissions so pytest can clean up tmp_path
-        os.chmod(str(readonly_dir), 0o755)
-
-    def test_load_also_swallows_exceptions(self):
-        """load_chat_history() also has a bare except that swallows errors
-        such as corrupt JSON, returning an empty list instead of reporting."""
-        source = _load_app_source()
-        tree = ast.parse(source)
-
-        for node in ast.walk(tree):
-            if isinstance(node, ast.FunctionDef) and node.name == "load_chat_history":
-                func_src = ast.get_source_segment(source, node)
-                assert "except Exception" in func_src
-                assert "pass" in func_src
-                return
-        raise AssertionError("load_chat_history not found")
-
-    def test_corrupt_json_returns_empty_silently(self, tmp_path):
-        """If the JSON file is corrupt, load returns [] with no warning.
-        The user sees a fresh chat as if nothing happened."""
+    def test_load_corrupt_json_returns_empty(self, tmp_path):
+        """Corrupt JSON file returns empty list."""
         ns = _build_chat_functions()
         data_dir = tmp_path / "data"
         data_dir.mkdir()
@@ -269,63 +166,44 @@ class TestSaveSilentlySwallowsExceptions:
 
         ns["_chat_path"] = lambda: str(chat_file)
         result = ns["load_chat_history"]()
-        assert result == [], "Corrupt JSON silently returns empty list"
+        assert result == []
+
+    def test_chat_storage_has_logging(self):
+        """chat_storage.py uses logging for errors (not silent pass)."""
+        source = _load_storage_source()
+        assert "logger" in source
+        assert "logging" in source
+
+    def test_save_to_json_returns_true_on_success(self, tmp_path):
+        """save_to_json returns True on successful write."""
+        from unittest.mock import patch
+        from src.chat_storage import save_to_json
+        json_file = tmp_path / "chat_history.json"
+        with patch("src.chat_storage._chat_path", return_value=str(json_file)):
+            result = save_to_json([{"role": "user", "content": "test"}])
+            assert result is True
 
 
 # ===================================================================
 # Test class: _chat_path has no volume mount awareness
 # ===================================================================
 
-class TestNoVolumeMountSupport:
-    """Prove that _chat_path() has no mechanism to use Railway volumes,
-    persistent disks, or any external mount point."""
+class TestPersistenceStrategy:
+    """Verify the persistence strategy: PostgreSQL primary, JSON fallback."""
 
-    def test_no_env_var_for_storage_path(self):
-        """There is no CHAT_STORAGE_PATH, DATA_DIR, or PERSISTENT_DIR
-        environment variable consulted for choosing the storage location."""
+    def test_chat_storage_module_exists(self):
+        """src/chat_storage.py exists."""
+        assert os.path.exists(STORAGE_PATH)
+
+    def test_app_imports_from_chat_storage(self):
+        """app.py imports persistence functions from chat_storage module."""
         source = _load_app_source()
-        tree = ast.parse(source)
+        assert "from src.chat_storage import" in source
 
-        for node in ast.walk(tree):
-            if isinstance(node, ast.FunctionDef) and node.name == "_chat_path":
-                func_src = ast.get_source_segment(source, node)
-                assert "getenv" not in func_src, (
-                    "_chat_path reads no env vars, so there is no way to "
-                    "configure a persistent volume mount path at deploy time"
-                )
-                return
-        raise AssertionError("_chat_path not found")
-
-    def test_hardcoded_paths_are_inside_container(self):
-        """Both candidate paths (/app/data/ and data/) are inside the
-        container filesystem. /app is the typical WORKDIR in Dockerfiles.
-        Neither points to a Railway volume mount (typically /data or /mnt)."""
-        ns = _build_chat_functions()
-        source = _load_app_source()
-        tree = ast.parse(source)
-
-        for node in ast.walk(tree):
-            if isinstance(node, ast.FunctionDef) and node.name == "_chat_path":
-                func_src = ast.get_source_segment(source, node)
-                # The two hardcoded paths
-                assert "/app/data/chat_history.json" in func_src
-                assert "data/chat_history.json" in func_src
-                # Neither is a Railway volume mount location
-                assert "/mnt/" not in func_src
-                # No configurable volume path
-                assert "RAILWAY_VOLUME" not in func_src
-                return
-        raise AssertionError("_chat_path not found")
-
-    def test_path_falls_back_to_relative_when_app_data_missing(self, tmp_path):
-        """When /app/data/ does not exist (as on a dev machine),
-        _chat_path() falls back to relative 'data/chat_history.json'
-        which is inside the ephemeral container working directory."""
-        ns = _build_chat_functions()
-        # On a dev machine, /app/data/ typically does not exist
-        path = ns["_chat_path"]()
-        # It must be one of the two hardcoded values
-        assert path in ["/app/data/chat_history.json", "data/chat_history.json"]
+    def test_storage_has_is_persistent_function(self):
+        """chat_storage.py exposes is_persistent() check."""
+        source = _load_storage_source()
+        assert "def is_persistent" in source
 
 
 # ===================================================================
@@ -378,95 +256,61 @@ class TestNoBackupRestoreMechanism:
 # Test class: fresh deploy loses all history
 # ===================================================================
 
-class TestFreshDeployLosesHistory:
-    """Prove that a fresh container (no data/chat_history.json) starts
-    with zero history and only a single welcome message."""
+class TestJsonFallbackBehavior:
+    """Test JSON fallback behavior (when no DATABASE_URL)."""
 
     def test_missing_file_returns_empty_list(self, tmp_path):
-        """When chat_history.json does not exist (fresh Railway deploy),
-        load_chat_history() returns an empty list."""
+        """Missing file returns empty list."""
         ns = _build_chat_functions()
         nonexistent = str(tmp_path / "data" / "chat_history.json")
         ns["_chat_path"] = lambda: nonexistent
-
         result = ns["load_chat_history"]()
-        assert result == [], (
-            "Fresh deploy with no file should return empty list, triggering "
-            "the welcome message fallback in main()"
-        )
+        assert result == []
 
     def test_empty_file_returns_empty_list(self, tmp_path):
-        """An empty file (0 bytes) also returns [], losing any indication
-        that history was supposed to be there."""
+        """Empty file returns empty list."""
         ns = _build_chat_functions()
         data_dir = tmp_path / "data"
         data_dir.mkdir()
         chat_file = data_dir / "chat_history.json"
         chat_file.write_text("", encoding="utf-8")
-
         ns["_chat_path"] = lambda: str(chat_file)
         result = ns["load_chat_history"]()
         assert result == []
 
-    def test_empty_json_array_returns_empty_list(self, tmp_path):
-        """An empty JSON array '[]' also triggers fresh-start behavior because
-        load_chat_history checks 'len(data) > 0'."""
+    def test_empty_json_array_returns_empty(self, tmp_path):
+        """Empty JSON array returns empty list."""
         ns = _build_chat_functions()
         data_dir = tmp_path / "data"
         data_dir.mkdir()
         chat_file = data_dir / "chat_history.json"
         chat_file.write_text("[]", encoding="utf-8")
-
         ns["_chat_path"] = lambda: str(chat_file)
         result = ns["load_chat_history"]()
-        assert result == [], "Empty array returns [] -- same as no history"
+        assert result == []
 
-    def test_welcome_message_is_only_fallback(self):
-        """When load_chat_history() returns [], the app creates a hardcoded
-        welcome message. This is the ONLY recovery mechanism -- there is no
-        attempt to restore from a backup, database, or remote storage."""
+    def test_welcome_message_fallback_exists(self):
+        """Welcome message is the fallback for empty history."""
         source = _load_app_source()
-        # The welcome message pattern
-        assert "Добрый день! Я Алексей Воронов" in source, (
-            "The hardcoded welcome message is the sole fallback for empty history"
-        )
-        # Verify it is gated behind `if saved:` / `else:`
+        assert "Добрый день! Я Алексей Воронов" in source
         assert "saved = load_chat_history()" in source
-        assert "st.session_state.messages = saved" in source
 
-    def test_previous_conversations_irrecoverable_after_redeploy(self, tmp_path):
-        """Simulate a redeploy scenario: save messages, delete the file
-        (simulating container replacement), then load. All history is gone."""
+    def test_json_save_and_load_round_trip(self, tmp_path):
+        """Save then load preserves all data."""
         ns = _build_chat_functions()
         data_dir = tmp_path / "data"
         data_dir.mkdir()
         chat_file = data_dir / "chat_history.json"
-
         ns["_chat_path"] = lambda: str(chat_file)
 
-        # User has a conversation
         conversation = [
-            {"role": "assistant", "content": "Welcome!", "agent_name": "Alexey"},
-            {"role": "user", "content": "Analyze our Q4 revenue"},
-            {"role": "assistant", "content": "Revenue analysis: ...(detailed report)...",
-             "agent_name": "Matthias"},
-            {"role": "user", "content": "Now plan the marketing strategy"},
-            {"role": "assistant", "content": "Marketing strategy: ...(detailed plan)...",
-             "agent_name": "Yuki"},
+            {"role": "user", "content": "Analyze Q4"},
+            {"role": "assistant", "content": "Report...", "agent_name": "Matthias"},
         ]
         ns["save_chat_history"](conversation)
-        assert chat_file.exists()
-        assert len(json.loads(chat_file.read_text())) == 5
-
-        # === Railway redeploy happens: container is destroyed and recreated ===
-        chat_file.unlink()  # File is gone with the old container
-
-        # New container starts
         result = ns["load_chat_history"]()
-        assert result == [], (
-            "After redeploy, ALL conversation history is permanently lost. "
-            "The revenue analysis and marketing strategy are irrecoverable."
-        )
+        assert len(result) == 2
+        assert result[0]["content"] == "Analyze Q4"
 
 
 # ===================================================================

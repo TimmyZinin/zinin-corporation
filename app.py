@@ -68,37 +68,11 @@ def hex_to_rgba(hex_color: str, alpha: float) -> str:
 # ──────────────────────────────────────────────────────────
 # Chat history persistence
 # ──────────────────────────────────────────────────────────
-def _chat_path() -> str:
-    for p in ["/app/data/chat_history.json", "data/chat_history.json"]:
-        parent = os.path.dirname(p)
-        if os.path.isdir(parent):
-            return p
-    return "data/chat_history.json"
-
-
-def load_chat_history() -> list:
-    """Load chat messages from persistent storage."""
-    path = _chat_path()
-    if os.path.exists(path):
-        try:
-            with open(path, "r", encoding="utf-8") as f:
-                data = json.load(f)
-                if isinstance(data, list) and len(data) > 0:
-                    return data
-        except Exception:
-            pass
-    return []
-
-
-def save_chat_history(messages: list):
-    """Save chat messages to persistent storage."""
-    path = _chat_path()
-    try:
-        os.makedirs(os.path.dirname(path), exist_ok=True)
-        with open(path, "w", encoding="utf-8") as f:
-            json.dump(messages, f, ensure_ascii=False, indent=2, default=str)
-    except Exception:
-        pass
+from src.chat_storage import (
+    save_chat_history,
+    load_chat_history,
+    is_persistent as is_chat_persistent,
+)
 
 
 def detect_agents(message: str) -> list[str]:

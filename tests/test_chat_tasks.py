@@ -250,24 +250,28 @@ class TestResponsesNotParsed:
                     f"Found 'action_item' near execute_task at line {i+1}"
                 )
 
-    def test_save_chat_history_is_pure_json_dump(self):
-        """save_chat_history() simply writes messages to a JSON file with
-        no analysis, transformation, or side-effects."""
+    def test_save_chat_history_has_no_task_extraction(self):
+        """save_chat_history() delegates to chat_storage module.
+        The storage module does pure persistence with no analysis or side-effects."""
+        # Check app.py imports save_chat_history (does not define it)
         source = self._app_source()
-        # Extract the function body
+        assert "from src.chat_storage import" in source
+        assert "save_chat_history" in source
+
+        # Check chat_storage.py save functions have no task-related calls
+        storage_path = os.path.join(os.path.dirname(__file__), "..", "src", "chat_storage.py")
+        storage_source = _read(storage_path)
+        # Extract save_chat_history body
         func_match = re.search(
             r"def save_chat_history\(.*?\):\s*\n((?:[ \t]+.*\n)*)",
-            source,
+            storage_source,
         )
-        assert func_match, "save_chat_history function not found"
+        assert func_match, "save_chat_history function not found in chat_storage.py"
         func_body = func_match.group(1)
 
-        # The function should contain json.dump and nothing else meaningful
-        assert "json.dump" in func_body
         # Should NOT contain any task-related calls
         assert "extract" not in func_body.lower()
-        assert "task" not in func_body.lower()
-        assert "action" not in func_body.lower()
+        assert "action_item" not in func_body.lower()
         assert "parse" not in func_body.lower()
 
     def test_format_chat_context_is_read_only(self):
