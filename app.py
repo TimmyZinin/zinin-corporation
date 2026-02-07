@@ -73,6 +73,12 @@ from src.chat_storage import (
     load_chat_history,
     is_persistent as is_chat_persistent,
 )
+from src.task_extractor import (
+    extract_and_store,
+    get_pending_tasks,
+    load_task_queue,
+    complete_task,
+)
 
 
 def detect_agents(message: str) -> list[str]:
@@ -932,6 +938,10 @@ def main():
                             "time": datetime.now().strftime("%H:%M"),
                             "date": datetime.now().strftime("%d.%m.%Y"),
                         })
+
+                        # Extract action items from agent response
+                        extract_and_store(response, source_agent=target_key)
+
                     st.session_state.last_agent_key = targets[-1]
                 else:
                     st.session_state.messages.append({
@@ -1164,6 +1174,52 @@ def main():
 
         if not api_ready:
             st.info("💡 Добавьте OPENROUTER_API_KEY для активации задач")
+
+        # ── Dynamic tasks extracted from chat ──
+        st.divider()
+        st.subheader("📌 Задачи из чата")
+        st.caption("Автоматически извлечённые из переписки поручения")
+
+        dynamic_tasks = load_task_queue()
+        pending = [t for t in dynamic_tasks if t.get("status") != "completed"]
+        completed = [t for t in dynamic_tasks if t.get("status") == "completed"]
+
+        if pending:
+            for i, task in enumerate(dynamic_tasks):
+                if task.get("status") == "completed":
+                    continue
+                assignee_key = task.get("assignee", "")
+                assignee_info = AGENTS.get(assignee_key, {})
+                assignee_name = assignee_info.get("name", assignee_key)
+                assignee_emoji = assignee_info.get("emoji", "")
+                source_key = task.get("source_agent", "")
+                source_info = AGENTS.get(source_key, {})
+                source_name = source_info.get("name", source_key)
+                deadline = task.get("deadline", "")
+
+                col_task, col_done = st.columns([5, 1])
+                with col_task:
+                    label = f"**{assignee_emoji} {assignee_name}:** {task['action']}"
+                    if deadline:
+                        label += f" ⏰ *{deadline}*"
+                    if source_name:
+                        label += f"  — от {source_name}"
+                    st.markdown(label)
+                with col_done:
+                    if st.button("✅", key=f"done_task_{i}", help="Отметить выполненной"):
+                        complete_task(i)
+                        st.rerun()
+        else:
+            st.info("Нет активных задач. Задачи появятся автоматически из переписки в чате.")
+
+        if completed:
+            with st.expander(f"Выполненные задачи ({len(completed)})"):
+                for task in completed:
+                    assignee_info = AGENTS.get(task.get("assignee", ""), {})
+                    st.markdown(
+                        f"~~{assignee_info.get('emoji', '')} {assignee_info.get('name', '')}: "
+                        f"{task['action']}~~ ✅"
+                    )
 
     # Tab 4: Content (Yuki SMM)
     with tab4:
