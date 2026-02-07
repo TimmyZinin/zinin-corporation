@@ -5,6 +5,7 @@ Streamlit app for interacting with CrewAI agents
 
 import os
 import re
+import json
 import html as html_module
 import sys
 import yaml
@@ -64,33 +65,92 @@ def hex_to_rgba(hex_color: str, alpha: float) -> str:
     return f"rgba({r},{g},{b},{alpha})"
 
 
-def detect_agent(message: str) -> str:
-    """Detect which agent is being addressed in the message.
+# ──────────────────────────────────────────────────────────
+# Chat history persistence
+# ──────────────────────────────────────────────────────────
+def _chat_path() -> str:
+    for p in ["/app/data/chat_history.json", "data/chat_history.json"]:
+        parent = os.path.dirname(p)
+        if os.path.isdir(parent):
+            return p
+    return "data/chat_history.json"
 
-    Priority: @mention > name mention > keyword match > default (manager)
-    """
+
+def load_chat_history() -> list:
+    """Load chat messages from persistent storage."""
+    path = _chat_path()
+    if os.path.exists(path):
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                if isinstance(data, list) and len(data) > 0:
+                    return data
+        except Exception:
+            pass
+    return []
+
+
+def save_chat_history(messages: list):
+    """Save chat messages to persistent storage."""
+    path = _chat_path()
+    try:
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(messages, f, ensure_ascii=False, indent=2, default=str)
+    except Exception:
+        pass
+
+
+def detect_agents(message: str) -> list[str]:
+    """Detect ALL agents being addressed in the message. Returns list of agent keys."""
     text = message.lower().strip()
+    found = []
 
-    # 1) @mention: @Санторо, @Амара, @Нирадж
+    # Check for "all" keywords
+    all_keywords = ["всем", "все агенты", "вся команда", "всей команде"]
+    for kw in all_keywords:
+        if kw in text:
+            return list(AGENTS.keys())
+
+    # 1) @mentions
     for key, info in AGENTS.items():
         if f"@{info['name'].lower()}" in text:
-            return key
+            if key not in found:
+                found.append(key)
 
-    # 2) Direct name mention
+    if found:
+        return found
+
+    # 2) Direct name mentions
     for key, info in AGENTS.items():
         if info["name"].lower() in text:
-            return key
+            if key not in found:
+                found.append(key)
 
-    # 3) Keyword match (first match wins by keyword specificity)
+    if found:
+        return found
+
+    # 3) Keyword match
     for key, info in AGENTS.items():
         if key == "manager":
-            continue  # check manager last (it's default)
+            continue
         for kw in info["keywords"]:
             if kw in text:
-                return key
+                if key not in found:
+                    found.append(key)
+                break
 
-    # 4) #45: continue conversation with last addressed agent (or default to CEO)
-    return st.session_state.get("last_agent_key", "manager")
+    if found:
+        return found
+
+    # 4) Default to last agent or CEO
+    return [st.session_state.get("last_agent_key", "manager")]
+
+
+def detect_agent(message: str) -> str:
+    """Detect single agent (backward compat). Returns first detected agent."""
+    agents = detect_agents(message)
+    return agents[0] if agents else "manager"
 
 
 def format_chat_context(messages: list, max_messages: int = 10) -> str:
@@ -750,18 +810,22 @@ def main():
 
     # Tab 1: Chat
     with tab1:
-        # Initialize chat history
+        # Initialize chat history (try loading from persistent storage first)
         if "messages" not in st.session_state:
-            st.session_state.messages = [
-                {
-                    "role": "assistant",
-                    "content": "Ciao! Я Санторо — CEO AI-корпорации. Со мной Амара (📊 финансы), Юки (📱 контент) и Нирадж (⚙️ техника). Обращайтесь к любому из нас по имени!",
-                    "agent_key": "manager",
-                    "agent_name": "Санторо",
-                    "time": datetime.now().strftime("%H:%M"),
-                    "date": datetime.now().strftime("%d.%m.%Y"),
-                }
-            ]
+            saved = load_chat_history()
+            if saved:
+                st.session_state.messages = saved
+            else:
+                st.session_state.messages = [
+                    {
+                        "role": "assistant",
+                        "content": "Ciao! Я Санторо — CEO AI-корпорации. Со мной Амара (📊 финансы), Юки (📱 контент) и Нирадж (⚙️ техника). Обращайтесь к любому из нас по имени!",
+                        "agent_key": "manager",
+                        "agent_name": "Санторо",
+                        "time": datetime.now().strftime("%H:%M"),
+                        "date": datetime.now().strftime("%d.%m.%Y"),
+                    }
+                ]
 
         # Chat header (#22: Russian plural, #49: dynamic online status)
         msg_count = len([m for m in st.session_state.messages if m["role"] == "user"])
@@ -796,6 +860,7 @@ def main():
                                 "date": datetime.now().strftime("%d.%m.%Y"),
                             }
                         ]
+                        save_chat_history(st.session_state.messages)
                         st.session_state.is_thinking = False
                         st.session_state.confirm_clear = False
                         st.rerun()
@@ -839,21 +904,31 @@ def main():
         # #48: retry button for failed requests
         if "last_failed_prompt" in st.session_state:
             if st.button("🔄 Повторить последний запрос", key="retry_btn"):
+                failed_target = st.session_state.pop("last_failed_target", "manager")
                 st.session_state.pending_prompt = st.session_state.pop("last_failed_prompt")
-                st.session_state.pending_target = st.session_state.pop("last_failed_target")
+                st.session_state.pending_targets = [failed_target]
                 st.session_state.is_thinking = True
-                st.session_state.thinking_agent = st.session_state.pending_target
+                st.session_state.thinking_agent = failed_target
                 st.rerun()
 
         # Process pending message (runs after chat is rendered so typing indicator is visible)
         if "pending_prompt" in st.session_state:
             prompt = st.session_state.pop("pending_prompt")
-            target_key = st.session_state.pop("pending_target")
-            target_info = AGENTS[target_key]
+            targets = st.session_state.pop("pending_targets", [])
+            st.session_state.pop("pending_target", None)  # cleanup old key
+
+            if not targets:
+                targets = [st.session_state.get("last_agent_key", "manager")]
 
             if not api_ready:
-                response = "**API не настроен.** Добавьте `OPENROUTER_API_KEY` в Railway."
-                agent_key_resp = "manager"
+                st.session_state.messages.append({
+                    "role": "assistant",
+                    "content": "**API не настроен.** Добавьте `OPENROUTER_API_KEY` в Railway.",
+                    "agent_key": "manager",
+                    "agent_name": "Санторо",
+                    "time": datetime.now().strftime("%H:%M"),
+                    "date": datetime.now().strftime("%d.%m.%Y"),
+                })
             else:
                 corp = get_corporation()
                 if corp and corp.is_ready:
@@ -862,54 +937,84 @@ def main():
                     if context:
                         task_with_context = f"{context}\n\n---\nНовое сообщение от Тима: {prompt}"
 
-                    # #20: error handling with try/except
-                    try:
-                        response = corp.execute_task(task_with_context, target_key)
-                        agent_key_resp = target_key
-                        # Clear failed state on success
-                        st.session_state.pop("last_failed_prompt", None)
-                        st.session_state.pop("last_failed_target", None)
-                    except Exception as e:
-                        response = f"Произошла ошибка при выполнении задачи:\n\n`{type(e).__name__}: {str(e)[:200]}`\n\nПопробуйте повторить запрос."
-                        agent_key_resp = target_key
-                        # #48: store for retry
-                        st.session_state["last_failed_prompt"] = prompt
-                        st.session_state["last_failed_target"] = target_key
-                else:
-                    response = "**CrewAI инициализируется...** Попробуйте перезагрузить страницу."
-                    agent_key_resp = "manager"
+                    for target_key in targets:
+                        # Update typing indicator for current agent
+                        st.session_state.thinking_agent = target_key
+                        try:
+                            response = corp.execute_task(task_with_context, target_key)
+                            st.session_state.pop("last_failed_prompt", None)
+                            st.session_state.pop("last_failed_target", None)
+                        except Exception as e:
+                            response = f"Ошибка: `{type(e).__name__}: {str(e)[:200]}`"
+                            st.session_state["last_failed_prompt"] = prompt
+                            st.session_state["last_failed_target"] = target_key
 
-            st.session_state.messages.append({
-                "role": "assistant",
-                "content": response,
-                "agent_key": agent_key_resp,
-                "agent_name": AGENTS[agent_key_resp]["name"],
-                "time": datetime.now().strftime("%H:%M"),
-                "date": datetime.now().strftime("%d.%m.%Y"),
-            })
+                        st.session_state.messages.append({
+                            "role": "assistant",
+                            "content": response,
+                            "agent_key": target_key,
+                            "agent_name": AGENTS[target_key]["name"],
+                            "time": datetime.now().strftime("%H:%M"),
+                            "date": datetime.now().strftime("%d.%m.%Y"),
+                        })
+                    st.session_state.last_agent_key = targets[-1]
+                else:
+                    st.session_state.messages.append({
+                        "role": "assistant",
+                        "content": "**CrewAI инициализируется...** Попробуйте перезагрузить страницу.",
+                        "agent_key": "manager",
+                        "agent_name": "Санторо",
+                        "time": datetime.now().strftime("%H:%M"),
+                        "date": datetime.now().strftime("%d.%m.%Y"),
+                    })
+
+            save_chat_history(st.session_state.messages)
             st.session_state.is_thinking = False
-            # #45: remember last agent for follow-up routing
-            st.session_state.last_agent_key = agent_key_resp
             st.rerun()
 
-        # #25: agent hints bar
-        hints_html = '<div class="zc-agent-hints">'
-        for key, info in AGENTS.items():
+        # #25: clickable agent hint buttons
+        agent_keys = list(AGENTS.keys())
+        hint_cols = st.columns(len(agent_keys))
+        for i, key in enumerate(agent_keys):
+            info = AGENTS[key]
             color = AGENT_COLORS[key]
-            hints_html += f'<div class="zc-hint" style="color:{color}">{info["emoji"]} @{info["name"]}</div>'
-        hints_html += '</div>'
-        st.markdown(hints_html, unsafe_allow_html=True)
+            with hint_cols[i]:
+                selected = st.session_state.get("selected_agent") == key
+                label = f"{info['emoji']} @{info['name']}" + (" ✓" if selected else "")
+                if st.button(label, key=f"hint_{key}", use_container_width=True):
+                    if st.session_state.get("selected_agent") == key:
+                        st.session_state.pop("selected_agent", None)  # toggle off
+                    else:
+                        st.session_state.selected_agent = key
+                    st.rerun()
+
+        # Show selected agent indicator
+        sel = st.session_state.get("selected_agent")
+        if sel:
+            sel_info = AGENTS[sel]
+            sel_color = AGENT_COLORS[sel]
+            st.markdown(
+                f'<div style="text-align:center;font-size:12px;padding:2px;color:{sel_color}">'
+                f'Адресат: {sel_info["emoji"]} <b>@{sel_info["name"]}</b> (нажмите снова чтобы сбросить)</div>',
+                unsafe_allow_html=True,
+            )
 
         # Chat input
-        if prompt := st.chat_input("Напишите сообщение... (@Санторо @Амара @Юки @Нирадж)"):
+        placeholder = "Напишите сообщение..."
+        if sel:
+            placeholder = f"Сообщение для {AGENTS[sel]['name']}..."
+        if prompt := st.chat_input(placeholder):
             # #43: empty message validation
             prompt = prompt.strip()
             if not prompt:
                 st.toast("Пустое сообщение", icon="⚠️")
             else:
                 now = datetime.now()
-                # #45: use last_agent_key as fallback instead of always 'manager'
-                target_key = detect_agent(prompt)
+                # Determine target agent(s)
+                if st.session_state.get("selected_agent"):
+                    targets = [st.session_state.pop("selected_agent")]
+                else:
+                    targets = detect_agents(prompt)
 
                 st.session_state.messages.append({
                     "role": "user",
@@ -917,15 +1022,16 @@ def main():
                     "time": now.strftime("%H:%M"),
                     "date": now.strftime("%d.%m.%Y"),
                 })
+                save_chat_history(st.session_state.messages)
 
                 # Set thinking state and rerun to show typing indicator
                 st.session_state.pending_prompt = prompt
-                st.session_state.pending_target = target_key
+                st.session_state.pending_targets = targets
                 st.session_state.is_thinking = True
-                st.session_state.thinking_agent = target_key
+                st.session_state.thinking_agent = targets[0]
                 # #24: toast feedback
-                target_info = AGENTS[target_key]
-                st.toast(f"Отправлено → {target_info['emoji']} {target_info['name']}", icon="📤")
+                names = ", ".join(f"{AGENTS[k]['emoji']} {AGENTS[k]['name']}" for k in targets)
+                st.toast(f"Отправлено → {names}", icon="📤")
                 st.rerun()
 
     # Tab 2: Agents
@@ -1066,6 +1172,7 @@ def main():
                             "time": datetime.now().strftime("%H:%M"),
                             "date": datetime.now().strftime("%d.%m.%Y"),
                         })
+                        save_chat_history(st.session_state.messages)
                         st.rerun()
                     else:
                         st.error("❌ CrewAI не инициализирован")
