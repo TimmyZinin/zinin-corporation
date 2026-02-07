@@ -14,7 +14,7 @@ router = Router()
 
 # Simple in-memory context (last N messages)
 _chat_context: list[dict] = []
-MAX_CONTEXT = 20
+MAX_CONTEXT = 6
 
 
 @router.message(F.text)
@@ -74,5 +74,5 @@ def _format_context(messages: list[dict]) -> str:
         if msg["role"] == "user":
             lines.append(f"Тим: {msg['text']}")
         else:
-            lines.append(f"Маттиас: {msg['text'][:800]}")
+            lines.append(f"Маттиас: {msg['text'][:200]}")
     return "\n".join(lines)

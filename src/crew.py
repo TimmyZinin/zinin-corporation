@@ -191,7 +191,8 @@ class AICorporation:
         """Check if the corporation is ready"""
         return self._initialized and self.crew is not None
 
-    def _run_agent(self, agent, task_description: str, agent_name: str = "") -> str:
+    def _run_agent(self, agent, task_description: str, agent_name: str = "",
+                    use_memory: bool = True) -> str:
         """Run a single agent task with memory fallback. Returns result string."""
         full_description = f"{task_description}{TASK_WRAPPER}"
         task = create_task(
@@ -199,6 +200,15 @@ class AICorporation:
             expected_output=EXPECTED_OUTPUT,
             agent=agent,
         )
+        if not use_memory:
+            crew = Crew(
+                agents=[agent],
+                tasks=[task],
+                process=Process.sequential,
+                verbose=True,
+                memory=False,
+            )
+            return str(crew.kickoff())
         try:
             crew = Crew(
                 agents=[agent],
@@ -260,7 +270,8 @@ class AICorporation:
                     return {"agent_key": rule["agent_key"]}
         return None
 
-    def execute_task(self, task_description: str, agent_name: str = "manager") -> str:
+    def execute_task(self, task_description: str, agent_name: str = "manager",
+                     use_memory: bool = True) -> str:
         """Execute a task with the specified agent"""
         if not self.is_ready:
             return "❌ Zinin Corp не инициализирована. Проверьте API ключи."
@@ -293,6 +304,7 @@ class AICorporation:
                     try:
                         specialist_result = self._run_agent(
                             specialist_agent, task_description, specialist_key,
+                            use_memory=use_memory,
                         )
                         log_task_end(specialist_key, short_desc, success=True)
                     except Exception as e:
@@ -311,7 +323,8 @@ class AICorporation:
                     )
                     log_task_start(agent_name, short_desc)
                     try:
-                        ceo_result = self._run_agent(agent, enriched, agent_name)
+                        ceo_result = self._run_agent(agent, enriched, agent_name,
+                                                         use_memory=use_memory)
                         log_task_end(agent_name, short_desc, success=True)
                         return ceo_result
                     except Exception as e:
@@ -324,7 +337,8 @@ class AICorporation:
         log_task_start(agent_name, short_desc)
 
         try:
-            result = self._run_agent(agent, task_description, agent_name)
+            result = self._run_agent(agent, task_description, agent_name,
+                                        use_memory=use_memory)
             log_task_end(agent_name, short_desc, success=True)
             return result
         except Exception as e:
@@ -347,10 +361,10 @@ class AICorporation:
         task_finance = create_task(
             description=(
                 "Подготовь краткую финансовую сводку:\n"
-                "1. Вызови Financial Tracker с action='report'\n"
-                "2. Вызови Subscription Monitor с action='status'\n"
-                "3. Вызови API Usage Tracker с action='usage'\n"
-                "Дай сводку: доходы, расходы, MRR, API расходы."
+                "1. Используй full_portfolio для общей картины\n"
+                "2. Используй openrouter_usage, elevenlabs_usage, openai_usage для расходов на AI\n"
+                "3. Используй tribute_revenue для доходов\n"
+                "Дай сводку: активы, доходы, расходы на AI."
                 + TASK_WRAPPER
             ),
             expected_output="Краткая финансовая сводка с реальными данными из инструментов.",
@@ -415,30 +429,32 @@ class AICorporation:
     def financial_report(self) -> str:
         """Run full financial report from Маттиас"""
         task_desc = """
-        Используй свои инструменты для подготовки финансового отчёта:
+        Подготовь полный финансовый отчёт:
 
-        1. Вызови Financial Tracker с action='report' для общего отчёта по проектам
-        2. Вызови Subscription Monitor с action='status' и action='forecast' для данных по подпискам
-        3. Вызови API Usage Tracker с action='usage' и action='alerts' для контроля расходов
+        1. Используй full_portfolio для общей картины активов
+        2. Используй tribute_revenue для доходов от подписок
+        3. Используй openrouter_usage, elevenlabs_usage, openai_usage для расходов на AI
+        4. Используй tinkoff_data для банковских операций
 
-        На основе полученных данных подготовь структурированный отчёт:
-        - Сводка по доходам и расходам каждого проекта
-        - MRR от подписок
-        - API расходы по агентам
-        - ROI-анализ
-        - Рекомендации для CEO
+        Структура отчёта:
+        - Сводка по активам (крипто + банки)
+        - Доходы (Tribute)
+        - Расходы на AI (OpenRouter + ElevenLabs + OpenAI + Claude Code $200/мес)
+        - Рекомендации
         """
         return self.execute_task(task_desc, "accountant")
 
     def api_budget_check(self) -> str:
         """Check API budget status from Маттиас"""
         task_desc = """
-        Проверь текущее состояние API бюджетов:
+        Проверь расходы на AI API:
 
-        1. Вызови API Usage Tracker с action='usage' для текущих расходов
-        2. Вызови API Usage Tracker с action='alerts' для проверки превышений
+        1. Используй openrouter_usage для расходов OpenRouter
+        2. Используй elevenlabs_usage для расходов ElevenLabs
+        3. Используй openai_usage для расходов OpenAI
+        4. Учти Claude Code $200/мес (фиксированная подписка)
 
-        Дай краткий отчёт: кто сколько потратил, есть ли превышения,
+        Дай краткий отчёт: расходы по каждому сервису, общая сумма,
         рекомендации по оптимизации.
         """
         return self.execute_task(task_desc, "accountant")
@@ -446,13 +462,10 @@ class AICorporation:
     def subscription_analysis(self) -> str:
         """Analyze subscriptions from Маттиас"""
         task_desc = """
-        Проанализируй состояние подписок в клубах:
+        Проанализируй доходы от подписок:
 
-        1. Вызови Subscription Monitor с action='status' для текущих подписчиков
-        2. Вызови Subscription Monitor с action='forecast' для прогноза MRR
-        3. Вызови Subscription Monitor с action='churn' для анализа оттока
-
-        Дай рекомендации по росту подписчиков и снижению оттока.
+        1. Используй tribute_revenue для данных о подписках Tribute
+        2. Дай сводку: активные подписки, MRR, рекомендации по росту.
         """
         return self.execute_task(task_desc, "accountant")
 
@@ -546,10 +559,10 @@ class AICorporation:
         task_fin = create_task(
             description=(
                 "Подготовь полный финансовый отчёт:\n"
-                "1. Financial Tracker action='report'\n"
-                "2. Subscription Monitor action='status' и action='forecast'\n"
-                "3. API Usage Tracker action='usage' и action='alerts'\n"
-                "Включи: доходы, расходы, MRR, API расходы, ROI."
+                "1. full_portfolio — общая картина активов\n"
+                "2. tribute_revenue — доходы от подписок\n"
+                "3. openrouter_usage, elevenlabs_usage, openai_usage — расходы на AI\n"
+                "Включи: активы, доходы, расходы на AI + Claude Code $200/мес."
                 + TASK_WRAPPER
             ),
             expected_output="Полный финансовый отчёт с данными из инструментов.",

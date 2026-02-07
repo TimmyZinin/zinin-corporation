@@ -38,7 +38,7 @@ class AgentBridge:
 
         def _sync():
             corp = cls._get_corp()
-            return corp.execute_task(task_desc, agent_name)
+            return corp.execute_task(task_desc, agent_name, use_memory=False)
 
         return await asyncio.to_thread(_sync)
 

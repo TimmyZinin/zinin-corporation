@@ -456,12 +456,7 @@ class TestAgentIntegration:
         assert agent is not None
         tool_names = [t.name for t in agent.tools]
 
-        # Legacy tools
-        assert "Financial Tracker" in tool_names
-        assert "Subscription Monitor" in tool_names
-        assert "API Usage Tracker" in tool_names
-
-        # New financial tools
+        # Real-time financial tools
         assert "tbank_balance" in tool_names
         assert "tbank_statement" in tool_names
         assert "tribute_revenue" in tool_names
@@ -470,13 +465,16 @@ class TestAgentIntegration:
         assert "ton_portfolio" in tool_names
         assert "crypto_price" in tool_names
         assert "full_portfolio" in tool_names
+        assert "OpenRouter API Usage" in tool_names
+        assert "ElevenLabs Usage" in tool_names
+        assert "OpenAI API Usage" in tool_names
 
     def test_accountant_tool_count(self):
         os.environ["OPENROUTER_API_KEY"] = "test-key"
         from src.agents import create_accountant_agent
         agent = create_accountant_agent()
-        # 3 legacy + 16 new = 19
-        assert len(agent.tools) == 19
+        # 16 real-time financial tools (no legacy)
+        assert len(agent.tools) == 16
 
     def test_accountant_goal_updated(self):
         os.environ["OPENROUTER_API_KEY"] = "test-key"

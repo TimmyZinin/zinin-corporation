@@ -90,19 +90,9 @@ def create_accountant_agent() -> Optional[Agent]:
         logger.error("accountant.yaml not found")
         return None
 
-    # Legacy financial tools (project P&L, subscriptions, API usage)
-    try:
-        from .tools.financial_tools import (
-            FinancialTracker,
-            SubscriptionMonitor,
-            APIUsageTracker,
-        )
-        tools = [FinancialTracker(), SubscriptionMonitor(), APIUsageTracker()]
-    except Exception as e:
-        logger.warning(f"Could not load financial tools: {e}")
-        tools = []
+    tools = []
 
-    # New real-time financial data tools
+    # Real-time financial data tools
     try:
         from .tools.financial import (
             TBankBalanceTool,
