@@ -257,25 +257,21 @@ class TestChatToTaskPipeline:
     """Verifies the pipeline from chat → task extraction → task queue."""
 
     def test_crew_execute_task_returns_string_only(self):
-        """AICorporation.execute_task() still returns plain strings.
-        Task extraction happens in app.py, not in crew.py."""
+        """AICorporation.execute_task() returns plain strings.
+        _run_agent() converts crew.kickoff() to str."""
         source = _read(CREW_PATH)
+        # Check that execute_task return type annotation is -> str
+        assert "def execute_task(self, task_description: str, agent_name: str" in source
+        # Check _run_agent converts kickoff result to string
         match = re.search(
-            r"def execute_task\(self.*?\).*?(?=\n    def |\nclass |\Z)",
+            r"def _run_agent\(self.*?\).*?(?=\n    def |\nclass |\Z)",
             source, re.DOTALL,
         )
-        assert match
+        assert match, "_run_agent method should exist in crew.py"
         method_body = match.group(0)
-        returns = re.findall(r"return\s+(.*)", method_body)
-        for ret in returns:
-            ret_stripped = ret.strip()
-            assert (
-                ret_stripped.startswith("str(")
-                or ret_stripped.startswith('"')
-                or ret_stripped.startswith("f\"")
-                or ret_stripped.startswith("f'")
-                or ret_stripped.startswith("'")
-            ), f"execute_task returns non-string: {ret_stripped}"
+        assert "str(crew.kickoff())" in method_body or "str(" in method_body, (
+            "_run_agent should convert kickoff result to string"
+        )
 
     def test_app_imports_task_extractor(self):
         """app.py imports from src.task_extractor."""

@@ -73,7 +73,12 @@ TASK_WRAPPER = (
     "⛔ ЗАПРЕТ НА ВЫДУМКИ: НИКОГДА не придумывай цифры, данные, метрики или факты. "
     "Используй ТОЛЬКО реальные данные из инструментов. "
     "Если данных нет — честно скажи: 'У меня нет данных по этому вопросу'. "
-    "Ложь КАТЕГОРИЧЕСКИ ЗАПРЕЩЕНА — Тим принимает решения на основе твоих ответов."
+    "Ложь КАТЕГОРИЧЕСКИ ЗАПРЕЩЕНА — Тим принимает решения на основе твоих ответов.\n\n"
+    "⚡ ДЕЛЕГИРОВАНИЕ: Если задача касается контента/SMM/публикаций — "
+    "ВЫЗОВИ инструмент 'Delegate Task' с agent_name='smm'. "
+    "Если задача про финансы/бюджет — ВЫЗОВИ 'Delegate Task' с agent_name='accountant'. "
+    "Если задача про технику/API — ВЫЗОВИ 'Delegate Task' с agent_name='automator'. "
+    "НЕ пиши 'делегирую' или 'поручаю' в тексте — ИСПОЛЬЗУЙ ИНСТРУМЕНТ."
 )
 
 
@@ -90,7 +95,23 @@ def load_crew_config() -> dict:
     return {}
 
 
-def create_task(description: str, expected_output: str, agent, context=None, output_pydantic=None) -> Task:
+def _manager_guardrail(task_output) -> tuple[bool, str]:
+    """Guardrail for manager: reject too-short answers or missing delegation results."""
+    try:
+        text = task_output.raw if hasattr(task_output, 'raw') else str(task_output)
+    except Exception:
+        text = str(task_output) if task_output else ""
+    # If agent wrote less than 100 chars, reject — force tool usage
+    if len(text) < 100:
+        return (False,
+                "Ответ слишком короткий. Ты ОБЯЗАН вызвать инструмент Delegate Task "
+                "для делегации задачи специалисту, получить результат и включить его в ответ. "
+                "НЕ пиши 'делегирую' — ВЫЗОВИ Action: Delegate Task.")
+    return (True, text)
+
+
+def create_task(description: str, expected_output: str, agent, context=None,
+                output_pydantic=None, tools=None, guardrail=None) -> Task:
     """Create a task for an agent"""
     kwargs = {
         "description": description,
@@ -101,6 +122,11 @@ def create_task(description: str, expected_output: str, agent, context=None, out
         kwargs["context"] = context
     if output_pydantic:
         kwargs["output_pydantic"] = output_pydantic
+    if tools:
+        kwargs["tools"] = tools
+    if guardrail:
+        kwargs["guardrail"] = guardrail
+        kwargs["guardrail_max_retries"] = 3
     return Task(**kwargs)
 
 
@@ -165,6 +191,75 @@ class AICorporation:
         """Check if the corporation is ready"""
         return self._initialized and self.crew is not None
 
+    def _run_agent(self, agent, task_description: str, agent_name: str = "") -> str:
+        """Run a single agent task with memory fallback. Returns result string."""
+        full_description = f"{task_description}{TASK_WRAPPER}"
+        task = create_task(
+            description=full_description,
+            expected_output=EXPECTED_OUTPUT,
+            agent=agent,
+        )
+        try:
+            crew = Crew(
+                agents=[agent],
+                tasks=[task],
+                process=Process.sequential,
+                verbose=True,
+                memory=True,
+                embedder=EMBEDDER_CONFIG,
+            )
+            return str(crew.kickoff())
+        except Exception as e:
+            logger.warning(f"_run_agent({agent_name}) memory failed: {e}, retrying without memory")
+            task_retry = create_task(
+                description=full_description,
+                expected_output=EXPECTED_OUTPUT,
+                agent=agent,
+            )
+            crew_fallback = Crew(
+                agents=[agent],
+                tasks=[task_retry],
+                process=Process.sequential,
+                verbose=True,
+                memory=False,
+            )
+            result = crew_fallback.kickoff()
+            return f"⚠️ _(восстановлено)_\n\n{result}"
+
+    # ── Auto-delegation keywords ──────────────────────────
+    _DELEGATION_RULES = [
+        {
+            "agent_key": "smm",
+            "keywords": [
+                "контент", "пост", "публикац", "linkedin", "копирайт",
+                "smm", "соцсет", "социальн", "контент-план",
+            ],
+        },
+        {
+            "agent_key": "accountant",
+            "keywords": [
+                "бюджет", "финанс", "p&l", "расход", "доход", "прибыл",
+                "подписк", "roi", "портфел", "баланс", "выписк",
+            ],
+        },
+        {
+            "agent_key": "automator",
+            "keywords": [
+                "деплой", "api", "webhook", "интеграц", "мониторинг",
+                "сервер", "docker", "railway", "техническ",
+            ],
+        },
+    ]
+
+    def _detect_delegation_need(self, text: str) -> Optional[dict]:
+        """Detect if manager task should be auto-delegated to a specialist."""
+        text_lower = text.lower()
+        for rule in self._DELEGATION_RULES:
+            for kw in rule["keywords"]:
+                if kw in text_lower:
+                    return {"agent_key": rule["agent_key"]}
+        return None
+
     def execute_task(self, task_description: str, agent_name: str = "manager") -> str:
         """Execute a task with the specified agent"""
         if not self.is_ready:
@@ -184,52 +279,58 @@ class AICorporation:
         else:
             short_desc = task_description.strip()[:100].split("\n")[0]
 
+        # ── Auto-delegation for manager ──
+        # If the task is clearly for a specialist, run specialist first,
+        # then pass result to CEO for synthesis.
+        if agent_name == "manager":
+            delegation = self._detect_delegation_need(task_description)
+            if delegation:
+                specialist_key = delegation["agent_key"]
+                specialist_agent = agent_map.get(specialist_key)
+                if specialist_agent:
+                    logger.info(f"Auto-delegation: manager → {specialist_key}")
+                    log_task_start(specialist_key, short_desc)
+                    try:
+                        specialist_result = self._run_agent(
+                            specialist_agent, task_description, specialist_key,
+                        )
+                        log_task_end(specialist_key, short_desc, success=True)
+                    except Exception as e:
+                        logger.error(f"Specialist {specialist_key} failed: {e}")
+                        log_task_end(specialist_key, short_desc, success=False)
+                        specialist_result = f"❌ Ошибка: {e}"
+
+                    # Now pass to CEO for synthesis
+                    enriched = (
+                        f"{task_description}\n\n"
+                        f"--- Результат от специалиста ({specialist_key}) ---\n"
+                        f"{specialist_result}\n"
+                        f"--- Конец результата ---\n\n"
+                        f"Добавь свой краткий комментарий CEO к результату выше. "
+                        f"Не повторяй весь результат — дай стратегическую оценку."
+                    )
+                    log_task_start(agent_name, short_desc)
+                    try:
+                        ceo_result = self._run_agent(agent, enriched, agent_name)
+                        log_task_end(agent_name, short_desc, success=True)
+                        return ceo_result
+                    except Exception as e:
+                        logger.error(f"CEO synthesis failed: {e}")
+                        log_task_end(agent_name, short_desc, success=False)
+                        # Return specialist result anyway
+                        return specialist_result
+
         # Track: task started
         log_task_start(agent_name, short_desc)
 
-        full_description = f"{task_description}{TASK_WRAPPER}"
-
-        task = create_task(
-            description=full_description,
-            expected_output=EXPECTED_OUTPUT,
-            agent=agent,
-        )
-
-        # Try with memory first, fallback without
         try:
-            crew = Crew(
-                agents=[agent],
-                tasks=[task],
-                process=Process.sequential,
-                verbose=True,
-                memory=True,
-                embedder=EMBEDDER_CONFIG,
-            )
-            result = crew.kickoff()
+            result = self._run_agent(agent, task_description, agent_name)
             log_task_end(agent_name, short_desc, success=True)
-            return str(result)
+            return result
         except Exception as e:
             logger.error(f"Task failed for {agent_name}: {e}", exc_info=True)
-            try:
-                task_retry = create_task(
-                    description=full_description,
-                    expected_output=EXPECTED_OUTPUT,
-                    agent=agent,
-                )
-                crew_fallback = Crew(
-                    agents=[agent],
-                    tasks=[task_retry],
-                    process=Process.sequential,
-                    verbose=True,
-                    memory=False,
-                )
-                result = crew_fallback.kickoff()
-                log_task_end(agent_name, short_desc, success=True)
-                return f"⚠️ _(восстановлено после ошибки памяти)_\n\n{result}"
-            except Exception as e2:
-                logger.error(f"Fallback also failed for {agent_name}: {e2}", exc_info=True)
-                log_task_end(agent_name, short_desc, success=False)
-                return f"❌ Ошибка выполнения: {e}\n\nПовторная попытка: {e2}"
+            log_task_end(agent_name, short_desc, success=False)
+            return f"❌ Ошибка выполнения: {e}"
 
     # ──────────────────────────────────────────────────────────
     # Multi-agent tasks with context passing

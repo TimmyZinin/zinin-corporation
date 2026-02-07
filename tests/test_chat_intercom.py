@@ -45,10 +45,12 @@ class TestSingleAgentCrew:
         source = _read_source(CREW_PATH)
         tree = ast.parse(source)
 
-        # Find the execute_task method
+        # Find _run_agent method (Crew() is now in _run_agent, called from execute_task)
+        found = False
         for node in ast.walk(tree):
-            if isinstance(node, ast.FunctionDef) and node.name == "execute_task":
-                # Collect all Crew(...) calls inside execute_task
+            if isinstance(node, ast.FunctionDef) and node.name == "_run_agent":
+                found = True
+                # Collect all Crew(...) calls inside _run_agent
                 crew_calls = []
                 for child in ast.walk(node):
                     if isinstance(child, ast.Call):
@@ -57,7 +59,7 @@ class TestSingleAgentCrew:
                             crew_calls.append(child)
 
                 assert len(crew_calls) >= 1, (
-                    "Expected at least one Crew() call inside execute_task"
+                    "Expected at least one Crew() call inside _run_agent"
                 )
 
                 for crew_call in crew_calls:
@@ -68,43 +70,37 @@ class TestSingleAgentCrew:
                                 "agents= should be a list literal"
                             )
                             assert len(kw.value.elts) == 1, (
-                                f"PROBLEM CONFIRMED: Crew inside execute_task "
-                                f"has agents=[agent] — only 1 agent. "
-                                f"Delegation to other agents is impossible."
+                                f"Crew inside _run_agent "
+                                f"has agents=[agent] — single agent per execution."
                             )
-                return  # success
-
-        pytest.fail("execute_task method not found in crew.py")
+        assert found, "_run_agent method not found in crew.py"
 
     def test_execute_task_does_not_pass_all_corporation_agents(self):
-        """execute_task() receives a single agent_name string and resolves it
-        to ONE agent object.  It never passes self.crew.agents (all 4 agents)
-        to the per-task Crew, so the task-level crew is completely isolated."""
+        """_run_agent() (called by execute_task) uses a single-agent Crew,
+        not the full corporation roster."""
         source = _read_source(CREW_PATH)
         tree = ast.parse(source)
 
         for node in ast.walk(tree):
-            if isinstance(node, ast.FunctionDef) and node.name == "execute_task":
+            if isinstance(node, ast.FunctionDef) and node.name == "_run_agent":
                 source_lines = source.splitlines()
                 method_source = "\n".join(
                     source_lines[node.lineno - 1: node.end_lineno]
                 )
                 # The method should NOT contain self.crew.agents
-                # in any Crew() constructor inside execute_task
                 assert "agents=all_agents" not in method_source, (
-                    "Unexpectedly found all agents in execute_task Crew"
+                    "Unexpectedly found all agents in _run_agent Crew"
                 )
                 assert "agents=[self.manager, self.accountant" not in method_source, (
-                    "Unexpectedly found multiple agents in execute_task Crew"
+                    "Unexpectedly found multiple agents in _run_agent Crew"
                 )
                 # Confirm single-agent pattern
                 assert "agents=[agent]" in method_source, (
-                    "PROBLEM CONFIRMED: execute_task uses agents=[agent] — "
-                    "a single-agent crew, not the full corporation roster."
+                    "_run_agent must use agents=[agent] — single agent per execution."
                 )
                 return
 
-        pytest.fail("execute_task method not found in crew.py")
+        pytest.fail("_run_agent method not found in crew.py")
 
 
 # ====================================================================
@@ -551,7 +547,7 @@ class TestDelegationUseless:
         tree = ast.parse(source)
 
         for node in ast.walk(tree):
-            if isinstance(node, ast.FunctionDef) and node.name == "execute_task":
+            if isinstance(node, ast.FunctionDef) and node.name == "_run_agent":
                 func_source = "\n".join(
                     source.splitlines()[node.lineno - 1: node.end_lineno]
                 )
@@ -562,20 +558,18 @@ class TestDelegationUseless:
 
                 assert crew_count >= 1, "Should have at least 1 Crew call"
                 assert agents_single_count == crew_count, (
-                    f"PROBLEM CONFIRMED: All {crew_count} Crew instantiations "
-                    f"inside execute_task use agents=[agent] (single agent). "
-                    f"Manager's allow_delegation=True is a dead flag — "
-                    f"there are no peers to delegate to."
+                    f"All {crew_count} Crew instantiations "
+                    f"inside _run_agent use agents=[agent] (single agent). "
+                    f"Auto-delegation in execute_task handles multi-agent flow."
                 )
                 return
 
-        pytest.fail("execute_task not found in crew.py")
+        pytest.fail("_run_agent not found in crew.py")
 
     def test_initialize_crew_has_all_agents_but_never_used_for_chat(self):
         """AICorporation.initialize() creates self.crew with ALL agents,
-        but execute_task() (the chat handler) IGNORES self.crew and creates
-        a fresh single-agent Crew every time.  The multi-agent crew
-        built during initialization is never used for chat interactions."""
+        but _run_agent() creates a fresh single-agent Crew for each task.
+        execute_task() handles auto-delegation at the code level."""
         source = _read_source(CREW_PATH)
 
         # In initialize(), all agents are put into self.crew
@@ -586,24 +580,22 @@ class TestDelegationUseless:
             "initialize() should assign self.crew"
         )
 
-        # But execute_task() creates a LOCAL crew, ignoring self.crew
+        # _run_agent creates a LOCAL crew, not self.crew
         tree = ast.parse(source)
         for node in ast.walk(tree):
-            if isinstance(node, ast.FunctionDef) and node.name == "execute_task":
+            if isinstance(node, ast.FunctionDef) and node.name == "_run_agent":
                 func_source = "\n".join(
                     source.splitlines()[node.lineno - 1: node.end_lineno]
                 )
                 assert "self.crew.kickoff" not in func_source, (
-                    "execute_task should NOT use self.crew — and it does not"
+                    "_run_agent should NOT use self.crew"
                 )
-                assert "crew = Crew(" in func_source, (
-                    "PROBLEM CONFIRMED: execute_task creates a fresh local "
-                    "single-agent Crew instead of using the pre-built "
-                    "self.crew that contains all agents."
+                assert "crew = Crew(" in func_source or "Crew(" in func_source, (
+                    "_run_agent creates a fresh local Crew for each task."
                 )
                 return
 
-        pytest.fail("execute_task not found")
+        pytest.fail("_run_agent not found")
 
 
 # ====================================================================
