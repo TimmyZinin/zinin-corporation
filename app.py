@@ -1560,26 +1560,30 @@ def main():
                         to_emoji = AGENT_EMOJI.get(to_a, "")
                         st.caption(f"`{time_str}` 💬 {from_emoji} **{from_name}** → {to_emoji} **{to_name}**: _{event.get('description', '')}_")
 
-    # Tab 6: Agent Dashboard
+    # Tab 6: Agent Dashboard (auto-refreshes every 15 seconds)
     with tab6:
-        try:
-            from src.dashboard import generate_dashboard_html
-            from src.activity_tracker import get_all_statuses as dash_get_statuses, get_recent_events as dash_get_events, get_agent_task_count as dash_task_count
-            dash_statuses = dash_get_statuses()
-            dash_events = dash_get_events(hours=24, limit=30)
-            dash_completed = sum(dash_task_count(a, hours=24) for a in ["manager", "accountant", "smm", "automator"])
-        except Exception:
-            dash_statuses = {}
-            dash_events = []
-            dash_completed = 0
+        @st.fragment(run_every=timedelta(seconds=15))
+        def _dashboard_fragment():
+            try:
+                from src.dashboard import generate_dashboard_html
+                from src.activity_tracker import get_all_statuses as dash_get_statuses, get_recent_events as dash_get_events, get_agent_task_count as dash_task_count
+                dash_statuses = dash_get_statuses()
+                dash_events = dash_get_events(hours=24, limit=30)
+                dash_completed = sum(dash_task_count(a, hours=24) for a in ["manager", "accountant", "smm", "automator"])
+            except Exception:
+                dash_statuses = {}
+                dash_events = []
+                dash_completed = 0
 
-        completed = max(st.session_state.get('tasks_completed', 0), dash_completed)
-        dash_html = generate_dashboard_html(
-            completed_count=completed,
-            agent_statuses=dash_statuses,
-            recent_events=dash_events,
-        )
-        st_components.html(dash_html, height=750, scrolling=False)
+            completed = max(st.session_state.get('tasks_completed', 0), dash_completed)
+            dash_html = generate_dashboard_html(
+                completed_count=completed,
+                agent_statuses=dash_statuses,
+                recent_events=dash_events,
+            )
+            st_components.html(dash_html, height=750, scrolling=False)
+
+        _dashboard_fragment()
 
     # Tab 7: Stats
     with tab7:
