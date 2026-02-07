@@ -56,6 +56,13 @@ AGENT_COLORS = {
 }
 
 
+def hex_to_rgba(hex_color: str, alpha: float) -> str:
+    """Convert hex color to rgba() for browser compatibility."""
+    h = hex_color.lstrip('#')
+    r, g, b = int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)
+    return f"rgba({r},{g},{b},{alpha})"
+
+
 def detect_agent(message: str) -> str:
     """Detect which agent is being addressed in the message.
 
@@ -128,9 +135,13 @@ def md_to_html(text: str) -> str:
                 links.append((m.group(1), m.group(2)))
                 return f'%%ZCL{len(links) - 1}%%'
             t = re.sub(r'\[([^\]]+)\]\(([^)]+)\)', _link_sub, segment)
+            # Extract inline code BEFORE escaping to prevent markdown inside code
+            inline_codes = []
+            def _code_sub(m):
+                inline_codes.append(html_module.escape(m.group(1)))
+                return f'%%ZCC{len(inline_codes) - 1}%%'
+            t = re.sub(r'`([^`\n]+)`', _code_sub, t)
             t = html_module.escape(t)
-            # Inline code
-            t = re.sub(r'`([^`\n]+)`', r'<code class="zc-inline-code">\1</code>', t)
             # #11: bold+italic before separate bold/italic
             t = re.sub(r'\*\*\*(.+?)\*\*\*', r'<strong><em>\1</em></strong>', t)
             t = re.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', t)
@@ -148,10 +159,14 @@ def md_to_html(text: str) -> str:
             # #13: restore links with safe labels and raw URLs
             for i, (label, url) in enumerate(links):
                 safe_label = html_module.escape(label)
+                safe_url = html_module.escape(url, quote=True)
                 t = t.replace(
                     f'%%ZCL{i}%%',
-                    f'<a href="{url}" target="_blank" rel="noopener" class="zc-link">{safe_label} <span class="zc-ext" aria-label="opens in new tab">\u2197</span></a>',
+                    f'<a href="{safe_url}" target="_blank" rel="noopener" class="zc-link">{safe_label} <span class="zc-ext" aria-label="opens in new tab">\u2197</span></a>',
                 )
+            # Restore inline code (after all markdown processing)
+            for i, code_content in enumerate(inline_codes):
+                t = t.replace(f'%%ZCC{i}%%', f'<code class="zc-inline-code">{code_content}</code>')
             # Newlines
             t = t.replace('\n\n', '<br><br>')
             t = t.replace('\n', '<br>')
@@ -222,7 +237,7 @@ def render_chat_html(messages: list) -> str:
             g = "" if is_first else " zc-grouped"
             br_cls = " zc-first" if is_first else ""
             if is_first:
-                avatar = f'<div class="zc-avatar" style="background:{color}15;border-color:{color}"><span>{info["emoji"]}</span></div>'
+                avatar = f'<div class="zc-avatar" style="background:{hex_to_rgba(color, 0.08)};border-color:{color}"><span>{info["emoji"]}</span></div>'
                 sender = f'<div class="zc-sender" style="color:{color}">{info["flag"]} {info["name"]} <span class="zc-role">· {info["title"]}</span></div>'
             else:
                 avatar = '<div class="zc-avatar-space"></div>'
@@ -518,8 +533,8 @@ st.markdown("""
         background: #555;
         animation: zcBounce 1.4s infinite;
     }
-    .zc-dot:nth-child(2) { animation-delay: 0.15s; }
-    .zc-dot:nth-child(3) { animation-delay: 0.3s; }
+    .zc-dot:nth-child(3) { animation-delay: 0.15s; }
+    .zc-dot:nth-child(4) { animation-delay: 0.3s; }
 
     /* ── Chat Header ── */
     .zc-header {
@@ -801,16 +816,25 @@ def main():
             t_info = AGENTS.get(thinking_agent, AGENTS["manager"])
             t_color = AGENT_COLORS.get(thinking_agent, "#00cec9")
             typing_html = f'''<div class="zc-typing-row" role="status" aria-live="polite" aria-label="{t_info['name']} печатает">
-  <div class="zc-avatar" style="background:{t_color}15;border-color:{t_color}"><span>{t_info["emoji"]}</span></div>
+  <div class="zc-avatar" style="background:{hex_to_rgba(t_color, 0.08)};border-color:{t_color}"><span>{t_info["emoji"]}</span></div>
   <div class="zc-typing-bubble">
     <span class="zc-typing-name" style="color:{t_color}">{t_info["name"]}</span>
     <div class="zc-dot"></div><div class="zc-dot"></div><div class="zc-dot"></div>
   </div>
 </div>'''
 
-        # #18: auto-scroll anchor at bottom
-        scroll_anchor = '<div id="zc-bottom" style="height:1px"></div>'
-        st.markdown(chat_html + typing_html + scroll_anchor, unsafe_allow_html=True)
+        st.markdown(chat_html + typing_html, unsafe_allow_html=True)
+
+        # #18: auto-scroll to bottom using components.html (allows JS execution)
+        import streamlit.components.v1 as components
+        components.html("""
+            <script>
+                const mainBlock = window.parent.document.querySelector('[data-testid="stAppViewBlockContainer"]');
+                if (mainBlock) mainBlock.scrollTop = mainBlock.scrollHeight;
+                const tabs = window.parent.document.querySelectorAll('[data-testid="stVerticalBlock"]');
+                tabs.forEach(t => t.scrollTop = t.scrollHeight);
+            </script>
+        """, height=0)
 
         # #48: retry button for failed requests
         if "last_failed_prompt" in st.session_state:
