@@ -5,6 +5,7 @@ Streamlit app for interacting with CrewAI agents
 
 import os
 import re
+import html as html_module
 import sys
 import yaml
 import streamlit as st
@@ -47,6 +48,13 @@ AGENTS = {
     },
 }
 
+AGENT_COLORS = {
+    "manager": "#e74c3c",
+    "accountant": "#f39c12",
+    "smm": "#e91e63",
+    "automator": "#2ecc71",
+}
+
 
 def detect_agent(message: str) -> str:
     """Detect which agent is being addressed in the message.
@@ -73,8 +81,8 @@ def detect_agent(message: str) -> str:
             if kw in text:
                 return key
 
-    # 4) Default to CEO
-    return "manager"
+    # 4) #45: continue conversation with last addressed agent (or default to CEO)
+    return st.session_state.get("last_agent_key", "manager")
 
 
 def format_chat_context(messages: list, max_messages: int = 10) -> str:
@@ -92,17 +100,161 @@ def format_chat_context(messages: list, max_messages: int = 10) -> str:
             lines.append(f"{agent_name}: {msg['content'][:300]}")
     return "\n".join(lines)
 
+
+def md_to_html(text: str) -> str:
+    """Convert markdown text to safe HTML for chat display."""
+    if not text or not text.strip():
+        return ''
+    segments = re.split(r'(```(?:\w*)\n[\s\S]*?```)', text)
+    html_parts = []
+
+    for segment in segments:
+        if segment.startswith('```'):
+            match = re.match(r'```(\w*)\n([\s\S]*?)```', segment)
+            if match:
+                code = html_module.escape(match.group(2).rstrip())
+                html_parts.append(
+                    f'<pre class="zc-code-block"><code>{code}</code></pre>'
+                )
+            else:
+                # #46: malformed code block fallback
+                html_parts.append(
+                    f'<pre class="zc-code-block"><code>{html_module.escape(segment)}</code></pre>'
+                )
+        else:
+            # #13: extract links BEFORE escaping to preserve & in URLs
+            links = []
+            def _link_sub(m):
+                links.append((m.group(1), m.group(2)))
+                return f'%%ZCL{len(links) - 1}%%'
+            t = re.sub(r'\[([^\]]+)\]\(([^)]+)\)', _link_sub, segment)
+            t = html_module.escape(t)
+            # Inline code
+            t = re.sub(r'`([^`\n]+)`', r'<code class="zc-inline-code">\1</code>', t)
+            # #11: bold+italic before separate bold/italic
+            t = re.sub(r'\*\*\*(.+?)\*\*\*', r'<strong><em>\1</em></strong>', t)
+            t = re.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', t)
+            t = re.sub(r'(?<!\*)\*([^*\n]+)\*(?!\*)', r'<em>\1</em>', t)
+            # Headings
+            t = re.sub(r'^###\s+(.+)$', r'<div class="zc-h3">\1</div>', t, flags=re.MULTILINE)
+            t = re.sub(r'^##\s+(.+)$', r'<div class="zc-h2">\1</div>', t, flags=re.MULTILINE)
+            t = re.sub(r'^#\s+(.+)$', r'<div class="zc-h1">\1</div>', t, flags=re.MULTILINE)
+            # #16: blockquotes (after html escape, > becomes &gt;)
+            t = re.sub(r'^&gt;\s+(.+)$', r'<div class="zc-bq">\1</div>', t, flags=re.MULTILINE)
+            # Lists
+            t = re.sub(r'^(\d+)\.\s+(.+)$', r'<div class="zc-li-num"><span class="zc-num">\1.</span> \2</div>', t, flags=re.MULTILINE)
+            t = re.sub(r'^[\-\*]\s+(.+)$', r'<div class="zc-li">\1</div>', t, flags=re.MULTILINE)
+            t = re.sub(r'^-{3,}$', '<hr class="zc-hr">', t, flags=re.MULTILINE)
+            # #13: restore links with safe labels and raw URLs
+            for i, (label, url) in enumerate(links):
+                safe_label = html_module.escape(label)
+                t = t.replace(
+                    f'%%ZCL{i}%%',
+                    f'<a href="{url}" target="_blank" rel="noopener" class="zc-link">{safe_label} <span class="zc-ext" aria-label="opens in new tab">\u2197</span></a>',
+                )
+            # Newlines
+            t = t.replace('\n\n', '<br><br>')
+            t = t.replace('\n', '<br>')
+            html_parts.append(t)
+
+    return ''.join(html_parts)
+
+
+def ru_plural(n: int, one: str, few: str, many: str) -> str:
+    """Russian pluralization: 1 сообщение, 2 сообщения, 5 сообщений."""
+    if n % 10 == 1 and n % 100 != 11:
+        return f"{n} {one}"
+    if 2 <= n % 10 <= 4 and not 12 <= n % 100 <= 14:
+        return f"{n} {few}"
+    return f"{n} {many}"
+
+
+def render_chat_html(messages: list) -> str:
+    """Render all chat messages as modern HTML."""
+    # #32: ARIA roles for accessibility
+    parts = ['<div class="zc-chat" role="log" aria-label="Корпоративный чат" aria-live="polite">']
+    prev_role = None
+    prev_agent_key = None
+    prev_date = None
+    total = len(messages)
+
+    for idx, msg in enumerate(messages):
+        role = msg["role"]
+        content = msg["content"]
+        msg_time = msg.get("time", "")
+        msg_date = msg.get("date", datetime.now().strftime("%d.%m.%Y"))
+        agent_key = msg.get("agent_key", "manager")
+        is_last = idx == total - 1
+
+        # #33: date separator with ARIA
+        if msg_date and msg_date != prev_date:
+            today_str = datetime.now().strftime("%d.%m.%Y")
+            yesterday_str = (datetime.now() - timedelta(days=1)).strftime("%d.%m.%Y")
+            date_label = "Сегодня" if msg_date == today_str else ("Вчера" if msg_date == yesterday_str else msg_date)
+            parts.append(f'<div class="zc-date-sep" role="separator" aria-label="Сообщения за {date_label}"><span>{date_label}</span></div>')
+            prev_date = msg_date
+
+        is_first = True
+        if role == prev_role:
+            if role == "user":
+                is_first = False
+            elif agent_key == prev_agent_key:
+                is_first = False
+
+        content_html = md_to_html(content)
+        # #8: animate only the last message
+        new_cls = " zc-new" if is_last else ""
+
+        if role == "user":
+            g = "" if is_first else " zc-grouped"
+            sender = '<div class="zc-sender" style="color:#c4b5fd">Тим</div>' if is_first else ""
+            br_cls = " zc-first" if is_first else ""
+            # #32: aria-label, #37: tabindex
+            parts.append(
+                f'<div class="zc-row zc-sent{g}{new_cls}" role="article" aria-label="Тим, {msg_time}">'
+                f'<div class="zc-bubble zc-b-sent{br_cls}" tabindex="0">'
+                f'{sender}<div class="zc-text">{content_html}</div>'
+                f'<span class="zc-time">{msg_time}</span></div></div>'
+            )
+        else:
+            info = AGENTS.get(agent_key, AGENTS["manager"])
+            color = AGENT_COLORS.get(agent_key, "#00cec9")
+            g = "" if is_first else " zc-grouped"
+            br_cls = " zc-first" if is_first else ""
+            if is_first:
+                avatar = f'<div class="zc-avatar" style="background:{color}15;border-color:{color}"><span>{info["emoji"]}</span></div>'
+                sender = f'<div class="zc-sender" style="color:{color}">{info["flag"]} {info["name"]} <span class="zc-role">· {info["title"]}</span></div>'
+            else:
+                avatar = '<div class="zc-avatar-space"></div>'
+                # #35: mini role tag for grouped messages (colorblind accessibility)
+                sender = f'<div class="zc-sender-mini" style="color:{color}">{info["title"]}</div>'
+            # #5: colored left-border for agent differentiation, #32: aria, #37: tabindex
+            parts.append(
+                f'<div class="zc-row zc-received{g}{new_cls}" role="article" aria-label="{info["name"]}, {info["title"]}, {msg_time}">'
+                f'{avatar}<div class="zc-bubble zc-b-recv{br_cls}" style="border-left:3px solid {color}" tabindex="0">'
+                f'{sender}<div class="zc-text">{content_html}</div>'
+                f'<span class="zc-time">{msg_time}</span></div></div>'
+            )
+
+        prev_role = role
+        prev_agent_key = agent_key if role == "assistant" else None
+
+    parts.append('</div>')
+    return '\n'.join(parts)
+
+
 # Page config
 st.set_page_config(
     page_title="AI Corporation",
     page_icon="🏢",
     layout="wide",
-    initial_sidebar_state="expanded"
+    initial_sidebar_state="collapsed"
 )
 
-# Custom CSS
+# Custom CSS — Modern Chat UI (v2 — 50-issue audit applied)
 st.markdown("""
 <style>
+    /* ── General ── */
     .main-header {
         font-size: 2.5rem;
         font-weight: 800;
@@ -121,37 +273,359 @@ st.markdown("""
     .status-ready { color: #00cec9; }
     .status-pending { color: #ffc107; }
     .status-error { color: #ff6b6b; }
-    /* Full-width chat messages */
-    .stChatMessage {
-        background: #1a1a2e;
-        border-radius: 12px;
-        max-width: 100% !important;
-    }
-    .stChatMessage [data-testid="stMarkdownContainer"] {
-        max-width: 100% !important;
-        width: 100% !important;
-    }
-    /* Make main block full width */
     .block-container {
         max-width: 100% !important;
         padding-left: 2rem !important;
         padding-right: 2rem !important;
     }
-    /* Chat container scrollable area */
-    [data-testid="stVerticalBlockBorderWrapper"] > div > div[data-testid="stVerticalBlock"] {
-        max-width: 100% !important;
+
+    /* ── Chat Container (#7: wider max-width) ── */
+    .zc-chat {
+        max-width: 960px;
+        margin: 0 auto;
+        padding: 4px 0 20px;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
     }
-    /* Chat scroll container */
-    .chat-scroll-container {
-        max-height: 65vh;
-        overflow-y: auto;
-        padding-right: 0.5rem;
+
+    /* ── Date Separator (#9: horizontal rules) ── */
+    .zc-date-sep {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        padding: 18px 16px 14px;
+        user-select: none;
     }
-    /* Timestamp style */
-    .msg-time {
-        font-size: 0.7rem;
-        color: #666;
-        margin-top: 0.25rem;
+    .zc-date-sep::before,
+    .zc-date-sep::after {
+        content: '';
+        flex: 1;
+        height: 1px;
+        background: rgba(255,255,255,0.06);
+    }
+    .zc-date-sep span {
+        background: rgba(255,255,255,0.055);
+        color: #7e7e8e;
+        font-size: 12px;
+        font-weight: 500;
+        padding: 5px 16px;
+        border-radius: 10px;
+        letter-spacing: 0.2px;
+        flex-shrink: 0;
+    }
+
+    /* ── Message Row (#8: animate only last message) ── */
+    .zc-row {
+        display: flex;
+        align-items: flex-end;
+        gap: 10px;
+        margin-bottom: 10px;
+        padding: 0 16px;
+    }
+    .zc-row.zc-new { animation: zcIn 0.25s ease-out; }
+    .zc-row.zc-grouped { margin-bottom: 3px; }
+    .zc-row.zc-sent { justify-content: flex-end; }
+    .zc-row.zc-received { justify-content: flex-start; }
+
+    /* ── Avatar (#6: no scale jitter) ── */
+    .zc-avatar {
+        width: 36px;
+        height: 36px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 17px;
+        flex-shrink: 0;
+        border: 2px solid;
+        transition: box-shadow 0.15s ease;
+    }
+    .zc-avatar:hover { box-shadow: 0 0 0 3px rgba(255,255,255,0.08); }
+    .zc-avatar-space { width: 36px; flex-shrink: 0; }
+
+    /* ── Bubble Base (#1: different widths, #15: overflow-wrap) ── */
+    .zc-bubble {
+        padding: 10px 14px;
+        border-radius: 18px;
+        word-wrap: break-word;
+        overflow-wrap: anywhere;
+        word-break: break-word;
+    }
+
+    /* Sent (user) (#3: darker gradient for contrast) */
+    .zc-b-sent {
+        max-width: 72%;
+        background: linear-gradient(135deg, #5b4bd4 0%, #4a3bc9 100%);
+        color: #fff;
+        border-bottom-right-radius: 6px;
+    }
+    .zc-b-sent.zc-first { border-top-right-radius: 20px; }
+    .zc-row.zc-grouped .zc-b-sent { border-top-right-radius: 6px; border-bottom-right-radius: 6px; }
+
+    /* Received (agent) (#1: wider) */
+    .zc-b-recv {
+        max-width: 85%;
+        background: #151728;
+        color: #e4e4e7;
+        border: 1px solid #1f2240;
+        border-bottom-left-radius: 6px;
+    }
+    .zc-b-recv.zc-first { border-top-left-radius: 20px; }
+    .zc-row.zc-grouped .zc-b-recv { border-top-left-radius: 6px; border-bottom-left-radius: 6px; }
+
+    /* ── Sender Name ── */
+    .zc-sender {
+        font-size: 12.5px;
+        font-weight: 600;
+        margin-bottom: 4px;
+        letter-spacing: 0.2px;
+    }
+    .zc-sender-mini {
+        font-size: 10px;
+        font-weight: 500;
+        opacity: 0.45;
+        margin-bottom: 2px;
+    }
+    .zc-role { font-weight: 400; opacity: 0.55; font-size: 11.5px; }
+
+    /* ── Message Text ── */
+    .zc-text {
+        font-size: 14.5px;
+        line-height: 1.55;
+        color: inherit;
+    }
+    .zc-text p { margin: 0; }
+    .zc-text strong { font-weight: 600; color: #fff; }
+    .zc-text em { font-style: italic; opacity: 0.9; }
+
+    .zc-text .zc-link {
+        color: #7cb3ff;
+        text-decoration: none;
+        border-bottom: 1px solid rgba(124,179,255,0.3);
+        transition: border-color 0.15s;
+    }
+    .zc-text .zc-link:hover { border-bottom-color: #7cb3ff; }
+    /* #36: external link indicator */
+    .zc-ext { font-size: 10px; opacity: 0.45; vertical-align: super; margin-left: 1px; }
+
+    /* #10: cyan-blue inline code (no clash with Amara orange) */
+    .zc-text .zc-inline-code {
+        background: rgba(255,255,255,0.08);
+        padding: 2px 7px;
+        border-radius: 5px;
+        font-family: 'SF Mono', Menlo, Consolas, 'Liberation Mono', 'Courier New', monospace;
+        font-size: 13px;
+        color: #a8d8ea;
+    }
+    /* #2, #30: better code blocks + iOS scroll */
+    .zc-text .zc-code-block {
+        background: #0c0e1a;
+        padding: 14px 16px;
+        border-radius: 10px;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: thin;
+        scrollbar-color: #333 transparent;
+        margin: 10px -14px;
+        padding-left: 16px;
+        padding-right: 16px;
+        border: 1px solid #1c1f38;
+        font-family: 'SF Mono', Menlo, Consolas, 'Liberation Mono', 'Courier New', monospace;
+        font-size: 13px;
+        line-height: 1.5;
+        color: #d4d4d8;
+    }
+    .zc-text .zc-code-block::-webkit-scrollbar { height: 6px; }
+    .zc-text .zc-code-block::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 3px; }
+    .zc-text .zc-code-block::-webkit-scrollbar-track { background: transparent; }
+    .zc-text .zc-code-block code {
+        background: none;
+        padding: 0;
+        color: inherit;
+        font-size: inherit;
+    }
+
+    /* #14: better heading hierarchy */
+    .zc-text .zc-h1 { font-size: 18px; font-weight: 700; margin: 16px 0 8px; color: #fff; border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 6px; }
+    .zc-text .zc-h2 { font-size: 16px; font-weight: 600; margin: 14px 0 6px; color: #f0f0f3; }
+    .zc-text .zc-h3 { font-size: 12.5px; font-weight: 600; margin: 10px 0 4px; color: #c8c8d0; text-transform: uppercase; letter-spacing: 0.5px; }
+
+    .zc-text .zc-li {
+        padding-left: 18px;
+        position: relative;
+        margin: 3px 0;
+    }
+    .zc-text .zc-li::before {
+        content: '\2022';
+        position: absolute;
+        left: 5px;
+        color: #6c5ce7;
+    }
+    .zc-text .zc-li-num {
+        padding-left: 18px;
+        margin: 3px 0;
+    }
+    .zc-text .zc-num { color: #6c5ce7; font-weight: 600; font-size: 13px; }
+    .zc-text .zc-hr { border: none; border-top: 1px solid #252842; margin: 10px 0; }
+
+    /* #16: blockquote styling */
+    .zc-text .zc-bq {
+        border-left: 3px solid #6c5ce7;
+        padding: 4px 12px;
+        margin: 6px 0;
+        color: #a0a0b0;
+        background: rgba(108,92,231,0.05);
+        border-radius: 0 6px 6px 0;
+    }
+
+    /* ── Timestamp (#4: more readable) ── */
+    .zc-time {
+        display: block;
+        font-size: 10.5px;
+        text-align: right;
+        margin-top: 4px;
+        opacity: 0.45;
+        user-select: none;
+    }
+    .zc-b-sent .zc-time { opacity: 0.55; }
+
+    /* ── Typing Indicator ── */
+    .zc-typing-row {
+        display: flex;
+        align-items: flex-end;
+        gap: 10px;
+        padding: 0 16px;
+        margin-bottom: 10px;
+    }
+    .zc-typing-bubble {
+        background: #151728;
+        border: 1px solid #1f2240;
+        padding: 14px 20px;
+        border-radius: 18px;
+        border-bottom-left-radius: 6px;
+        display: inline-flex;
+        gap: 5px;
+        align-items: center;
+    }
+    .zc-typing-name {
+        font-size: 12px;
+        font-weight: 600;
+        margin-right: 6px;
+    }
+    .zc-dot {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: #555;
+        animation: zcBounce 1.4s infinite;
+    }
+    .zc-dot:nth-child(2) { animation-delay: 0.15s; }
+    .zc-dot:nth-child(3) { animation-delay: 0.3s; }
+
+    /* ── Chat Header ── */
+    .zc-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 14px 20px;
+        background: rgba(18,20,34,0.5);
+        border: 1px solid #1f2240;
+        border-radius: 14px;
+        margin-bottom: 6px;
+        max-width: 960px;
+        margin-left: auto;
+        margin-right: auto;
+        backdrop-filter: blur(12px);
+    }
+    .zc-header-title {
+        font-size: 16px;
+        font-weight: 700;
+        color: #e4e4e7;
+    }
+    .zc-header-sub {
+        font-size: 12px;
+        color: #6c6c7a;
+        margin-top: 2px;
+    }
+    .zc-online {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        display: inline-block;
+        margin-right: 4px;
+        animation: zcPulse 2s infinite;
+    }
+
+    /* ── Agent hint bar ── */
+    .zc-agent-hints {
+        max-width: 960px;
+        margin: 0 auto;
+        display: flex;
+        gap: 8px;
+        padding: 6px 16px;
+        justify-content: center;
+    }
+    .zc-hint {
+        font-size: 11px;
+        padding: 3px 10px;
+        border-radius: 8px;
+        background: rgba(255,255,255,0.04);
+        border: 1px solid rgba(255,255,255,0.06);
+        opacity: 0.6;
+        transition: opacity 0.15s;
+    }
+    .zc-hint:hover { opacity: 1; }
+
+    /* #37: keyboard navigation */
+    .zc-bubble:focus {
+        outline: 2px solid rgba(108,92,231,0.5);
+        outline-offset: 2px;
+    }
+    .zc-bubble:focus:not(:focus-visible) { outline: none; }
+
+    /* ── Animations ── */
+    @keyframes zcIn {
+        from { opacity: 0; transform: translateY(8px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes zcBounce {
+        0%, 60%, 100% { transform: translateY(0); opacity: 0.35; }
+        30% { transform: translateY(-5px); opacity: 1; }
+    }
+    @keyframes zcPulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.4; }
+    }
+    @keyframes pulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.3; }
+    }
+
+    /* ── Responsive ── */
+    @media (min-width: 769px) and (max-width: 1024px) {
+        .zc-chat { max-width: 100%; padding: 4px 8px 16px; }
+        .zc-header { max-width: 100%; margin: 0 8px 6px; }
+        .zc-b-recv { max-width: 82%; }
+    }
+    @media (max-width: 768px) {
+        .zc-chat { padding: 4px 0 12px; }
+        .zc-row { padding: 0 8px; }
+        .zc-b-sent { max-width: 88%; }
+        .zc-b-recv { max-width: 92%; }
+        .zc-text { font-size: 14.5px; }
+        .zc-avatar { width: 34px; height: 34px; font-size: 16px; }
+        .zc-avatar-space { width: 34px; }
+        .zc-header { margin: 0 8px 6px; }
+        .zc-agent-hints { padding: 4px 8px; gap: 4px; }
+        .zc-hint { font-size: 10px; padding: 2px 8px; }
+    }
+
+    /* #47: style Streamlit chat input to match theme */
+    [data-testid="stChatInput"] {
+        max-width: 960px !important;
+        margin: 0 auto !important;
+    }
+    [data-testid="stChatInput"] textarea {
+        border-radius: 14px !important;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -269,103 +743,166 @@ def main():
                     "agent_key": "manager",
                     "agent_name": "Санторо",
                     "time": datetime.now().strftime("%H:%M"),
+                    "date": datetime.now().strftime("%d.%m.%Y"),
                 }
             ]
 
-        # Header row: hint + message count + clear button
-        head_col1, head_col2 = st.columns([5, 1])
-        with head_col1:
-            msg_count = len([m for m in st.session_state.messages if m["role"] == "user"])
-            st.caption(f"💡 Пишите имя агента: **Санторо**, **Амара**, **Юки**, **Нирадж** — или просто пишите, ответит CEO • Сообщений: {msg_count}")
-        with head_col2:
-            if st.button("🗑️ Очистить", key="clear_chat", help="Очистить историю чата"):
-                st.session_state.messages = [
-                    {
-                        "role": "assistant",
-                        "content": "Ciao! Чат очищен. Я Санторо — CEO. Обращайтесь к любому из нас!",
-                        "agent_key": "manager",
-                        "agent_name": "Санторо",
-                        "time": datetime.now().strftime("%H:%M"),
-                    }
-                ]
+        # Chat header (#22: Russian plural, #49: dynamic online status)
+        msg_count = len([m for m in st.session_state.messages if m["role"] == "user"])
+        is_thinking = st.session_state.get("is_thinking", False)
+        thinking_agent = st.session_state.get("thinking_agent", "manager")
+        corp_online = st.session_state.get("corp_ready", False)
+        online_text = "4 агента онлайн" if corp_online else "ожидание подключения"
+        dot_color = "#00cec9" if corp_online else "#ff6b6b"
+
+        col_hdr, col_clr = st.columns([8, 1])
+        with col_hdr:
+            msg_text = ru_plural(msg_count, "сообщение", "сообщения", "сообщений")
+            st.markdown(f'''<div class="zc-header">
+  <div>
+    <div class="zc-header-title">💬 Корпоративный чат</div>
+    <div class="zc-header-sub"><span class="zc-online" style="background:{dot_color}"></span>{online_text} &middot; {msg_text}</div>
+  </div>
+</div>''', unsafe_allow_html=True)
+        with col_clr:
+            # #21: two-step clear confirmation
+            if st.session_state.get("confirm_clear"):
+                c_yes, c_no = st.columns(2)
+                with c_yes:
+                    if st.button("Да", key="confirm_yes"):
+                        st.session_state.messages = [
+                            {
+                                "role": "assistant",
+                                "content": "Ciao! Чат очищен. Я Санторо — CEO. Обращайтесь к любому из нас!",
+                                "agent_key": "manager",
+                                "agent_name": "Санторо",
+                                "time": datetime.now().strftime("%H:%M"),
+                                "date": datetime.now().strftime("%d.%m.%Y"),
+                            }
+                        ]
+                        st.session_state.is_thinking = False
+                        st.session_state.confirm_clear = False
+                        st.rerun()
+                with c_no:
+                    if st.button("Нет", key="confirm_no"):
+                        st.session_state.confirm_clear = False
+                        st.rerun()
+            else:
+                if st.button("🗑️", key="clear_chat", help="Очистить чат"):
+                    st.session_state.confirm_clear = True
+                    st.rerun()
+
+        # Render chat messages as modern HTML
+        chat_html = render_chat_html(st.session_state.messages)
+
+        # #34: typing indicator with ARIA
+        typing_html = ""
+        if is_thinking:
+            t_info = AGENTS.get(thinking_agent, AGENTS["manager"])
+            t_color = AGENT_COLORS.get(thinking_agent, "#00cec9")
+            typing_html = f'''<div class="zc-typing-row" role="status" aria-live="polite" aria-label="{t_info['name']} печатает">
+  <div class="zc-avatar" style="background:{t_color}15;border-color:{t_color}"><span>{t_info["emoji"]}</span></div>
+  <div class="zc-typing-bubble">
+    <span class="zc-typing-name" style="color:{t_color}">{t_info["name"]}</span>
+    <div class="zc-dot"></div><div class="zc-dot"></div><div class="zc-dot"></div>
+  </div>
+</div>'''
+
+        # #18: auto-scroll anchor at bottom
+        scroll_anchor = '<div id="zc-bottom" style="height:1px"></div>'
+        st.markdown(chat_html + typing_html + scroll_anchor, unsafe_allow_html=True)
+
+        # #48: retry button for failed requests
+        if "last_failed_prompt" in st.session_state:
+            if st.button("🔄 Повторить последний запрос", key="retry_btn"):
+                st.session_state.pending_prompt = st.session_state.pop("last_failed_prompt")
+                st.session_state.pending_target = st.session_state.pop("last_failed_target")
+                st.session_state.is_thinking = True
+                st.session_state.thinking_agent = st.session_state.pending_target
                 st.rerun()
 
-        # Display all messages (no fixed-height container)
-        for i, message in enumerate(st.session_state.messages):
-            msg_time = message.get("time", "")
-            if message["role"] == "user":
-                with st.chat_message("user"):
-                    st.markdown(message["content"])
-                    if msg_time:
-                        st.caption(f"🕐 {msg_time}")
-            else:
-                agent_key = message.get("agent_key", "manager")
-                agent_info = AGENTS.get(agent_key, AGENTS["manager"])
-                display_name = f"{agent_info['flag']} {agent_info['name']}"
-                with st.chat_message(display_name, avatar=agent_info["emoji"]):
-                    st.markdown(message["content"])
-                    if msg_time:
-                        st.caption(f"🕐 {msg_time}")
-
-        # Anchor to scroll to after rerun
-        st.markdown('<div id="chat-bottom"></div>', unsafe_allow_html=True)
-
-        # Auto-scroll to bottom of chat
-        st.markdown("""
-        <script>
-            const chatBottom = document.getElementById('chat-bottom');
-            if (chatBottom) {
-                chatBottom.scrollIntoView({behavior: 'smooth'});
-            }
-            // Fallback: scroll main container
-            window.scrollTo(0, document.body.scrollHeight);
-        </script>
-        """, unsafe_allow_html=True)
-
-        # Chat input
-        if prompt := st.chat_input("Напишите сообщение... (можно @Амара или @Нирадж)"):
-            now = datetime.now().strftime("%H:%M")
-
-            # Add user message
-            st.session_state.messages.append({
-                "role": "user",
-                "content": prompt,
-                "time": now,
-            })
-
-            # Detect target agent
-            target_key = detect_agent(prompt)
+        # Process pending message (runs after chat is rendered so typing indicator is visible)
+        if "pending_prompt" in st.session_state:
+            prompt = st.session_state.pop("pending_prompt")
+            target_key = st.session_state.pop("pending_target")
             target_info = AGENTS[target_key]
 
-            # Check if API is configured
             if not api_ready:
-                response = "⚠️ **API не настроен.** Добавьте `OPENROUTER_API_KEY` в Railway."
+                response = "**API не настроен.** Добавьте `OPENROUTER_API_KEY` в Railway."
                 agent_key_resp = "manager"
             else:
                 corp = get_corporation()
                 if corp and corp.is_ready:
-                    # Build context from chat history
                     context = format_chat_context(st.session_state.messages)
                     task_with_context = prompt
                     if context:
                         task_with_context = f"{context}\n\n---\nНовое сообщение от Тима: {prompt}"
 
-                    with st.spinner(f"{target_info['emoji']} {target_info['name']} думает..."):
+                    # #20: error handling with try/except
+                    try:
                         response = corp.execute_task(task_with_context, target_key)
-                    agent_key_resp = target_key
+                        agent_key_resp = target_key
+                        # Clear failed state on success
+                        st.session_state.pop("last_failed_prompt", None)
+                        st.session_state.pop("last_failed_target", None)
+                    except Exception as e:
+                        response = f"Произошла ошибка при выполнении задачи:\n\n`{type(e).__name__}: {str(e)[:200]}`\n\nПопробуйте повторить запрос."
+                        agent_key_resp = target_key
+                        # #48: store for retry
+                        st.session_state["last_failed_prompt"] = prompt
+                        st.session_state["last_failed_target"] = target_key
                 else:
-                    response = "⚠️ **CrewAI инициализируется...** Попробуйте перезагрузить страницу."
+                    response = "**CrewAI инициализируется...** Попробуйте перезагрузить страницу."
                     agent_key_resp = "manager"
 
-            # Add assistant response
             st.session_state.messages.append({
                 "role": "assistant",
                 "content": response,
                 "agent_key": agent_key_resp,
                 "agent_name": AGENTS[agent_key_resp]["name"],
                 "time": datetime.now().strftime("%H:%M"),
+                "date": datetime.now().strftime("%d.%m.%Y"),
             })
+            st.session_state.is_thinking = False
+            # #45: remember last agent for follow-up routing
+            st.session_state.last_agent_key = agent_key_resp
             st.rerun()
+
+        # #25: agent hints bar
+        hints_html = '<div class="zc-agent-hints">'
+        for key, info in AGENTS.items():
+            color = AGENT_COLORS[key]
+            hints_html += f'<div class="zc-hint" style="color:{color}">{info["emoji"]} @{info["name"]}</div>'
+        hints_html += '</div>'
+        st.markdown(hints_html, unsafe_allow_html=True)
+
+        # Chat input
+        if prompt := st.chat_input("Напишите сообщение... (@Санторо @Амара @Юки @Нирадж)"):
+            # #43: empty message validation
+            prompt = prompt.strip()
+            if not prompt:
+                st.toast("Пустое сообщение", icon="⚠️")
+            else:
+                now = datetime.now()
+                # #45: use last_agent_key as fallback instead of always 'manager'
+                target_key = detect_agent(prompt)
+
+                st.session_state.messages.append({
+                    "role": "user",
+                    "content": prompt,
+                    "time": now.strftime("%H:%M"),
+                    "date": now.strftime("%d.%m.%Y"),
+                })
+
+                # Set thinking state and rerun to show typing indicator
+                st.session_state.pending_prompt = prompt
+                st.session_state.pending_target = target_key
+                st.session_state.is_thinking = True
+                st.session_state.thinking_agent = target_key
+                # #24: toast feedback
+                target_info = AGENTS[target_key]
+                st.toast(f"Отправлено → {target_info['emoji']} {target_info['name']}", icon="📤")
+                st.rerun()
 
     # Tab 2: Agents
     with tab2:
@@ -502,6 +1039,8 @@ def main():
                             "content": result,
                             "agent_key": task["agent"],
                             "agent_name": agent_info["name"],
+                            "time": datetime.now().strftime("%H:%M"),
+                            "date": datetime.now().strftime("%d.%m.%Y"),
                         })
                         st.rerun()
                     else:
