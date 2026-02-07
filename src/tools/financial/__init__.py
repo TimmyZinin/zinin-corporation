@@ -19,6 +19,7 @@ from .openai_usage import OpenAIUsageTool
 from .papaya import PapayaPositionsTool
 from .stacks import StacksPortfolioTool
 from .forex import ForexRatesTool
+from .eventum import EventumPortfolioTool
 
 __all__ = [
     "CryptoPriceTool",
@@ -47,4 +48,5 @@ __all__ = [
     "PapayaPositionsTool",
     "StacksPortfolioTool",
     "ForexRatesTool",
+    "EventumPortfolioTool",
 ]

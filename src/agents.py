@@ -114,6 +114,7 @@ def create_accountant_agent() -> Optional[Agent]:
             PapayaPositionsTool,
             StacksPortfolioTool,
             ForexRatesTool,
+            EventumPortfolioTool,
         )
         tools.extend([
             TBankBalanceTool(),
@@ -135,6 +136,7 @@ def create_accountant_agent() -> Optional[Agent]:
             PapayaPositionsTool(),
             StacksPortfolioTool(),
             ForexRatesTool(),
+            EventumPortfolioTool(),
         ])
         logger.info(f"Loaded {len(tools)} financial tools for Маттиас")
     except Exception as e:
