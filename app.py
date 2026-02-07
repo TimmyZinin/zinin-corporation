@@ -9,6 +9,7 @@ import html as html_module
 import sys
 import yaml
 import streamlit as st
+import streamlit.components.v1 as st_components
 from datetime import datetime, timedelta
 
 # Add src to path for imports
@@ -826,8 +827,7 @@ def main():
         st.markdown(chat_html + typing_html, unsafe_allow_html=True)
 
         # #18: auto-scroll to bottom using components.html (allows JS execution)
-        import streamlit.components.v1 as components
-        components.html("""
+        st_components.html("""
             <script>
                 const mainBlock = window.parent.document.querySelector('[data-testid="stAppViewBlockContainer"]');
                 if (mainBlock) mainBlock.scrollTop = mainBlock.scrollHeight;
