@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 router = Router()
 
 
-async def _keep_typing(message: Message, stop_event: asyncio.Event):
+async def keep_typing(message: Message, stop_event: asyncio.Event):
     """Send typing action every 4 seconds until stop_event is set."""
     while not stop_event.is_set():
         try:
@@ -28,11 +28,11 @@ async def _keep_typing(message: Message, stop_event: asyncio.Event):
             pass
 
 
-async def _run_with_typing(message: Message, coro, wait_msg: str):
+async def run_with_typing(message: Message, coro, wait_msg: str):
     """Run a coroutine while showing typing indicator and a wait message."""
     status = await message.answer(wait_msg)
     stop = asyncio.Event()
-    typing_task = asyncio.create_task(_keep_typing(message, stop))
+    typing_task = asyncio.create_task(keep_typing(message, stop))
     try:
         result = await coro
         for chunk in format_for_telegram(result):
@@ -67,7 +67,7 @@ async def cmd_start(message: Message):
 
 @router.message(Command("report"))
 async def cmd_report(message: Message):
-    await _run_with_typing(
+    await run_with_typing(
         message,
         AgentBridge.run_financial_report(),
         "📊 Готовлю финансовый отчёт... (30–60 сек)",
@@ -76,7 +76,7 @@ async def cmd_report(message: Message):
 
 @router.message(Command("portfolio"))
 async def cmd_portfolio(message: Message):
-    await _run_with_typing(
+    await run_with_typing(
         message,
         AgentBridge.run_portfolio_summary(),
         "💼 Собираю данные портфеля... (30–60 сек)",

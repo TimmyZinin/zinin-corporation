@@ -1,14 +1,24 @@
 #!/bin/bash
-# Start both Telegram bot and Streamlit web interface
+# Start Telegram bots and Streamlit web interface
 
-# Start Telegram bot in background (only if token is set)
+# Start Маттиас (CFO) Telegram bot in background
 if [ -n "$TELEGRAM_BOT_TOKEN" ]; then
-    echo "Starting Telegram bot..."
+    echo "Starting Маттиас (CFO) Telegram bot..."
     python run_telegram.py &
     TELEGRAM_PID=$!
-    echo "Telegram bot started (PID: $TELEGRAM_PID)"
+    echo "Маттиас bot started (PID: $TELEGRAM_PID)"
 else
-    echo "TELEGRAM_BOT_TOKEN not set — Telegram bot skipped"
+    echo "TELEGRAM_BOT_TOKEN not set — Маттиас bot skipped"
+fi
+
+# Start Алексей (CEO) Telegram bot in background
+if [ -n "$TELEGRAM_CEO_BOT_TOKEN" ]; then
+    echo "Starting Алексей (CEO) Telegram bot..."
+    python run_alexey_bot.py &
+    CEO_BOT_PID=$!
+    echo "Алексей bot started (PID: $CEO_BOT_PID)"
+else
+    echo "TELEGRAM_CEO_BOT_TOKEN not set — Алексей bot skipped"
 fi
 
 # Start Streamlit in foreground
@@ -18,4 +28,7 @@ streamlit run app.py --server.port=$PORT --server.address=0.0.0.0 --server.headl
 # If Streamlit exits, clean up
 if [ -n "$TELEGRAM_PID" ]; then
     kill $TELEGRAM_PID 2>/dev/null
+fi
+if [ -n "$CEO_BOT_PID" ]; then
+    kill $CEO_BOT_PID 2>/dev/null
 fi

@@ -61,3 +61,19 @@ class AgentBridge:
                 "accountant",
             )
         return await asyncio.to_thread(_sync)
+
+    @classmethod
+    async def run_strategic_review(cls) -> str:
+        """Run strategic review: Маттиас + Мартин → Алексей synthesis."""
+        def _sync():
+            corp = cls._get_corp()
+            return corp.strategic_review()
+        return await asyncio.to_thread(_sync)
+
+    @classmethod
+    async def run_corporation_report(cls) -> str:
+        """Run full corporation report: all agents → CEO synthesis."""
+        def _sync():
+            corp = cls._get_corp()
+            return corp.full_corporation_report()
+        return await asyncio.to_thread(_sync)
