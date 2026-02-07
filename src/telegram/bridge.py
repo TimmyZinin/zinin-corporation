@@ -151,6 +151,14 @@ class AgentBridge:
         return await asyncio.to_thread(_sync)
 
     @classmethod
+    async def run_generate_podcast(cls, topic: str = "", duration_minutes: int = 10) -> str:
+        """Generate a podcast script with Yuki (SMM)."""
+        def _sync():
+            corp = cls._get_corp()
+            return corp.generate_podcast(topic=topic, duration_minutes=duration_minutes)
+        return await asyncio.to_thread(_sync)
+
+    @classmethod
     async def run_content_review(cls, content: str) -> str:
         """Review content with Yuki (SMM)."""
         def _sync():

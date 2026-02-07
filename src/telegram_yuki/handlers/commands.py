@@ -76,6 +76,7 @@ async def cmd_start(message: Message):
         "/пост <тема> — Создать пост\n"
         "/пост от Тима <тема> — Пост от Тима\n"
         "/пост для личного бренда <тема> — Личный бренд\n"
+        "/подкаст <тема> — Сгенерировать подкаст\n"
         "/status — Статус системы\n"
         "/health — Диагностика\n"
         "/linkedin — Статус LinkedIn\n"
@@ -96,6 +97,9 @@ async def cmd_help(message: Message):
         "/пост от Тима <тема> — Пост от Тима (СБОРКА)\n"
         "/пост для личного бренда <тема> — Тим (личный)\n"
         "/post <тема> — Алиас для /пост\n\n"
+        "Подкасты:\n"
+        "/подкаст <тема> — Сгенерировать выпуск подкаста\n"
+        "/podcast <тема> — Алиас для /подкаст\n\n"
         "Авторы: Кристина и Тим → СБОРКА, только Тим → личный бренд\n\n"
         "Платформы при публикации:\n"
         "💼 LinkedIn, 📱 Telegram канал, 🧵 Threads\n"
@@ -196,6 +200,122 @@ async def cmd_post(message: Message):
         circuit_breaker.record_failure()
         logger.error(f"Post generation error: {e}", exc_info=True)
         await message.answer(f"Ошибка генерации: {type(e).__name__}: {str(e)[:200]}")
+    finally:
+        stop.set()
+        await typing_task
+        try:
+            await status_msg.delete()
+        except Exception:
+            pass
+
+
+@router.message(Command(commands=["подкаст", "podcast"]))
+async def cmd_podcast(message: Message):
+    """Generate a podcast episode: /подкаст AI-агенты в бизнесе."""
+    text = (message.text or "").strip()
+    # Remove command prefix
+    parts = text.split(maxsplit=1)
+    topic = parts[1].strip() if len(parts) > 1 else ""
+
+    if not topic:
+        await message.answer(
+            "Формат: /подкаст <тема>\n\n"
+            "Примеры:\n"
+            "- /подкаст AI-агенты в бизнесе\n"
+            "- /подкаст Будущее удалёнки\n"
+            "- /podcast Тренды 2026"
+        )
+        return
+
+    if circuit_breaker.is_open:
+        await message.answer(
+            f"Circuit breaker активен: {circuit_breaker.status}\n"
+            "Подожди или /health для диагностики."
+        )
+        return
+
+    status_msg = await message.answer(
+        f"🎙 Этап 1/3: Генерация сценария — {topic[:40]}... (30–90 сек)"
+    )
+
+    stop = asyncio.Event()
+    from ...telegram.handlers.commands import keep_typing
+    typing_task = asyncio.create_task(keep_typing(message, stop))
+
+    try:
+        # Step 1: Generate script
+        script_raw = await AgentBridge.run_generate_podcast(topic=topic)
+        circuit_breaker.record_success()
+
+        # Extract clean script (after ---)
+        if "---" in script_raw:
+            script = script_raw.split("---", 1)[1].strip()
+        else:
+            script = script_raw.strip()
+
+        # Send script preview
+        preview = script[:1500] + ("..." if len(script) > 1500 else "")
+        await message.answer(f"📝 Сценарий ({len(script)} символов):\n\n{preview}")
+
+        # Step 2: TTS
+        try:
+            await status_msg.edit_text("🎙 Этап 2/3: Озвучка ElevenLabs...")
+        except Exception:
+            pass
+
+        from ..podcast_gen import generate_podcast_audio
+        filepath, metadata = await asyncio.to_thread(
+            generate_podcast_audio, script, topic
+        )
+
+        # Step 3: RSS
+        try:
+            await status_msg.edit_text("🎙 Этап 3/3: Обновление RSS...")
+        except Exception:
+            pass
+
+        from ..rss_feed import PodcastRSSManager
+        rss = PodcastRSSManager()
+        episode = rss.add_episode(
+            title=topic,
+            description=f"Выпуск подкаста AI Corporation на тему: {topic}",
+            audio_filename=metadata["filename"],
+            duration_sec=metadata["duration_sec"],
+        )
+
+        # Send audio file
+        from aiogram.types import FSInputFile
+        await message.answer_audio(
+            FSInputFile(filepath),
+            title=topic,
+            performer="AI Corporation Podcast",
+            caption=(
+                f"🎙 Выпуск #{episode['episode_number']}: {topic}\n"
+                f"⏱ {metadata['duration_sec'] // 60}:{metadata['duration_sec'] % 60:02d} | "
+                f"📊 {metadata['file_size_bytes'] // 1024} KB | "
+                f"🧩 {metadata['chunks_count']} чанков"
+            ),
+        )
+
+        # Save as draft for potential re-publishing
+        post_id = DraftManager.create_draft(
+            topic=f"[PODCAST] {topic}",
+            text=script,
+            author="yuki",
+            brand="ai_corp",
+        )
+
+        await message.answer(
+            f"Подкаст готов! (ID: {post_id})\n"
+            f"Выпуск #{episode['episode_number']} | "
+            f"{metadata['duration_sec'] // 60} мин {metadata['duration_sec'] % 60} сек\n\n"
+            f"RSS обновлён ({rss.get_episode_count()} выпусков)"
+        )
+
+    except Exception as e:
+        circuit_breaker.record_failure()
+        logger.error(f"Podcast generation error: {e}", exc_info=True)
+        await message.answer(f"Ошибка генерации подкаста: {type(e).__name__}: {str(e)[:200]}")
     finally:
         stop.set()
         await typing_task

@@ -29,6 +29,12 @@ POST_TRIGGERS = re.compile(
     re.IGNORECASE,
 )
 
+# Patterns that trigger podcast generation
+PODCAST_TRIGGERS = re.compile(
+    r"^(сделай|запиши|создай|генерируй|подготовь)\s+(подкаст|выпуск|эпизод)",
+    re.IGNORECASE,
+)
+
 
 @router.message(F.text)
 async def handle_text(message: Message):
@@ -53,6 +59,17 @@ async def handle_text(message: Message):
     editing_id = DraftManager.get_editing(user_id)
     if editing_id:
         await _handle_edit_feedback(message, editing_id, user_text)
+        return
+
+    # Check for natural language podcast triggers
+    if PODCAST_TRIGGERS.search(user_text):
+        topic = PODCAST_TRIGGERS.sub("", user_text).strip()
+        if not topic:
+            topic = user_text
+        from .commands import cmd_podcast
+        # Simulate command by calling the handler directly
+        message.text = f"/подкаст {topic}"
+        await cmd_podcast(message)
         return
 
     # Check for natural language post triggers

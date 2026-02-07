@@ -629,6 +629,20 @@ class AICorporation:
         """
         return self.execute_task(task_desc, "smm")
 
+    def generate_podcast(self, topic: str = "", duration_minutes: int = 10) -> str:
+        """Generate a podcast script with Yuki"""
+        if not self.smm:
+            return "❌ Юки не инициализирована. Проверьте конфигурацию."
+        task_desc = f"""
+        Сгенерируй сценарий подкаста.
+
+        1. Используй Podcast Script Generator с topic='{topic or "AI и бизнес"}', duration_minutes={duration_minutes}
+        2. Верни ТОЛЬКО текст сценария (всё что после --- в ответе инструмента).
+
+        НЕ ДОБАВЛЯЙ ничего от себя. Верни сценарий как есть.
+        """
+        return self.execute_task(task_desc, "smm")
+
     def content_review(self, content: str) -> str:
         """Review content with Yuki"""
         if not self.smm:
