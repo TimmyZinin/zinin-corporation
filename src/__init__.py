@@ -1,1 +1,1 @@
-# AI Corporation - Source Package
+# Zinin Corp - Source Package

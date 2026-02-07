@@ -1,5 +1,5 @@
 """
-📡 AI Corporation — Activity Tracker
+📡 Zinin Corp — Activity Tracker
 Tracks agent activities, tasks, and inter-agent communication
 """
 

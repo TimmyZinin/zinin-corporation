@@ -87,9 +87,14 @@ class TestAgentContent:
 class TestScenarios:
     def test_three_scenarios(self):
         html = generate_dashboard_html()
+        # Scenario names exist in JS SCENARIOS array
         assert "SMM-кампания" in html
         assert "Финансовый отчёт" in html
         assert "Полный цикл" in html
+        # Buttons are labeled as "Демо:"
+        assert "Демо: SMM" in html
+        assert "Демо: Финансы" in html
+        assert "Демо: Полный" in html
 
     def test_scenario_buttons(self):
         html = generate_dashboard_html()
@@ -151,8 +156,14 @@ class TestAnimations:
         html = generate_dashboard_html()
         assert "toggleRunning" in html
         assert "toggle-btn" in html
-        assert "Пауза" in html
-        assert "Старт" in html
+        assert "Пауза" in html  # In toggleRunning JS code
+        assert "Старт" in html  # In toggleRunning JS code
+
+    def test_dashboard_starts_idle(self):
+        """Dashboard should NOT auto-start demo animation."""
+        html = generate_dashboard_html()
+        assert "isRunning: false" in html
+        assert "Ожидание событий" in html
 
     def test_scenario_selector(self):
         html = generate_dashboard_html()
@@ -260,10 +271,11 @@ class TestRealDataLoading:
         html = generate_dashboard_html()
         assert "INITIAL.recentEvents" in html
 
-    def test_demo_only_when_no_real_data(self):
-        """Demo scenarios should only run when there's no real activity."""
+    def test_real_activity_enables_running(self):
+        """When real activity detected, isRunning should be set to true."""
         html = generate_dashboard_html()
-        assert "!hasReal" in html
+        assert "if (hasReal)" in html
+        assert "S.isRunning = true" in html
 
 
 # ── Status Config ────────────────────────────────────────

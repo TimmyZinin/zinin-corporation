@@ -1,5 +1,5 @@
 """
-🏢 AI Corporation — Crew Module
+🏢 Zinin Corp — Crew Module
 Orchestrates the multi-agent system
 """
 
@@ -105,7 +105,7 @@ def create_task(description: str, expected_output: str, agent, context=None, out
 
 
 class AICorporation:
-    """Main class for AI Corporation crew management"""
+    """Main class for Zinin Corp crew management"""
 
     def __init__(self):
         self.config = load_crew_config()
@@ -153,11 +153,11 @@ class AICorporation:
             )
 
             self._initialized = True
-            logger.info("AI Corporation initialized successfully with memory enabled")
+            logger.info("Zinin Corp initialized successfully with memory enabled")
             return True
 
         except Exception as e:
-            logger.error(f"Failed to initialize AI Corporation: {e}", exc_info=True)
+            logger.error(f"Failed to initialize Zinin Corp: {e}", exc_info=True)
             return False
 
     @property
@@ -168,7 +168,7 @@ class AICorporation:
     def execute_task(self, task_description: str, agent_name: str = "manager") -> str:
         """Execute a task with the specified agent"""
         if not self.is_ready:
-            return "❌ AI Corporation не инициализирована. Проверьте API ключи."
+            return "❌ Zinin Corp не инициализирована. Проверьте API ключи."
 
         agent_map = {
             "manager": self.manager,
@@ -234,7 +234,7 @@ class AICorporation:
     def strategic_review(self) -> str:
         """Run strategic review: Маттиас + Мартин feed data → Алексей synthesizes"""
         if not self.is_ready:
-            return "❌ AI Corporation не инициализирована."
+            return "❌ Zinin Corp не инициализирована."
 
         log_task_start("accountant", "Финансовая сводка (стратобзор)")
         log_task_start("automator", "Проверка систем (стратобзор)")
@@ -428,7 +428,7 @@ class AICorporation:
     def full_corporation_report(self) -> str:
         """Full weekly report: all agents contribute, Алексей synthesizes."""
         if not self.is_ready:
-            return "❌ AI Corporation не инициализирована."
+            return "❌ Zinin Corp не инициализирована."
 
         agents = [self.accountant, self.automator, self.manager]
         tasks = []
@@ -547,7 +547,7 @@ _corporation: Optional[AICorporation] = None
 
 
 def get_corporation() -> AICorporation:
-    """Get or create the AI Corporation instance"""
+    """Get or create the Zinin Corp instance"""
     global _corporation
     if _corporation is None:
         _corporation = AICorporation()

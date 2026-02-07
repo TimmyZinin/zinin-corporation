@@ -1,5 +1,5 @@
 """
-🏢 AI Corporation — Web Interface
+🏢 Zinin Corp — Web Interface
 Streamlit app for interacting with CrewAI agents
 """
 
@@ -738,7 +738,7 @@ def check_env_vars() -> dict:
 
 
 def get_corporation():
-    """Get AI Corporation instance (lazy init)"""
+    """Get Zinin Corp instance (lazy init)"""
     if 'corporation' not in st.session_state:
         try:
             from src.crew import get_corporation as _get_corp
@@ -819,7 +819,7 @@ def main():
                 st.session_state.messages = [
                     {
                         "role": "assistant",
-                        "content": "Добрый день! Я Алексей Воронов — CEO AI-корпорации. Со мной Маттиас (🏦 финансы), Юки (📱 контент) и Мартин (⚙️ техника). Обращайтесь к любому из нас по имени!",
+                        "content": "Добрый день! Я Алексей Воронов — CEO Zinin Corp. Со мной Маттиас (🏦 финансы), Юки (📱 контент) и Мартин (⚙️ техника). Обращайтесь к любому из нас по имени!",
                         "agent_key": "manager",
                         "agent_name": "Алексей",
                         "time": datetime.now().strftime("%H:%M"),

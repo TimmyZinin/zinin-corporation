@@ -1,5 +1,5 @@
 """
-🏢 AI Corporation — Agents Module
+🏢 Zinin Corp — Agents Module
 """
 
 import os
@@ -59,7 +59,7 @@ def create_manager_agent() -> Optional[Agent]:
         return Agent(
             role=config.get("role", "Управленец-Автоматизатор"),
             goal=config.get("goal", "Координировать работу всех агентов"),
-            backstory=config.get("backstory", "Ты — CEO AI-корпорации"),
+            backstory=config.get("backstory", "Ты — CEO Zinin Corp"),
             llm=llm,
             tools=tools,
             verbose=True,
@@ -97,7 +97,7 @@ def create_accountant_agent() -> Optional[Agent]:
         return Agent(
             role=config.get("role", "CFO Маттиас Бруннер"),
             goal=config.get("goal", "Максимизировать прибыль и контролировать расходы"),
-            backstory=config.get("backstory", "Ты — финансовый директор AI-корпорации"),
+            backstory=config.get("backstory", "Ты — финансовый директор Zinin Corp"),
             llm=llm,
             tools=tools,
             verbose=True,
@@ -131,7 +131,7 @@ def create_smm_agent() -> Optional[Agent]:
         return Agent(
             role=config.get("role", "SMM-менеджер Юки"),
             goal=config.get("goal", "Создавать высококачественный контент"),
-            backstory=config.get("backstory", "Ты — Юки, SMM-менеджер AI-корпорации"),
+            backstory=config.get("backstory", "Ты — Юки, SMM-менеджер Zinin Corp"),
             llm=llm,
             tools=tools,
             verbose=True,

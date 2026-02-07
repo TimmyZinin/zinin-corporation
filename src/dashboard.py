@@ -131,14 +131,14 @@ body{background:#08080d;color:#e8e8f0;font-family:'Segoe UI',system-ui,-apple-sy
 <div class="dash-header">
   <div class="dash-header-left">
     <div class="dash-title"><span class="gradient">Zinin Corp</span> Dashboard</div>
-    <div class="scenario-badge" id="scenario-label">SMM-кампания</div>
+    <div class="scenario-badge" id="scenario-label">Ожидание событий</div>
   </div>
   <div class="dash-controls">
     <div class="completed-label">Выполнено: <span class="completed-val" id="completed-count">0</span></div>
-    <button class="ctrl-btn toggle-btn-run" id="toggle-btn" onclick="toggleRunning()">⏸ Пауза</button>
-    <button class="scenario-btn active" id="scenario-btn-0" onclick="selectScenario(0)">SMM-кампания</button>
-    <button class="scenario-btn" id="scenario-btn-1" onclick="selectScenario(1)">Финансовый отчёт</button>
-    <button class="scenario-btn" id="scenario-btn-2" onclick="selectScenario(2)">Полный цикл</button>
+    <button class="ctrl-btn toggle-btn-pause" id="toggle-btn" onclick="toggleRunning()" style="display:none">▶ Старт</button>
+    <button class="scenario-btn" id="scenario-btn-0" onclick="selectScenario(0)">Демо: SMM</button>
+    <button class="scenario-btn" id="scenario-btn-1" onclick="selectScenario(1)">Демо: Финансы</button>
+    <button class="scenario-btn" id="scenario-btn-2" onclick="selectScenario(2)">Демо: Полный</button>
   </div>
 </div>
 
@@ -236,7 +236,7 @@ const S = {
   activeBalls: [],
   agentJobs: {},
   currentScenario: 0,
-  isRunning: true,
+  isRunning: false,
   completedTasks: INITIAL.completedCount || 0,
   logEntries: [],
   ballId: 0,
@@ -663,6 +663,7 @@ function renderBalls() {
 function toggleRunning() {
   S.isRunning = !S.isRunning;
   var btn = document.getElementById("toggle-btn");
+  var lbl = document.getElementById("scenario-label");
   if (btn) {
     if (S.isRunning) {
       btn.className = "ctrl-btn toggle-btn-run";
@@ -672,6 +673,7 @@ function toggleRunning() {
       btn.className = "ctrl-btn toggle-btn-pause";
       btn.textContent = "▶ Старт";
       S.timeouts.forEach(clearTimeout);
+      if (lbl) { lbl.textContent = "Демо остановлено"; }
     }
   }
 }
@@ -679,7 +681,9 @@ function toggleRunning() {
 function selectScenario(idx) {
   S.isRunning = true;
   var btn = document.getElementById("toggle-btn");
-  if (btn) { btn.className = "ctrl-btn toggle-btn-run"; btn.textContent = "⏸ Пауза"; }
+  if (btn) { btn.style.display = ""; btn.className = "ctrl-btn toggle-btn-run"; btn.textContent = "⏸ Пауза"; }
+  var lbl = document.getElementById("scenario-label");
+  if (lbl) { lbl.textContent = "Демо: " + SCENARIOS[idx].name; lbl.style.borderColor = "#f39c1233"; lbl.style.color = "#f39c12"; }
   runScenario(idx);
 }
 
@@ -779,10 +783,18 @@ requestAnimationFrame(animate);
 
 var hasReal = loadRealData();
 
-// Start demo scenarios only if no real agent activity
-setTimeout(function() {
-  if (S.isRunning && !hasReal) runScenario(0);
-}, 600);
+// If real activity, set isRunning to animate real data
+if (hasReal) {
+  S.isRunning = true;
+  var lbl = document.getElementById("scenario-label");
+  if (lbl) lbl.textContent = "Реальная активность";
+  lbl.style.borderColor = "#3dff8a33";
+  lbl.style.color = "#3dff8a";
+} else {
+  // No real activity — show idle message in log
+  addLog("⏳ Ожидание реальных событий агентов...", "#555");
+  addLog("💡 Используйте чат для запуска задач или нажмите «Демо» для просмотра", "#555");
+}
 </script>
 </body>
 </html>"""
