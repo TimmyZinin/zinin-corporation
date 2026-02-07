@@ -102,3 +102,21 @@ def author_keyboard(post_id: str) -> InlineKeyboardMarkup:
             InlineKeyboardButton(text="👤 Тим (личный бренд)", callback_data=f"set_author:tim_personal:{post_id}"),
         ],
     ])
+
+
+def feedback_keyboard(post_id: str) -> InlineKeyboardMarkup:
+    """Post-publish feedback keyboard: feedback on this post or for future posts."""
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [
+            InlineKeyboardButton(
+                text="✏️ Правки к этому посту",
+                callback_data=f"fb_post:{post_id}",
+            ),
+        ],
+        [
+            InlineKeyboardButton(
+                text="📝 Фидбек на будущее",
+                callback_data=f"fb_future:{post_id}",
+            ),
+        ],
+    ])

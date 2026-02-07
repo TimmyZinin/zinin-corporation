@@ -38,6 +38,17 @@ async def handle_text(message: Message):
 
     user_id = message.from_user.id
 
+    # Check if user is in feedback mode (post-publish)
+    fb = DraftManager.get_feedback(user_id)
+    if fb:
+        post_id, mode = fb
+        DraftManager.clear_feedback(user_id)
+        if mode == "future":
+            await _handle_future_feedback(message, post_id, user_text)
+        else:
+            await _handle_post_feedback(message, post_id, user_text)
+        return
+
     # Check if user is editing a draft
     editing_id = DraftManager.get_editing(user_id)
     if editing_id:
@@ -86,6 +97,79 @@ async def handle_text(message: Message):
             await status.delete()
         except Exception:
             pass
+
+
+async def _handle_post_feedback(message: Message, post_id: str, feedback: str):
+    """Handle feedback on a specific published post — Yuki revises it."""
+    draft = DraftManager.get_draft(post_id)
+    if not draft:
+        await message.answer("Пост не найден.")
+        return
+
+    status = await message.answer("✏️ Юки переделывает пост с учётом правок...")
+    stop = asyncio.Event()
+    typing_task = asyncio.create_task(keep_typing(message, stop))
+
+    try:
+        new_text = await AgentBridge.send_to_agent(
+            message=(
+                f"Переделай этот ОПУБЛИКОВАННЫЙ пост с учётом обратной связи.\n\n"
+                f"Пост:\n{draft['text'][:1500]}\n\n"
+                f"Обратная связь от Тима: {feedback}\n\n"
+                f"Тема: {draft['topic']}\n"
+                f"Верни ТОЛЬКО исправленный текст поста, без комментариев."
+            ),
+            agent_name="smm",
+        )
+
+        DraftManager.update_draft(post_id, text=new_text, feedback=feedback)
+
+        for chunk in format_for_telegram(new_text):
+            await message.answer(chunk)
+
+        await message.answer(
+            f"Пост переделан (ID: {post_id}). Что делаем?",
+            reply_markup=approval_keyboard(post_id),
+        )
+
+    except Exception as e:
+        logger.error(f"Post feedback error: {e}", exc_info=True)
+        await message.answer(f"Ошибка: {str(e)[:200]}")
+    finally:
+        stop.set()
+        await typing_task
+        try:
+            await status.delete()
+        except Exception:
+            pass
+
+
+async def _handle_future_feedback(message: Message, post_id: str, feedback: str):
+    """Handle general feedback for future posts — save to Yuki memory."""
+    draft = DraftManager.get_draft(post_id)
+    topic = draft.get("topic", "?") if draft else "?"
+
+    try:
+        import json
+        from ...tools.smm_tools import YukiMemory
+
+        memory_tool = YukiMemory()
+        record = json.dumps({
+            "type": "future_feedback",
+            "feedback": feedback,
+            "post_id": post_id,
+            "topic": topic,
+            "source": "telegram_inline",
+        })
+        memory_tool._run(action="record_feedback", data=record)
+
+        await message.answer(
+            f"📝 Записано! Юки учтёт в будущих постах:\n\n"
+            f"«{feedback[:300]}»"
+        )
+    except Exception as e:
+        logger.error(f"Future feedback save error: {e}", exc_info=True)
+        await message.answer(f"Ошибка сохранения: {str(e)[:200]}")
 
 
 async def _handle_edit_feedback(message: Message, post_id: str, feedback: str):

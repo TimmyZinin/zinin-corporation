@@ -13,7 +13,7 @@ from ...telegram.bridge import AgentBridge
 from ...telegram.formatters import format_for_telegram
 from ..keyboards import (
     approval_keyboard, reject_reasons_keyboard, platform_keyboard,
-    time_keyboard, author_keyboard,
+    time_keyboard, author_keyboard, feedback_keyboard,
 )
 from ..drafts import DraftManager
 from ..image_gen import generate_image
@@ -152,6 +152,12 @@ async def _do_publish(callback: CallbackQuery, post_id: str, draft: dict, platfo
 
     await callback.message.edit_text(
         "Результаты публикации:\n\n" + "\n".join(results)
+    )
+
+    # Show feedback buttons after publish
+    await callback.message.answer(
+        "Хочешь дать обратную связь?",
+        reply_markup=feedback_keyboard(post_id),
     )
 
 
@@ -317,5 +323,46 @@ async def on_back(callback: CallbackQuery):
     DraftManager.clear_editing(callback.from_user.id)
     await callback.message.edit_reply_markup(
         reply_markup=approval_keyboard(post_id)
+    )
+    await callback.answer()
+
+
+# ── Post-publish feedback ──────────────────────────────────────────────
+
+@router.callback_query(F.data.startswith("fb_post:"))
+async def on_feedback_post(callback: CallbackQuery):
+    """Feedback on THIS specific published post."""
+    post_id = callback.data.split(":")[1]
+    draft = DraftManager.get_draft(post_id)
+    if not draft:
+        await callback.answer("Пост не найден", show_alert=True)
+        return
+
+    DraftManager.set_feedback(callback.from_user.id, post_id, "post")
+    await callback.message.edit_text(
+        f"✏️ Правки к посту (ID: {post_id})\n\n"
+        "Напиши, что не так с этим постом — Юки переделает его с учётом правок.\n"
+        "Примеры:\n"
+        "• «Слишком длинно, сократи»\n"
+        "• «Тон слишком менторский»\n"
+        "• «Добавь конкретный кейс»"
+    )
+    await callback.answer()
+
+
+@router.callback_query(F.data.startswith("fb_future:"))
+async def on_feedback_future(callback: CallbackQuery):
+    """General feedback for future posts."""
+    post_id = callback.data.split(":")[1]
+
+    DraftManager.set_feedback(callback.from_user.id, post_id, "future")
+    await callback.message.edit_text(
+        "📝 Фидбек на будущее\n\n"
+        "Напиши общие пожелания по стилю, тону, структуре — "
+        "Юки запомнит и будет учитывать в следующих постах.\n"
+        "Примеры:\n"
+        "• «Меньше советов, больше историй»\n"
+        "• «Не поучай читателя»\n"
+        "• «Всегда заканчивай вопросом»"
     )
     await callback.answer()

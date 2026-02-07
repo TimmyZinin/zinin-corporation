@@ -19,6 +19,7 @@ class DraftManager:
 
     _drafts: dict[str, dict] = {}
     _editing: dict[int, str] = {}  # user_id → post_id
+    _feedback: dict[int, tuple[str, str]] = {}  # user_id → (post_id, mode: "post"|"future")
 
     @classmethod
     def create_draft(
@@ -80,6 +81,20 @@ class DraftManager:
     @classmethod
     def clear_editing(cls, user_id: int) -> None:
         cls._editing.pop(user_id, None)
+
+    @classmethod
+    def set_feedback(cls, user_id: int, post_id: str, mode: str) -> None:
+        """Set feedback mode: mode is 'post' (this post) or 'future' (general)."""
+        cls._feedback[user_id] = (post_id, mode)
+
+    @classmethod
+    def get_feedback(cls, user_id: int) -> Optional[tuple[str, str]]:
+        """Returns (post_id, mode) or None."""
+        return cls._feedback.get(user_id)
+
+    @classmethod
+    def clear_feedback(cls, user_id: int) -> None:
+        cls._feedback.pop(user_id, None)
 
     @classmethod
     def active_count(cls) -> int:
