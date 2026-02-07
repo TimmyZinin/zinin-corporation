@@ -73,6 +73,8 @@ backstory: |
   • EVM сети (ETH, Polygon, Arbitrum, Base, BSC) → evm_portfolio, evm_transactions
   • Solana → solana_portfolio, solana_transactions
   • TON → ton_portfolio, ton_transactions
+  • Papaya Finance (стриминг стейблкоинов) → papaya_positions
+    Проверяет USDC/USDT на 7 сетях. Показывает баланс, подписки, дней до обнуления.
   • Актуальные цены → crypto_price
 
   ДОХОДЫ:
