@@ -80,6 +80,7 @@ def create_accountant_agent() -> Optional[Agent]:
         logger.error("accountant.yaml not found")
         return None
 
+    # Legacy financial tools (project P&L, subscriptions, API usage)
     try:
         from .tools.financial_tools import (
             FinancialTracker,
@@ -90,6 +91,38 @@ def create_accountant_agent() -> Optional[Agent]:
     except Exception as e:
         logger.warning(f"Could not load financial tools: {e}")
         tools = []
+
+    # New real-time financial data tools
+    try:
+        from .tools.financial import (
+            TBankBalanceTool,
+            TBankStatementTool,
+            TributeRevenueTool,
+            EVMPortfolioTool,
+            EVMTransactionsTool,
+            SolanaPortfolioTool,
+            SolanaTransactionsTool,
+            TONPortfolioTool,
+            TONTransactionsTool,
+            CryptoPriceTool,
+            PortfolioSummaryTool,
+        )
+        tools.extend([
+            TBankBalanceTool(),
+            TBankStatementTool(),
+            TributeRevenueTool(),
+            EVMPortfolioTool(),
+            EVMTransactionsTool(),
+            SolanaPortfolioTool(),
+            SolanaTransactionsTool(),
+            TONPortfolioTool(),
+            TONTransactionsTool(),
+            CryptoPriceTool(),
+            PortfolioSummaryTool(),
+        ])
+        logger.info(f"Loaded {len(tools)} financial tools for Маттиас")
+    except Exception as e:
+        logger.warning(f"Could not load new financial tools: {e}")
 
     try:
         model = config.get("llm", "openrouter/anthropic/claude-3.5-haiku")
