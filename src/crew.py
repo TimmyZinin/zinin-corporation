@@ -178,7 +178,11 @@ class AICorporation:
         }
 
         agent = agent_map.get(agent_name, self.manager)
-        short_desc = task_description.strip()[:100].split("\n")[0]
+        # Extract actual user message when context is present
+        if "---\nНовое сообщение от Тима:" in task_description:
+            short_desc = task_description.split("---\nНовое сообщение от Тима:")[-1].strip()[:100].split("\n")[0]
+        else:
+            short_desc = task_description.strip()[:100].split("\n")[0]
 
         # Track: task started
         log_task_start(agent_name, short_desc)

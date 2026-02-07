@@ -22,7 +22,7 @@ def generate_dashboard_html(completed_count=0, agent_statuses=None, recent_event
         "completedCount": completed_count,
         "agentStatuses": agent_statuses or {},
         "recentEvents": recent_events or [],
-    }, default=str)
+    }, default=str, ensure_ascii=False)
     return _HTML_TEMPLATE.replace("__INITIAL_DATA__", initial_data)
 
 
