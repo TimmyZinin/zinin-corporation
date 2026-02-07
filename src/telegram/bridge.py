@@ -163,3 +163,17 @@ class AgentBridge:
             corp = cls._get_corp()
             return corp.linkedin_status()
         return await asyncio.to_thread(_sync)
+
+    @classmethod
+    async def run_linkedin_publish(cls, text: str, image_path: str = "") -> str:
+        """Publish to LinkedIn via Yuki's tool."""
+        def _sync():
+            corp = cls._get_corp()
+            task = (
+                f"Опубликуй этот пост в LinkedIn. Используй инструмент linkedin_publish.\n\n"
+                f"Текст поста:\n{text}\n"
+            )
+            if image_path:
+                task += f"\nПуть к картинке: {image_path}\n"
+            return corp.execute_task(task, "smm", use_memory=False)
+        return await asyncio.to_thread(_sync)

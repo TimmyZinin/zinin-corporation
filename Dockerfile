@@ -17,7 +17,7 @@ COPY crews/ /app/crews/
 COPY src/ /app/src/
 COPY data/ /app/data/
 COPY CLAUDE.md README.md /app/
-COPY app.py run_telegram.py run_alexey_bot.py start.sh /app/
+COPY app.py run_telegram.py run_alexey_bot.py run_yuki_bot.py start.sh /app/
 COPY config/ /app/config/
 RUN chmod +x /app/start.sh
 
