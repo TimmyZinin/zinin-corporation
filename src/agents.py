@@ -118,6 +118,7 @@ def create_accountant_agent() -> Optional[Agent]:
             PortfolioSummaryTool,
             ScreenshotDataTool,
             TinkoffDataTool,
+            OpenRouterUsageTool,
         )
         tools.extend([
             TBankBalanceTool(),
@@ -133,6 +134,7 @@ def create_accountant_agent() -> Optional[Agent]:
             PortfolioSummaryTool(),
             ScreenshotDataTool(),
             TinkoffDataTool(),
+            OpenRouterUsageTool(),
         ])
         logger.info(f"Loaded {len(tools)} financial tools for Маттиас")
     except Exception as e:
