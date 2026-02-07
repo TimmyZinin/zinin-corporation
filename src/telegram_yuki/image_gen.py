@@ -144,34 +144,255 @@ Black human figure silhouette in shooting stance.
 
 ELEMENT 5 — GROUND LINE:
 Thin horizontal black rectangle at bottom.""",
+
+    # ── NEW SCENES ──────────────────────────────────────────────────────
+
+    "network_nodes": """EXACT SCENE — NETWORKING: Connected nodes forming a network:
+
+ELEMENT 1 — CENTRAL NODE (KEY — LIME):
+Bright electric lime (#DFFF00) square (12% × 12%) in the center — the main person/hub.
+
+ELEMENT 2 — SATELLITE NODES:
+5 black squares (6% × 6%) arranged around the central node at varying distances, like a constellation.
+
+ELEMENT 3 — CONNECTIONS:
+Black horizontal and vertical rectangles (2% wide) connecting the central lime node to each satellite. Lines form a star pattern.
+
+ELEMENT 4 — GROUND LINE:
+Thin horizontal black rectangle at bottom.""",
+
+    "shield_protect": """EXACT SCENE — PROTECTION/SECURITY: A shield protecting a person:
+
+ELEMENT 1 — SHIELD (KEY — LIME):
+Large bright electric lime (#DFFF00) rectangle (20% × 28%) with a smaller white rectangle cutout inside (12% × 18%), forming a frame/shield shape.
+
+ELEMENT 2 — PERSON BEHIND SHIELD:
+Black human figure silhouette partially visible behind the shield.
+
+ELEMENT 3 — THREATS (left):
+3 small black triangles pointing RIGHT toward the shield — incoming threats being blocked.
+
+ELEMENT 4 — GROUND LINE:
+Thin horizontal black rectangle at bottom.""",
+
+    "megaphone_voice": """EXACT SCENE — CONTENT/VOICE: Person with megaphone broadcasting:
+
+ELEMENT 1 — PERSON (left):
+Black human figure silhouette, head (4%), body (6% × 16%).
+
+ELEMENT 2 — MEGAPHONE (KEY — LIME):
+Bright electric lime (#DFFF00) trapezoid/triangle (20% wide, 14% tall) pointing RIGHT from the person's head — the voice/content being broadcast.
+
+ELEMENT 3 — SOUND WAVES:
+3 black vertical rectangles (2% × varying heights: 10%, 16%, 22%) to the right of megaphone — expanding sound waves.
+
+ELEMENT 4 — GROUND LINE:
+Thin horizontal black rectangle at bottom.""",
+
+    "clock_deadline": """EXACT SCENE — TIME/DEADLINE: Clock with urgent arrow:
+
+ELEMENT 1 — CLOCK FACE:
+Large black square (30% × 30%) with white square inside (22% × 22%), forming a thick frame — the clock.
+
+ELEMENT 2 — CLOCK HANDS (KEY — LIME):
+Two bright electric lime (#DFFF00) rectangles inside the clock: one vertical (3% × 12%) pointing up, one horizontal (3% × 8%) pointing right — showing time.
+
+ELEMENT 3 — PERSON RUNNING:
+Black human figure silhouette in motion (leaning forward) to the right of the clock.
+
+ELEMENT 4 — URGENCY ARROW:
+Lime arrow pointing RIGHT from the clock toward the person.
+
+ELEMENT 5 — GROUND LINE:
+Thin horizontal black rectangle at bottom.""",
+
+    "scales_balance": """EXACT SCENE — WORK-LIFE BALANCE: Scales with two sides:
+
+ELEMENT 1 — BALANCE BEAM:
+Thick horizontal black rectangle (50% × 4%) balanced on a vertical black rectangle pillar (6% × 20%).
+
+ELEMENT 2 — LEFT PLATE — WORK:
+Black horizontal rectangle (20% × 3%) hanging from left end. On top: black rectangle (14% × 10%) — a laptop/work symbol.
+
+ELEMENT 3 — RIGHT PLATE — LIFE (KEY — LIME):
+Bright electric lime (#DFFF00) horizontal rectangle (20% × 3%) hanging from right end. On top: lime rectangle (14% × 10%) — life/personal time.
+
+ELEMENT 4 — TILT:
+Beam tilted ~10° showing imbalance.
+
+ELEMENT 5 — GROUND LINE:
+Thin horizontal black rectangle at bottom.""",
+
+    "rocket_launch": """EXACT SCENE — STARTUP/LAUNCH: Rocket taking off:
+
+ELEMENT 1 — ROCKET:
+Tall vertical black rectangle (8% × 30%) with black triangle on top (12% base, 10% height) — the rocket body.
+
+ELEMENT 2 — FLAME (KEY — LIME):
+Bright electric lime (#DFFF00) triangle pointing DOWN (14% base, 16% height) at the bottom of the rocket — exhaust flame.
+
+ELEMENT 3 — LAUNCH PAD:
+Thick horizontal black rectangle (30% × 6%) at the bottom.
+
+ELEMENT 4 — SMOKE TRAIL:
+2-3 small black rectangles at slight angles around the flame area.
+
+ELEMENT 5 — GROUND LINE:
+Thin horizontal black rectangle at bottom.""",
+
+    "filter_funnel": """EXACT SCENE — SELECTION/FILTERING: Funnel filtering items:
+
+ELEMENT 1 — FUNNEL TOP:
+Wide black trapezoid (40% wide top, 10% bottom, 20% tall) — the filter.
+
+ELEMENT 2 — INPUT ITEMS:
+5-6 small black squares (4% × 4%) entering the funnel from above.
+
+ELEMENT 3 — OUTPUT (KEY — LIME):
+One bright electric lime (#DFFF00) rectangle (8% × 8%) exiting the bottom — the selected/best item.
+
+ELEMENT 4 — REJECTED:
+2-3 small black rectangles to the sides, tilted — rejected items.
+
+ELEMENT 5 — GROUND LINE:
+Thin horizontal black rectangle at bottom.""",
+
+    "handshake_deal": """EXACT SCENE — PARTNERSHIP/DEAL: Two figures reaching toward each other:
+
+ELEMENT 1 — PERSON LEFT:
+Black human figure silhouette on the left side, arm extended (rectangle 3% × 12%) pointing RIGHT.
+
+ELEMENT 2 — PERSON RIGHT:
+Black human figure silhouette on the right side, arm extended pointing LEFT.
+
+ELEMENT 3 — HANDSHAKE ZONE (KEY — LIME):
+Bright electric lime (#DFFF00) square (10% × 10%) where the two arms meet — the deal/connection point.
+
+ELEMENT 4 — CONNECTING LINE:
+Lime horizontal rectangle (2% × 20%) connecting both figures through the center square.
+
+ELEMENT 5 — GROUND LINE:
+Thin horizontal black rectangle at bottom.""",
+
+    "mountain_peak": """EXACT SCENE — ACHIEVEMENT/GOAL: Person at mountain peak:
+
+ELEMENT 1 — MOUNTAIN:
+Large black triangle (50% base, 40% height) — the mountain.
+
+ELEMENT 2 — PEAK FLAG (KEY — LIME):
+Bright electric lime (#DFFF00) rectangle flag (8% × 6%) on a thin vertical lime rectangle pole (2% × 10%) at the top of the mountain.
+
+ELEMENT 3 — PERSON:
+Small black human figure silhouette at the peak, next to the flag.
+
+ELEMENT 4 — PATH:
+Thin black zigzag rectangles going up the mountain — the path taken.
+
+ELEMENT 5 — GROUND LINE:
+Thin horizontal black rectangle at bottom.""",
+
+    "magnifier_search": """EXACT SCENE — RESEARCH/ANALYSIS: Magnifying glass examining data:
+
+ELEMENT 1 — DATA BARS (left):
+4 black vertical rectangles of varying heights (8%, 14%, 20%, 26%) — data to analyze.
+
+ELEMENT 2 — MAGNIFIER (KEY — LIME):
+Bright electric lime (#DFFF00) square frame (20% × 20%) positioned over the tallest bar, with a diagonal lime rectangle handle (3% × 16%) extending to lower-right — the magnifying glass.
+
+ELEMENT 3 — PERSON (right):
+Black human figure silhouette holding the magnifier.
+
+ELEMENT 4 — GROUND LINE:
+Thin horizontal black rectangle at bottom.""",
+
+    "door_opportunity": """EXACT SCENE — NEW OPPORTUNITY: Person opening a door:
+
+ELEMENT 1 — WALL:
+Large black rectangle (60% × 50%) — the barrier.
+
+ELEMENT 2 — DOOR (KEY — LIME):
+Bright electric lime (#DFFF00) vertical rectangle (16% × 40%) cut into the wall — the open door.
+
+ELEMENT 3 — LIGHT RAYS:
+3 lime triangles/rectangles emanating from the door opening — opportunity/light.
+
+ELEMENT 4 — PERSON:
+Black human figure silhouette stepping through the door.
+
+ELEMENT 5 — GROUND LINE:
+Thin horizontal black rectangle at bottom.""",
+
+    "speech_debate": """EXACT SCENE — COMMUNICATION/DEBATE: Two people with speech bubbles:
+
+ELEMENT 1 — PERSON LEFT:
+Black human figure silhouette on the left.
+
+ELEMENT 2 — SPEECH BUBBLE LEFT:
+Black rectangle (16% × 10%) with small triangle pointer on bottom — left person's speech.
+
+ELEMENT 3 — PERSON RIGHT:
+Black human figure silhouette on the right.
+
+ELEMENT 4 — SPEECH BUBBLE RIGHT (KEY — LIME):
+Bright electric lime (#DFFF00) rectangle (16% × 10%) with small triangle pointer on bottom — the winning/key argument.
+
+ELEMENT 5 — GROUND LINE:
+Thin horizontal black rectangle at bottom.""",
 }
 
 # Topic keyword → scene variants mapping
 TOPIC_MAPPING = {
-    "карьер": ["career_stairs", "chart_growth", "bridge_gap"],
-    "рост": ["career_stairs", "chart_growth"],
-    "зарплат": ["lever_lift", "chart_growth", "bridge_gap"],
-    "резюме": ["document_transform", "standout_grid"],
-    "cv": ["document_transform", "standout_grid"],
-    "собеседов": ["standout_grid", "target_hit"],
-    "интервью": ["standout_grid", "target_hit"],
-    "лидер": ["career_stairs", "standout_grid"],
-    "менедж": ["puzzle_system", "lever_lift"],
-    "ai": ["puzzle_system", "chart_growth", "target_hit"],
-    "ии": ["puzzle_system", "chart_growth"],
-    "агент": ["puzzle_system", "lever_lift"],
-    "автоматиз": ["puzzle_system", "lever_lift"],
-    "linkedin": ["document_transform", "standout_grid"],
-    "контент": ["document_transform", "target_hit"],
-    "пост": ["document_transform", "target_hit"],
-    "бренд": ["standout_grid", "target_hit"],
-    "стратег": ["chart_growth", "lever_lift", "bridge_gap"],
-    "бизнес": ["chart_growth", "lever_lift"],
-    "команд": ["puzzle_system", "standout_grid"],
-    "навык": ["career_stairs", "bridge_gap"],
-    "skill": ["career_stairs", "bridge_gap"],
-    "remote": ["bridge_gap", "puzzle_system"],
-    "удалён": ["bridge_gap", "puzzle_system"],
+    "карьер": ["career_stairs", "chart_growth", "bridge_gap", "mountain_peak"],
+    "рост": ["career_stairs", "chart_growth", "rocket_launch"],
+    "зарплат": ["lever_lift", "chart_growth", "bridge_gap", "scales_balance"],
+    "резюме": ["document_transform", "standout_grid", "filter_funnel"],
+    "cv": ["document_transform", "standout_grid", "filter_funnel"],
+    "собеседов": ["standout_grid", "target_hit", "speech_debate"],
+    "интервью": ["standout_grid", "target_hit", "speech_debate"],
+    "лидер": ["career_stairs", "standout_grid", "mountain_peak"],
+    "менедж": ["puzzle_system", "lever_lift", "network_nodes"],
+    "ai": ["puzzle_system", "chart_growth", "target_hit", "rocket_launch"],
+    "ии": ["puzzle_system", "chart_growth", "rocket_launch"],
+    "агент": ["puzzle_system", "lever_lift", "network_nodes"],
+    "автоматиз": ["puzzle_system", "lever_lift", "filter_funnel"],
+    "linkedin": ["document_transform", "standout_grid", "megaphone_voice"],
+    "контент": ["document_transform", "target_hit", "megaphone_voice"],
+    "пост": ["document_transform", "target_hit", "megaphone_voice"],
+    "бренд": ["standout_grid", "target_hit", "megaphone_voice"],
+    "стратег": ["chart_growth", "lever_lift", "bridge_gap", "mountain_peak"],
+    "бизнес": ["chart_growth", "lever_lift", "rocket_launch"],
+    "команд": ["puzzle_system", "standout_grid", "network_nodes"],
+    "навык": ["career_stairs", "bridge_gap", "mountain_peak"],
+    "skill": ["career_stairs", "bridge_gap", "mountain_peak"],
+    "remote": ["bridge_gap", "puzzle_system", "network_nodes"],
+    "удалён": ["bridge_gap", "puzzle_system", "network_nodes"],
+    "нетворк": ["network_nodes", "handshake_deal"],
+    "партнёр": ["handshake_deal", "network_nodes"],
+    "сотрудн": ["handshake_deal", "network_nodes", "puzzle_system"],
+    "безопас": ["shield_protect", "filter_funnel"],
+    "защит": ["shield_protect", "filter_funnel"],
+    "запуск": ["rocket_launch", "door_opportunity"],
+    "старт": ["rocket_launch", "door_opportunity"],
+    "startup": ["rocket_launch", "door_opportunity"],
+    "время": ["clock_deadline", "scales_balance"],
+    "дедлайн": ["clock_deadline", "lever_lift"],
+    "баланс": ["scales_balance", "bridge_gap"],
+    "burnout": ["scales_balance", "shield_protect"],
+    "выгоран": ["scales_balance", "shield_protect"],
+    "фильтр": ["filter_funnel", "magnifier_search"],
+    "отбор": ["filter_funnel", "standout_grid"],
+    "найм": ["filter_funnel", "standout_grid", "handshake_deal"],
+    "исследов": ["magnifier_search", "chart_growth"],
+    "анализ": ["magnifier_search", "chart_growth"],
+    "data": ["magnifier_search", "chart_growth"],
+    "возможност": ["door_opportunity", "bridge_gap"],
+    "переговор": ["speech_debate", "handshake_deal", "lever_lift"],
+    "коммуник": ["speech_debate", "megaphone_voice", "network_nodes"],
+    "презентац": ["megaphone_voice", "target_hit"],
+    "pitch": ["megaphone_voice", "target_hit", "rocket_launch"],
+    "цель": ["target_hit", "mountain_peak"],
+    "goal": ["target_hit", "mountain_peak"],
+    "достиж": ["mountain_peak", "career_stairs", "target_hit"],
 }
 
 DEFAULT_SCENES = list(SCENES.keys())

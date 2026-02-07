@@ -13,6 +13,9 @@ from ...telegram.handlers.commands import keep_typing
 from ..drafts import DraftManager
 from ..keyboards import approval_keyboard
 from ..image_gen import generate_image
+from ..safety import circuit_breaker
+from ..publishers import AUTHORS
+from .commands import _parse_author_topic
 
 logger = logging.getLogger(__name__)
 router = Router()
@@ -43,11 +46,12 @@ async def handle_text(message: Message):
 
     # Check for natural language post triggers
     if POST_TRIGGERS.search(user_text):
-        # Extract topic after the trigger phrase
-        topic = POST_TRIGGERS.sub("", user_text).strip()
+        author, brand, topic = _parse_author_topic(user_text)
+        if not topic:
+            topic = POST_TRIGGERS.sub("", user_text).strip()
         if not topic:
             topic = user_text
-        await _generate_post_flow(message, topic)
+        await _generate_post_flow(message, topic, author, brand)
         return
 
     # Default: send to Yuki agent as free conversation
@@ -132,14 +136,20 @@ async def _handle_edit_feedback(message: Message, post_id: str, feedback: str):
             pass
 
 
-async def _generate_post_flow(message: Message, topic: str):
+async def _generate_post_flow(message: Message, topic: str, author: str = "kristina", brand: str = "sborka"):
     """Generate a post from natural language trigger."""
-    status_msg = await message.answer(f"📱 Готовлю пост: {topic[:50]}...")
+    if circuit_breaker.is_open:
+        await message.answer("Circuit breaker активен. Подожди или /health.")
+        return
+
+    author_label = AUTHORS.get(author, {}).get("label", author)
+    status_msg = await message.answer(f"📱 Готовлю пост от {author_label}: {topic[:40]}...")
     stop = asyncio.Event()
     typing_task = asyncio.create_task(keep_typing(message, stop))
 
     try:
-        post_text = await AgentBridge.run_generate_post(topic=topic, author="kristina")
+        post_text = await AgentBridge.run_generate_post(topic=topic, author=author)
+        circuit_breaker.record_success()
 
         image_path = ""
         try:
@@ -148,7 +158,8 @@ async def _generate_post_flow(message: Message, topic: str):
             logger.warning(f"Image generation failed: {e}")
 
         post_id = DraftManager.create_draft(
-            topic=topic, text=post_text, image_path=image_path or "",
+            topic=topic, text=post_text, author=author, brand=brand,
+            image_path=image_path or "",
         )
 
         for chunk in format_for_telegram(post_text):
@@ -162,11 +173,14 @@ async def _generate_post_flow(message: Message, topic: str):
                 logger.warning(f"Failed to send image: {e}")
 
         await message.answer(
-            f"Пост готов (ID: {post_id}). Что делаем?",
+            f"Пост готов (ID: {post_id})\n"
+            f"Автор: {author_label} | Бренд: {brand}\n"
+            f"Что делаем?",
             reply_markup=approval_keyboard(post_id),
         )
 
     except Exception as e:
+        circuit_breaker.record_failure()
         logger.error(f"Post generation error: {e}", exc_info=True)
         await message.answer(f"Ошибка: {str(e)[:200]}")
     finally:

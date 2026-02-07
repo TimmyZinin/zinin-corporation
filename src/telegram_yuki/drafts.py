@@ -1,18 +1,21 @@
-"""Draft management for Yuki SMM bot — in-memory + JSON backup."""
+"""Draft management for Yuki SMM bot — in-memory + JSON backup + auto-cleanup."""
 
 import json
 import logging
 import os
+import time
 import uuid
 from typing import Optional
 
 logger = logging.getLogger(__name__)
 
 DRAFTS_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "data", "yuki_drafts")
+MAX_DRAFTS = 50
+MAX_AGE_SEC = 86400  # 24 hours
 
 
 class DraftManager:
-    """Manages post drafts: create, get, update, delete."""
+    """Manages post drafts: create, get, update, delete, cleanup."""
 
     _drafts: dict[str, dict] = {}
     _editing: dict[int, str] = {}  # user_id → post_id
@@ -23,23 +26,29 @@ class DraftManager:
         topic: str,
         text: str,
         author: str = "kristina",
-        platform: str = "linkedin",
+        brand: str = "sborka",
+        platforms: list[str] | None = None,
         image_path: str = "",
     ) -> str:
         """Create a new draft and return its ID."""
+        cls._cleanup()
+
         post_id = uuid.uuid4().hex[:8]
         cls._drafts[post_id] = {
             "topic": topic,
             "text": text,
             "author": author,
-            "platform": platform,
+            "brand": brand,
+            "platforms": platforms or ["linkedin"],
             "image_path": image_path,
-            "status": "pending",  # pending, approved, rejected, published
+            "status": "pending",  # pending, approved, rejected, published, scheduled
             "reject_reason": "",
             "feedback": "",
+            "created_at": time.time(),
+            "scheduled_at": "",
         }
         cls._save_to_disk(post_id)
-        logger.info(f"Draft created: {post_id} topic={topic[:40]}")
+        logger.info(f"Draft created: {post_id} topic={topic[:40]} author={author}")
         return post_id
 
     @classmethod
@@ -47,7 +56,6 @@ class DraftManager:
         """Get draft by ID."""
         if post_id in cls._drafts:
             return cls._drafts[post_id]
-        # Try loading from disk
         return cls._load_from_disk(post_id)
 
     @classmethod
@@ -63,22 +71,58 @@ class DraftManager:
 
     @classmethod
     def set_editing(cls, user_id: int, post_id: str) -> None:
-        """Mark user as editing a specific draft."""
         cls._editing[user_id] = post_id
 
     @classmethod
     def get_editing(cls, user_id: int) -> Optional[str]:
-        """Get the draft ID the user is currently editing."""
         return cls._editing.get(user_id)
 
     @classmethod
     def clear_editing(cls, user_id: int) -> None:
-        """Clear editing state for user."""
         cls._editing.pop(user_id, None)
 
     @classmethod
+    def active_count(cls) -> int:
+        """Count non-published/rejected drafts."""
+        return sum(
+            1 for d in cls._drafts.values()
+            if d.get("status") in ("pending", "approved", "scheduled")
+        )
+
+    @classmethod
+    def _cleanup(cls) -> None:
+        """Remove old and excess drafts."""
+        now = time.time()
+        to_remove = []
+
+        for pid, draft in cls._drafts.items():
+            created = draft.get("created_at", 0)
+            status = draft.get("status", "pending")
+            # Remove old non-active drafts
+            if status in ("published", "rejected") and (now - created) > MAX_AGE_SEC:
+                to_remove.append(pid)
+            # Remove very old drafts regardless of status
+            elif (now - created) > MAX_AGE_SEC * 3:
+                to_remove.append(pid)
+
+        for pid in to_remove:
+            cls._drafts.pop(pid, None)
+            cls._remove_from_disk(pid)
+
+        # If still over limit, remove oldest
+        if len(cls._drafts) > MAX_DRAFTS:
+            sorted_ids = sorted(
+                cls._drafts, key=lambda k: cls._drafts[k].get("created_at", 0)
+            )
+            for pid in sorted_ids[: len(cls._drafts) - MAX_DRAFTS]:
+                cls._drafts.pop(pid, None)
+                cls._remove_from_disk(pid)
+
+        if to_remove:
+            logger.info(f"Cleaned up {len(to_remove)} old drafts")
+
+    @classmethod
     def _save_to_disk(cls, post_id: str) -> None:
-        """Persist draft to JSON file."""
         try:
             os.makedirs(DRAFTS_DIR, exist_ok=True)
             path = os.path.join(DRAFTS_DIR, f"{post_id}.json")
@@ -89,7 +133,6 @@ class DraftManager:
 
     @classmethod
     def _load_from_disk(cls, post_id: str) -> Optional[dict]:
-        """Load draft from JSON file."""
         try:
             path = os.path.join(DRAFTS_DIR, f"{post_id}.json")
             if os.path.exists(path):
@@ -100,3 +143,12 @@ class DraftManager:
         except Exception as e:
             logger.warning(f"Failed to load draft {post_id}: {e}")
         return None
+
+    @classmethod
+    def _remove_from_disk(cls, post_id: str) -> None:
+        try:
+            path = os.path.join(DRAFTS_DIR, f"{post_id}.json")
+            if os.path.exists(path):
+                os.remove(path)
+        except Exception:
+            pass
