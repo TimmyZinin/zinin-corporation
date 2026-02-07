@@ -18,7 +18,13 @@ COPY src/ /app/src/
 COPY data/ /app/data/
 COPY CLAUDE.md README.md /app/
 COPY app.py run_telegram.py run_alexey_bot.py run_yuki_bot.py start.sh /app/
-COPY config/ /app/config/
+
+# Config: copy example, actual config comes via env vars or mounted volume
+RUN mkdir -p /app/config
+COPY config/financial_sources.yaml.example /app/config/financial_sources.yaml.example
+# Use example as default if no real config is provided
+RUN cp /app/config/financial_sources.yaml.example /app/config/financial_sources.yaml
+
 RUN chmod +x /app/start.sh
 
 CMD ["/app/start.sh"]
