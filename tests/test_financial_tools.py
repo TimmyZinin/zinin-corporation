@@ -489,7 +489,7 @@ class TestAgentIntegration:
         os.environ["OPENROUTER_API_KEY"] = "test-key"
         from src.agents import create_accountant_agent
         agent = create_accountant_agent()
-        assert "ДОСТУП К ДАННЫМ" in agent.backstory
+        assert "ИНСТРУМЕНТЫ" in agent.backstory
 
 
 # ══════════════════════════════════════════════════════════

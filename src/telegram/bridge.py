@@ -97,6 +97,7 @@ class AgentBridge:
             return corp.execute_task(
                 "Подготовь полный финансовый отчёт. Используй все доступные инструменты.",
                 "accountant",
+                use_memory=False,
             )
         return await asyncio.to_thread(_sync)
 
@@ -107,6 +108,7 @@ class AgentBridge:
             return corp.execute_task(
                 "Подготовь сводку портфеля. Используй full_portfolio.",
                 "accountant",
+                use_memory=False,
             )
         return await asyncio.to_thread(_sync)
 

@@ -203,12 +203,11 @@ class AICorporation:
                 agents=all_agents,
                 process=Process.sequential,
                 verbose=True,
-                memory=True,
-                embedder=EMBEDDER_CONFIG,
+                memory=False,
             )
 
             self._initialized = True
-            logger.info("Zinin Corp initialized successfully with memory enabled")
+            logger.info("Zinin Corp initialized successfully")
             return True
 
         except Exception as e:
@@ -223,6 +222,11 @@ class AICorporation:
     def _run_agent(self, agent, task_description: str, agent_name: str = "",
                     use_memory: bool = True, guardrail=None) -> str:
         """Run a single agent task with memory fallback. Returns result string."""
+        # CRITICAL: Reset agent executor to prevent message accumulation.
+        # CrewAgentExecutor.messages never gets cleared between runs,
+        # causing context to grow indefinitely (380K+ tokens).
+        agent.agent_executor = None
+
         full_description = f"{task_description}{TASK_WRAPPER}"
         task = create_task(
             description=full_description,
@@ -410,6 +414,10 @@ class AICorporation:
         )
 
         agents = [self.accountant, self.automator]
+        # Reset executors to prevent message accumulation
+        for a in agents:
+            a.agent_executor = None
+
         tasks = []
 
         task_finance = create_task(
@@ -441,6 +449,7 @@ class AICorporation:
 
         # Task 3: Юки — content/SMM status (if available)
         if has_smm:
+            self.smm.agent_executor = None
             task_smm = create_task(
                 description=(
                     "Подготовь краткую сводку по контенту и SMM:\n"
@@ -507,8 +516,7 @@ class AICorporation:
                 tasks=tasks,
                 process=Process.sequential,
                 verbose=True,
-                memory=True,
-                embedder=EMBEDDER_CONFIG,
+                memory=False,
                 task_callback=_on_task_done,
             )
             result = crew.kickoff()
@@ -658,6 +666,9 @@ class AICorporation:
             return "❌ Zinin Corp не инициализирована."
 
         agents = [self.accountant, self.automator, self.manager]
+        # Reset executors to prevent message accumulation
+        for a in agents:
+            a.agent_executor = None
         tasks = []
 
         # Track start for all agents
@@ -701,6 +712,7 @@ class AICorporation:
 
         # Task 3: Yuki — content stats (if available)
         if self.smm:
+            self.smm.agent_executor = None
             log_task_start("smm", "Отчёт по контенту (полный)")
             task_smm = create_task(
                 description=(
@@ -770,8 +782,7 @@ class AICorporation:
                 tasks=tasks,
                 process=Process.sequential,
                 verbose=True,
-                memory=True,
-                embedder=EMBEDDER_CONFIG,
+                memory=False,
                 task_callback=_on_report_task_done,
             )
             result = crew.kickoff()
