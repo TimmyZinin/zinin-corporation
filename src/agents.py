@@ -154,7 +154,7 @@ def create_accountant_agent() -> Optional[Agent]:
             verbose=True,
             memory=False,
             allow_delegation=False,
-            max_iter=10,
+            max_iter=5,
             max_retry_limit=3,
         )
     except Exception as e:
@@ -188,7 +188,7 @@ def create_smm_agent() -> Optional[Agent]:
             verbose=True,
             memory=False,
             allow_delegation=False,
-            max_iter=10,
+            max_iter=5,
             max_retry_limit=3,
         )
     except Exception as e:

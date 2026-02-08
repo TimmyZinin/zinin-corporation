@@ -73,7 +73,11 @@ class PortfolioSummaryTool(BaseTool):
             )
 
         header = "═══ FULL PORTFOLIO SUMMARY ═══"
-        return f"{header}\n\n" + "\n\n".join(sections)
+        result = f"{header}\n\n" + "\n\n".join(sections)
+        # Truncate to prevent context overflow (max ~4000 chars)
+        if len(result) > 4000:
+            result = result[:4000] + "\n\n... [output truncated for brevity]"
+        return result
 
     def _collect_banks(self, config: dict, warnings: list) -> str:
         """Collect bank balances."""

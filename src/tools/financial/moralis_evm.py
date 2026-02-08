@@ -166,9 +166,9 @@ class EVMPortfolioTool(FinancialBaseTool):
 
                         if token_lines:
                             lines.append(f"    {chain_name} (${chain_total:,.2f}):")
-                            lines.extend(token_lines[:15])
-                            if len(token_lines) > 15:
-                                lines.append(f"      ... +{len(token_lines) - 15} more tokens")
+                            lines.extend(token_lines[:5])
+                            if len(token_lines) > 5:
+                                lines.append(f"      ... +{len(token_lines) - 5} more tokens")
                         grand_total += chain_total
 
                     except Exception as e:

@@ -222,10 +222,13 @@ class AICorporation:
     def _run_agent(self, agent, task_description: str, agent_name: str = "",
                     use_memory: bool = True, guardrail=None) -> str:
         """Run a single agent task with memory fallback. Returns result string."""
-        # CRITICAL: Reset agent executor to prevent message accumulation.
+        # CRITICAL: Reset agent state to prevent accumulation between runs.
         # CrewAgentExecutor.messages never gets cleared between runs,
         # causing context to grow indefinitely (380K+ tokens).
         agent.agent_executor = None
+        agent.tools_results = []
+        if hasattr(agent, '_times_executed'):
+            agent._times_executed = 0
 
         full_description = f"{task_description}{TASK_WRAPPER}"
         task = create_task(
@@ -414,9 +417,12 @@ class AICorporation:
         )
 
         agents = [self.accountant, self.automator]
-        # Reset executors to prevent message accumulation
+        # Reset all agent state to prevent accumulation
         for a in agents:
             a.agent_executor = None
+            a.tools_results = []
+            if hasattr(a, '_times_executed'):
+                a._times_executed = 0
 
         tasks = []
 
@@ -548,15 +554,14 @@ class AICorporation:
         task_desc = """
         Подготовь полный финансовый отчёт:
 
-        1. Используй full_portfolio для общей картины активов
-        2. Используй tribute_revenue для доходов от подписок
-        3. Используй openrouter_usage, elevenlabs_usage, openai_usage для расходов на AI
-        4. Используй tinkoff_data для банковских операций
+        1. Вызови full_portfolio — он сам соберёт данные по банкам, крипте и доходам
+        2. Вызови openrouter_usage для расходов на AI
+        3. НЕ вызывай другие инструменты — full_portfolio уже включает их данные
 
         Структура отчёта:
         - Сводка по активам (крипто + банки)
-        - Доходы (Tribute)
-        - Расходы на AI (OpenRouter + ElevenLabs + OpenAI + Claude Code $200/мес)
+        - Доходы
+        - Расходы на AI (+ Claude Code $200/мес фиксированная)
         - Рекомендации
         """
         return self.execute_task(task_desc, "accountant")
@@ -680,9 +685,12 @@ class AICorporation:
             return "❌ Zinin Corp не инициализирована."
 
         agents = [self.accountant, self.automator, self.manager]
-        # Reset executors to prevent message accumulation
+        # Reset all agent state to prevent accumulation
         for a in agents:
             a.agent_executor = None
+            a.tools_results = []
+            if hasattr(a, '_times_executed'):
+                a._times_executed = 0
         tasks = []
 
         # Track start for all agents
