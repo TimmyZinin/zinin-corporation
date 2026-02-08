@@ -114,10 +114,76 @@ def setup_ceo_scheduler(bot: Bot, config: CeoTelegramConfig) -> AsyncIOScheduler
         replace_existing=True,
     )
 
+    # 4) CTO improvement proposals — 4 times/day
+    async def cto_improvement_check():
+        try:
+            result = await AgentBridge.run_cto_proposal()
+            if "error" in result:
+                logger.warning(f"CTO proposal generation failed: {result['error']}")
+                return
+
+            # Parse latest proposal from storage
+            from ..tools.improvement_advisor import _load_proposals, _AGENT_LABELS
+            from .keyboards import proposal_keyboard
+
+            data = _load_proposals()
+            proposals = data.get("proposals", [])
+            if not proposals:
+                logger.info("CTO improvement check: no proposals generated")
+                return
+
+            latest = proposals[-1]
+            if latest.get("status") != "pending":
+                logger.info("CTO improvement check: latest proposal already reviewed")
+                return
+
+            target = _AGENT_LABELS.get(
+                latest.get("target_agent", ""), latest.get("target_agent", "")
+            )
+            type_labels = {
+                "prompt": "📝 Промпт",
+                "tool": "🔧 Инструмент",
+                "model_tier": "🧠 Модель",
+            }
+            ptype = type_labels.get(
+                latest.get("proposal_type", ""), latest.get("proposal_type", "?")
+            )
+
+            text = (
+                f"💡 Предложение от Мартина (CTO):\n\n"
+                f"📋 {latest.get('title', '?')}\n"
+                f"🎯 Агент: {target}\n"
+                f"📊 Тип: {ptype}\n"
+                f"📈 Уверенность: {latest.get('confidence_score', 0):.0%}\n\n"
+                f"💡 {latest.get('description', '—')[:500]}"
+            )
+
+            if len(text) > 4000:
+                text = text[:4000] + "..."
+
+            await bot.send_message(
+                chat_id,
+                text,
+                reply_markup=proposal_keyboard(latest["id"]),
+            )
+            logger.info(f"CTO proposal sent: {latest['id']} — {latest.get('title', '?')}")
+
+        except Exception as e:
+            logger.error(f"CTO improvement check failed: {e}", exc_info=True)
+
+    for hour in [9, 13, 17, 21]:
+        scheduler.add_job(
+            cto_improvement_check,
+            CronTrigger(hour=hour, minute=30),
+            id=f"cto_improvement_{hour:02d}",
+            replace_existing=True,
+        )
+
     logger.info(
         f"CEO scheduler: briefing=daily {config.morning_briefing_hour}:00, "
         f"review={config.weekly_review_day} {config.weekly_review_hour}:00, "
-        f"api_health=every 30min"
+        f"api_health=every 30min, "
+        f"cto_improvement=4x/day (9:30, 13:30, 17:30, 21:30)"
     )
 
     return scheduler

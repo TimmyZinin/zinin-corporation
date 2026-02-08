@@ -9,6 +9,7 @@ from aiogram.types import Message
 from ...telegram.bridge import AgentBridge
 from ...telegram.formatters import format_for_telegram
 from ...telegram.handlers.commands import keep_typing
+from .callbacks import is_in_conditions_mode, get_conditions_proposal_id
 
 logger = logging.getLogger(__name__)
 router = Router()
@@ -22,6 +23,24 @@ async def handle_text(message: Message):
     user_text = message.text.strip()
     if not user_text:
         return
+
+    # CTO proposal conditions mode — intercept text input
+    if is_in_conditions_mode(message.from_user.id):
+        proposal_id = get_conditions_proposal_id(message.from_user.id)
+        if proposal_id:
+            from .callbacks import _find_and_update_proposal
+            proposal = _find_and_update_proposal(
+                proposal_id, {"status": "conditions", "conditions": user_text}
+            )
+            if proposal:
+                await message.answer(
+                    f"📝 Условия сохранены для предложения:\n"
+                    f"📋 {proposal.get('title', '?')}\n\n"
+                    f"Мартин учтёт ваши условия при доработке."
+                )
+            else:
+                await message.answer("Предложение не найдено.")
+            return
 
     _chat_context.append({"role": "user", "text": user_text})
 

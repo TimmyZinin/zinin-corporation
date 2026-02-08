@@ -337,6 +337,8 @@ class AICorporation:
                 "сервер", "docker", "railway", "техническ",
                 "здоровье api", "health check", "статус api", "api status",
                 "промпт агент", "создай агент", "новый агент",
+                "улучшен", "proposal", "предложен", "improvement",
+                "модельный аудит", "model audit", "саморефлекс",
             ],
         },
         {
@@ -694,6 +696,28 @@ class AICorporation:
         - Рекомендации
         """
         return self.execute_task(task_desc, "automator")
+
+    def cto_generate_proposal(self) -> dict:
+        """CTO generates one improvement proposal for an agent. Called by scheduler."""
+        if not self.is_ready:
+            return {"error": "Corporation not initialized"}
+
+        task_desc = (
+            "Проведи проактивный анализ агентов корпорации.\n\n"
+            "1. Используй Agent Improvement Advisor с action='analyze_all' — "
+            "он сам выберет агента, который давно не анализировался.\n"
+            "2. Верни ПОЛНЫЙ результат от инструмента без изменений.\n\n"
+            "НЕ пиши 'начинаю анализ' — ВЫЗОВИ ИНСТРУМЕНТ ПРЯМО СЕЙЧАС."
+        )
+        try:
+            result = self._run_agent(
+                self.automator, task_desc, "automator",
+                use_memory=False,
+            )
+            return {"result": result}
+        except Exception as e:
+            logger.error(f"CTO proposal generation failed: {e}")
+            return {"error": str(e)}
 
     def integration_status(self) -> str:
         """Check integration status from Мартин"""
