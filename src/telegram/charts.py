@@ -531,7 +531,8 @@ def _build_dashboard_html(data: dict, donut_b64: str) -> str:
 def render_financial_dashboard(data: dict) -> bytes:
     """Render comprehensive financial dashboard as PNG.
 
-    Uses HTML+Chromium when available, falls back to matplotlib donut.
+    Uses matplotlib donut chart (lightweight, no external deps).
+    Chromium HTML rendering disabled to avoid OOM on Railway.
     """
     # Merge all sources for donut chart
     all_sources: dict[str, float] = {}
@@ -548,17 +549,7 @@ def render_financial_dashboard(data: dict) -> bytes:
     if not all_sources:
         return b""
 
-    # Render donut chart as base64
-    donut_b64 = _render_donut_b64(all_sources, total)
-
-    # Try HTML dashboard
-    html = _build_dashboard_html(data, donut_b64)
-    png = _html_to_png(html)
-    if png:
-        return png
-
-    # Fallback: matplotlib donut chart
-    logger.info("Falling back to matplotlib donut chart")
+    logger.info(f"Rendering dashboard: {len(all_sources)} sources, total=${total:.0f}")
     return _render_donut_fallback(all_sources, total, data)
 
 

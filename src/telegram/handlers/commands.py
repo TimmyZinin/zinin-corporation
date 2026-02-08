@@ -237,6 +237,7 @@ async def cmd_chart(message: Message):
     typing_task = asyncio.create_task(keep_typing(message, stop))
 
     try:
+        logger.info("Chart: collecting financial data...")
         data = await asyncio.wait_for(
             asyncio.to_thread(_collect_all_financial_data),
             timeout=90,
@@ -247,14 +248,16 @@ async def cmd_chart(message: Message):
             await message.answer("Нет данных для графика. Попробуйте /portfolio сначала.")
             return
 
+        logger.info("Chart: rendering dashboard...")
         from ..charts import render_financial_dashboard
         png = await asyncio.wait_for(
             asyncio.to_thread(render_financial_dashboard, data),
             timeout=45,
         )
+        logger.info(f"Chart: dashboard rendered, {len(png)} bytes")
 
         if not png:
-            # Fallback to basic pie chart
+            logger.info("Chart: dashboard empty, falling back to pie chart")
             from ..charts import portfolio_pie
             png = portfolio_pie(data.get("crypto", {}), "Портфель Zinin Corp")
 
@@ -264,15 +267,16 @@ async def cmd_chart(message: Message):
 
         caption = _build_chart_caption(data)
         photo = BufferedInputFile(png, filename="dashboard.png")
+        logger.info("Chart: sending photo...")
         await message.answer_photo(photo=photo, caption=caption, parse_mode=ParseMode.HTML)
+        logger.info("Chart: photo sent OK")
 
-        # Send detailed text if there's more data than fits in caption
         full_text = _build_chart_text(data)
         if full_text and len(caption) > 200:
             await message.answer(full_text, parse_mode=ParseMode.HTML)
 
     except asyncio.TimeoutError:
-        logger.error("Chart: data collection timed out (90s)")
+        logger.error("Chart: timed out")
         await message.answer("Таймаут: сбор данных занял больше 90 секунд.")
     except Exception as e:
         logger.error(f"Chart error: {e}", exc_info=True)
