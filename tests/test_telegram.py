@@ -1,5 +1,6 @@
 """Tests for Telegram bot modules."""
 
+import asyncio
 import json
 import os
 import tempfile
@@ -573,3 +574,356 @@ class TestTinkoffDataTool:
             tool = TinkoffDataTool()
             result = tool._run("action=summary")
             assert "нет данных" in result.lower()
+
+
+# ──────────────────────────────────────────────────────────
+# Test: Portfolio Collection (parallel)
+# ──────────────────────────────────────────────────────────
+
+class TestPortfolioCollectionParallel:
+    """Test that _collect_portfolio_data uses parallel execution."""
+
+    def test_parallel_collection_returns_dict(self):
+        import importlib
+        mod = importlib.import_module("src.telegram.handlers.commands")
+
+        with patch("src.tools.financial.moralis_evm.EVMPortfolioTool") as mock_evm, \
+             patch("src.tools.financial.papaya.PapayaPositionsTool") as mock_papaya, \
+             patch("src.tools.financial.eventum.EventumPortfolioTool") as mock_eventum, \
+             patch("src.tools.financial.stacks.StacksPortfolioTool") as mock_stacks, \
+             patch("src.tools.financial.helius_solana.SolanaPortfolioTool") as mock_sol, \
+             patch("src.tools.financial.tonapi.TONPortfolioTool") as mock_ton, \
+             patch.dict(os.environ, {"MORALIS_API_KEY": "test"}):
+
+            mock_evm.return_value._run.return_value = "$500.00 USD total across 5 chains"
+            mock_papaya.return_value._run.return_value = "ИТОГО $200.00"
+            mock_eventum.return_value._run.return_value = "ИТОГО $100.00"
+            mock_stacks.return_value._run.return_value = "ИТОГО STX: 1000"
+            mock_sol.return_value._run.return_value = "$10.00 USD total"
+            mock_ton.return_value._run.return_value = "$5.00 USD total"
+
+            result = mod._collect_portfolio_data()
+            assert "EVM (5 chains)" in result
+            assert result["EVM (5 chains)"] == 500.0
+            assert "Papaya" in result
+            assert result["Papaya"] == 200.0
+            assert "Eventum L3" in result
+            assert result["Eventum L3"] == 100.0
+            assert "Stacks" in result
+            assert result["Stacks"] == 500.0  # 1000 * 0.5
+            assert "Solana" in result
+            assert result["Solana"] == 10.0
+            assert "TON" in result
+            assert result["TON"] == 5.0
+
+    def test_partial_failure_returns_successful(self):
+        import importlib
+        mod = importlib.import_module("src.telegram.handlers.commands")
+
+        with patch("src.tools.financial.moralis_evm.EVMPortfolioTool") as mock_evm, \
+             patch("src.tools.financial.papaya.PapayaPositionsTool") as mock_papaya, \
+             patch("src.tools.financial.eventum.EventumPortfolioTool") as mock_eventum, \
+             patch("src.tools.financial.stacks.StacksPortfolioTool") as mock_stacks, \
+             patch("src.tools.financial.helius_solana.SolanaPortfolioTool") as mock_sol, \
+             patch("src.tools.financial.tonapi.TONPortfolioTool") as mock_ton, \
+             patch.dict(os.environ, {"MORALIS_API_KEY": "test"}):
+
+            mock_evm.return_value._run.side_effect = Exception("API error")
+            mock_papaya.return_value._run.return_value = "ИТОГО $200.00"
+            mock_eventum.return_value._run.side_effect = Exception("timeout")
+            mock_stacks.return_value._run.return_value = "no data"
+            mock_sol.return_value._run.return_value = "$10.00 USD total"
+            mock_ton.return_value._run.side_effect = Exception("network error")
+
+            result = mod._collect_portfolio_data()
+            assert "Papaya" in result
+            assert result["Papaya"] == 200.0
+            assert "Solana" in result
+            assert "EVM (5 chains)" not in result
+            assert "Eventum L3" not in result
+
+    def test_no_moralis_key_skips_evm(self):
+        import importlib
+        mod = importlib.import_module("src.telegram.handlers.commands")
+
+        with patch("src.tools.financial.papaya.PapayaPositionsTool") as mock_papaya, \
+             patch("src.tools.financial.eventum.EventumPortfolioTool") as mock_eventum, \
+             patch("src.tools.financial.stacks.StacksPortfolioTool") as mock_stacks, \
+             patch("src.tools.financial.helius_solana.SolanaPortfolioTool") as mock_sol, \
+             patch("src.tools.financial.tonapi.TONPortfolioTool") as mock_ton, \
+             patch.dict(os.environ, {}, clear=True):
+
+            mock_papaya.return_value._run.return_value = "ИТОГО $100.00"
+            mock_eventum.return_value._run.return_value = "ИТОГО $50.00"
+            mock_stacks.return_value._run.return_value = "no data"
+            mock_sol.return_value._run.return_value = "no data"
+            mock_ton.return_value._run.return_value = "no data"
+
+            result = mod._collect_portfolio_data()
+            assert "Papaya" in result
+            assert "EVM (5 chains)" not in result
+
+
+# ──────────────────────────────────────────────────────────
+# Test: Command Handlers (async, mocked)
+# ──────────────────────────────────────────────────────────
+
+class TestCommandHandlers:
+    """Test all command handlers with mocked bot/message."""
+
+    def _make_message(self):
+        msg = AsyncMock()
+        msg.answer = AsyncMock(return_value=AsyncMock(delete=AsyncMock()))
+        msg.answer_photo = AsyncMock()
+        msg.answer_chat_action = AsyncMock()
+        msg.from_user = MagicMock(id=123)
+        return msg
+
+    @pytest.mark.asyncio
+    async def test_cmd_start(self):
+        from src.telegram.handlers.commands import cmd_start
+        msg = self._make_message()
+        await cmd_start(msg)
+        msg.answer.assert_called_once()
+        call_text = msg.answer.call_args[0][0]
+        assert "Маттиас" in call_text
+        assert "/chart" in call_text
+
+    @pytest.mark.asyncio
+    async def test_cmd_help(self):
+        from src.telegram.handlers.commands import cmd_help
+        msg = self._make_message()
+        await cmd_help(msg)
+        msg.answer.assert_called_once()
+        call_text = msg.answer.call_args[0][0]
+        assert "/report" in call_text
+        assert "/chart" in call_text
+
+    @pytest.mark.asyncio
+    async def test_cmd_balances_no_data(self):
+        from src.telegram.handlers.commands import cmd_balances
+        msg = self._make_message()
+        with patch("src.telegram.handlers.commands.get_latest_balances", return_value={}):
+            await cmd_balances(msg)
+        msg.answer.assert_called_once()
+        call_text = msg.answer.call_args[0][0]
+        assert "нет данных" in call_text.lower() or "Пока нет" in call_text
+
+    @pytest.mark.asyncio
+    async def test_cmd_balances_with_data(self):
+        from src.telegram.handlers.commands import cmd_balances
+        msg = self._make_message()
+        mock_data = {
+            "TBC Bank": {
+                "accounts": [{"balance": "1500.00", "currency": "GEL"}],
+                "extracted_at": "2026-02-08T10:00:00",
+            }
+        }
+        with patch("src.telegram.handlers.commands.get_latest_balances", return_value=mock_data):
+            await cmd_balances(msg)
+        call_text = msg.answer.call_args[0][0]
+        assert "TBC" in call_text
+        assert "1500" in call_text
+
+    @pytest.mark.asyncio
+    async def test_cmd_tinkoff_no_data(self):
+        from src.telegram.handlers.commands import cmd_tinkoff
+        msg = self._make_message()
+        with patch("src.telegram.transaction_storage.get_summary", return_value=None):
+            await cmd_tinkoff(msg)
+        call_text = msg.answer.call_args[0][0]
+        assert "нет данных" in call_text.lower() or "Пока нет" in call_text
+
+    @pytest.mark.asyncio
+    async def test_cmd_tinkoff_with_data(self):
+        from src.telegram.handlers.commands import cmd_tinkoff
+        msg = self._make_message()
+        mock_summary = {
+            "total_count": 42,
+            "income": 85000,
+            "expenses": 62000,
+            "net": 23000,
+            "period": {"start": "2026-01-01T00:00:00", "end": "2026-02-01T00:00:00"},
+            "top_categories": [("Рестораны", 12000), ("Такси", 8000)],
+            "monthly": {"2026-01": {"income": 85000, "expenses": 62000}},
+            "last_updated": "2026-02-08T10:00:00",
+        }
+        with patch("src.telegram.transaction_storage.get_summary", return_value=mock_summary):
+            await cmd_tinkoff(msg)
+        call_text = msg.answer.call_args[0][0]
+        assert "85,000" in call_text or "85000" in call_text
+
+    @pytest.mark.asyncio
+    async def test_cmd_expenses_no_data(self):
+        from src.telegram.handlers.commands import cmd_expenses
+        msg = self._make_message()
+        with patch("src.telegram.transaction_storage.get_summary", return_value=None):
+            await cmd_expenses(msg)
+        msg.answer.assert_called_once()
+        assert "нет данных" in msg.answer.call_args[0][0].lower() or "Нет данных" in msg.answer.call_args[0][0]
+
+    @pytest.mark.asyncio
+    async def test_cmd_chart_success(self):
+        from src.telegram.handlers.commands import cmd_chart
+        import importlib
+        mod = importlib.import_module("src.telegram.handlers.commands")
+
+        msg = self._make_message()
+        mock_data = {
+            "crypto": {"BTC": 1000},
+            "fiat": {},
+            "manual": {},
+            "total_usd": 1000.0,
+            "tbank_summary": None,
+            "rates": {},
+            "timestamp": "2026-02-08",
+        }
+
+        with patch.object(mod, "_collect_all_financial_data", return_value=mock_data), \
+             patch("src.telegram.charts.render_financial_dashboard", return_value=b"\x89PNG" + b"\x00" * 1000):
+            await cmd_chart(msg)
+
+        msg.answer_photo.assert_called_once()
+        photo_kwargs = msg.answer_photo.call_args[1]
+        assert "caption" in photo_kwargs
+        assert "$1,000" in photo_kwargs["caption"]
+
+    @pytest.mark.asyncio
+    async def test_cmd_chart_no_data(self):
+        from src.telegram.handlers.commands import cmd_chart
+        import importlib
+        mod = importlib.import_module("src.telegram.handlers.commands")
+
+        msg = self._make_message()
+        mock_data = {
+            "crypto": {},
+            "fiat": {},
+            "manual": {},
+            "total_usd": 0.0,
+            "tbank_summary": None,
+            "rates": {},
+            "timestamp": "2026-02-08",
+        }
+
+        with patch.object(mod, "_collect_all_financial_data", return_value=mock_data):
+            await cmd_chart(msg)
+
+        # Should send "no data" message (not a photo)
+        msg.answer_photo.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_cmd_chart_timeout(self):
+        from src.telegram.handlers.commands import cmd_chart
+        import importlib
+        mod = importlib.import_module("src.telegram.handlers.commands")
+
+        msg = self._make_message()
+
+        def slow_collect():
+            import time
+            time.sleep(200)
+
+        with patch.object(mod, "_collect_all_financial_data", side_effect=slow_collect):
+            # Override timeout to 0.01s to trigger fast
+            orig_wait = asyncio.wait_for
+
+            async def fast_timeout(coro, *, timeout=None):
+                return await orig_wait(coro, timeout=0.01)
+
+            with patch("src.telegram.handlers.commands.asyncio.wait_for", side_effect=asyncio.TimeoutError()):
+                await cmd_chart(msg)
+
+        calls = [str(c) for c in msg.answer.call_args_list]
+        assert any("Таймаут" in str(c) or "тайм" in str(c).lower() for c in calls)
+
+    @pytest.mark.asyncio
+    async def test_cmd_status(self):
+        from src.telegram.handlers.commands import cmd_status
+        msg = self._make_message()
+
+        with patch("src.tools.financial.base.load_financial_config", return_value={
+            "crypto_wallets": {"evm": {"enabled": True, "addresses": ["0x..."]}},
+            "banks": {"tbank": {"enabled": False}},
+            "payments": {"tribute": {"enabled": False}},
+        }), \
+             patch("src.tools.financial.base.CredentialBroker.is_configured", return_value=True), \
+             patch("src.telegram.handlers.commands.get_latest_balances", return_value={}), \
+             patch("src.telegram.transaction_storage.get_summary", return_value=None):
+            await cmd_status(msg)
+
+        call_text = msg.answer.call_args[0][0]
+        assert "Статус" in call_text
+
+
+# ──────────────────────────────────────────────────────────
+# Test: Message Handler
+# ──────────────────────────────────────────────────────────
+
+class TestMessageHandler:
+    @pytest.mark.asyncio
+    async def test_handle_text_calls_agent(self):
+        from src.telegram.handlers.messages import handle_text, _chat_context
+
+        msg = AsyncMock()
+        msg.text = "Какой баланс?"
+        msg.answer = AsyncMock(return_value=AsyncMock(delete=AsyncMock()))
+        msg.answer_chat_action = AsyncMock()
+
+        with patch("src.telegram.handlers.messages.AgentBridge") as mock_bridge:
+            mock_bridge.send_to_agent = AsyncMock(return_value="Баланс: $1000")
+            await handle_text(msg)
+
+        mock_bridge.send_to_agent.assert_called_once()
+        assert any("Баланс" in str(c) or "$1000" in str(c) for c in msg.answer.call_args_list)
+
+    @pytest.mark.asyncio
+    async def test_handle_text_empty_ignored(self):
+        from src.telegram.handlers.messages import handle_text
+
+        msg = AsyncMock()
+        msg.text = "   "
+        msg.answer = AsyncMock()
+        await handle_text(msg)
+        msg.answer.assert_not_called()
+
+
+# ──────────────────────────────────────────────────────────
+# Test: Formatters (extended)
+# ──────────────────────────────────────────────────────────
+
+class TestFormattersExtended:
+    def test_mono_table(self):
+        from src.telegram.formatters import mono_table
+        result = mono_table(["Name", "Value"], [["BTC", "$1000"], ["ETH", "$500"]])
+        assert "<pre>" in result
+        assert "BTC" in result
+        assert "$1000" in result
+
+    def test_sparkline(self):
+        from src.telegram.formatters import sparkline
+        result = sparkline([10, 20, 30, 15, 5])
+        assert len(result) == 5
+        assert all(c in "▁▂▃▄▅▆▇█" for c in result)
+
+    def test_sparkline_empty(self):
+        from src.telegram.formatters import sparkline
+        assert sparkline([]) == ""
+
+    def test_progress_bar(self):
+        from src.telegram.formatters import progress_bar
+        result = progress_bar(75, 100, width=10)
+        assert "█" in result
+        assert "75%" in result
+
+    def test_format_for_telegram_exact_boundary(self):
+        from src.telegram.formatters import format_for_telegram
+        text = "A" * 4096
+        result = format_for_telegram(text, max_length=4096)
+        assert len(result) == 1
+        assert len(result[0]) == 4096
+
+    def test_format_for_telegram_unicode(self):
+        from src.telegram.formatters import format_for_telegram
+        text = "Баланс: ₽85,000 — Т-Банк 🏦"
+        result = format_for_telegram(text)
+        assert result == [text]

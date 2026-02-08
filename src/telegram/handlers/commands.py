@@ -283,7 +283,10 @@ async def cmd_chart(message: Message):
         await message.answer(f"Ошибка графика: {str(e)[:300]}")
     finally:
         stop.set()
-        await typing_task
+        try:
+            await asyncio.wait_for(typing_task, timeout=2)
+        except (asyncio.TimeoutError, Exception):
+            typing_task.cancel()
         try:
             await status.delete()
         except Exception:
@@ -373,9 +376,11 @@ async def cmd_expenses(message: Message):
 
 
 def _collect_portfolio_data() -> dict[str, float]:
-    """Collect balance data from all tools for chart generation."""
+    """Collect balance data from all crypto tools in PARALLEL."""
     import os
     import re
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+
     portfolio = {}
 
     def _parse_usd_total(text: str) -> float | None:
@@ -388,47 +393,24 @@ def _collect_portfolio_data() -> dict[str, float]:
         m = re.search(r"\$([0-9,.]+)", text.split("ИТОГО")[-1])
         return float(m.group(1).replace(",", "")) if m else None
 
-    # EVM via Moralis
-    if os.environ.get("MORALIS_API_KEY"):
-        try:
-            from src.tools.financial.moralis_evm import EVMPortfolioTool
-            result = EVMPortfolioTool()._run("")
-            val = _parse_usd_total(result)
-            if val is not None:
-                portfolio["EVM (5 chains)"] = val
-            else:
-                logger.warning("Chart/EVM: no total parsed from result")
-        except Exception as e:
-            logger.warning(f"Chart/EVM error: {e}")
-    else:
-        logger.info("Chart/EVM: MORALIS_API_KEY not set, skipping")
+    def _fetch_evm() -> tuple[str, float | None]:
+        if not os.environ.get("MORALIS_API_KEY"):
+            return ("EVM (5 chains)", None)
+        from src.tools.financial.moralis_evm import EVMPortfolioTool
+        result = EVMPortfolioTool()._run("")
+        return ("EVM (5 chains)", _parse_usd_total(result))
 
-    # Papaya
-    try:
+    def _fetch_papaya() -> tuple[str, float | None]:
         from src.tools.financial.papaya import PapayaPositionsTool
         result = PapayaPositionsTool()._run()
-        val = _parse_itogo(result)
-        if val is not None:
-            portfolio["Papaya"] = val
-        else:
-            logger.warning("Chart/Papaya: no ИТОГО parsed")
-    except Exception as e:
-        logger.warning(f"Chart/Papaya error: {e}")
+        return ("Papaya", _parse_itogo(result))
 
-    # Eventum
-    try:
+    def _fetch_eventum() -> tuple[str, float | None]:
         from src.tools.financial.eventum import EventumPortfolioTool
         result = EventumPortfolioTool()._run()
-        val = _parse_itogo(result)
-        if val is not None:
-            portfolio["Eventum L3"] = val
-        else:
-            logger.warning("Chart/Eventum: no ИТОГО parsed")
-    except Exception as e:
-        logger.warning(f"Chart/Eventum error: {e}")
+        return ("Eventum L3", _parse_itogo(result))
 
-    # Stacks
-    try:
+    def _fetch_stacks() -> tuple[str, float | None]:
         from src.tools.financial.stacks import StacksPortfolioTool
         result = StacksPortfolioTool()._run()
         if "ИТОГО STX:" in result:
@@ -436,35 +418,33 @@ def _collect_portfolio_data() -> dict[str, float]:
             if m:
                 stx_amount = float(m.group(1).replace(",", ""))
                 if stx_amount > 0:
-                    portfolio["Stacks"] = stx_amount * 0.5
-        else:
-            logger.warning("Chart/Stacks: no ИТОГО STX parsed")
-    except Exception as e:
-        logger.warning(f"Chart/Stacks error: {e}")
+                    return ("Stacks", stx_amount * 0.5)
+        return ("Stacks", None)
 
-    # Solana
-    try:
+    def _fetch_solana() -> tuple[str, float | None]:
         from src.tools.financial.helius_solana import SolanaPortfolioTool
         result = SolanaPortfolioTool()._run("")
-        val = _parse_usd_total(result)
-        if val is not None:
-            portfolio["Solana"] = val
-        else:
-            logger.warning("Chart/Solana: no total parsed")
-    except Exception as e:
-        logger.warning(f"Chart/Solana error: {e}")
+        return ("Solana", _parse_usd_total(result))
 
-    # TON
-    try:
+    def _fetch_ton() -> tuple[str, float | None]:
         from src.tools.financial.tonapi import TONPortfolioTool
         result = TONPortfolioTool()._run("")
-        val = _parse_usd_total(result)
-        if val is not None:
-            portfolio["TON"] = val
-        else:
-            logger.warning("Chart/TON: no total parsed")
-    except Exception as e:
-        logger.warning(f"Chart/TON error: {e}")
+        return ("TON", _parse_usd_total(result))
+
+    fetchers = [_fetch_evm, _fetch_papaya, _fetch_eventum, _fetch_stacks, _fetch_solana, _fetch_ton]
+
+    with ThreadPoolExecutor(max_workers=6) as pool:
+        futures = {pool.submit(fn): fn.__name__ for fn in fetchers}
+        for future in as_completed(futures, timeout=60):
+            fname = futures[future]
+            try:
+                name, val = future.result(timeout=20)
+                if val is not None:
+                    portfolio[name] = val
+                else:
+                    logger.warning(f"Chart/{name}: no value parsed")
+            except Exception as e:
+                logger.warning(f"Chart/{fname} error: {e}")
 
     logger.info(f"Chart portfolio collected: {portfolio}")
     return portfolio
