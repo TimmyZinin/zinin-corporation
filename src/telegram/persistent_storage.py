@@ -31,6 +31,17 @@ def _init_db():
         _use_db = False
         return False
 
+    # Railway sometimes has uppercase hostnames (Postgres.railway.internal)
+    # DNS is case-insensitive per RFC but some resolvers choke on capitals
+    if ".railway.internal" in _db_url.lower() and ".railway.internal" not in _db_url:
+        import re
+        _db_url = re.sub(
+            r"@([A-Za-z0-9.-]+\.railway\.internal)",
+            lambda m: "@" + m.group(1).lower(),
+            _db_url,
+            flags=re.IGNORECASE,
+        )
+
     try:
         import psycopg2
         conn = psycopg2.connect(_db_url)
