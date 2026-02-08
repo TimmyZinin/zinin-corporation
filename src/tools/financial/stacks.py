@@ -4,8 +4,6 @@ Public API, no key needed. STX uses 6 decimals.
 """
 
 import logging
-import os
-import yaml
 
 import httpx
 from crewai.tools import BaseTool
@@ -17,14 +15,11 @@ STX_DECIMALS = 6
 
 
 def _load_stacks_addresses() -> list[str]:
-    """Load Stacks addresses from financial config."""
-    for path in ["config/financial_sources.yaml", "/app/config/financial_sources.yaml"]:
-        if os.path.exists(path):
-            with open(path, "r") as f:
-                config = yaml.safe_load(f) or {}
-            addrs = config.get("crypto_wallets", {}).get("stacks", {}).get("addresses", [])
-            return [a for a in addrs if a]
-    return []
+    """Load Stacks addresses from financial config (supports env var on Railway)."""
+    from .base import load_financial_config
+    config = load_financial_config()
+    addrs = config.get("crypto_wallets", {}).get("stacks", {}).get("addresses", [])
+    return [a for a in addrs if a]
 
 
 def get_stacks_balance(address: str) -> dict | None:

@@ -56,12 +56,13 @@ async def cmd_start(message: Message):
         "Маттиас Бруннер — CFO Zinin Corp\n\n"
         "Добрый день, Тим. Я Маттиас, ваш финансовый директор.\n\n"
         "Команды:\n"
-        "/report — Финансовый отчёт\n"
-        "/portfolio — Сводка портфеля\n"
+        "/report — Финансовый отчёт + дашборд\n"
+        "/portfolio — Сводка портфеля + график\n"
         "/chart — 📊 График портфеля\n"
         "/expenses — 📉 График расходов\n"
         "/tinkoff — Сводка по Т-Банку\n"
         "/balances — Данные из скриншотов\n"
+        "/status — Статус коннекторов\n"
         "/help — Справка\n\n"
         "Можете написать любой финансовый вопрос, "
         "прислать скриншот или CSV-выписку из Т-Банка.",
@@ -70,49 +71,117 @@ async def cmd_start(message: Message):
 
 @router.message(Command("report"))
 async def cmd_report(message: Message):
-    await run_with_typing(
-        message,
-        AgentBridge.run_financial_report(),
-        "📊 Готовлю финансовый отчёт... (30–60 сек)",
-    )
+    """Full financial report with auto-generated dashboard chart."""
+    status = await message.answer("📊 Готовлю финансовый отчёт... (30–60 сек)")
+    stop = asyncio.Event()
+    typing_task = asyncio.create_task(keep_typing(message, stop))
+
+    try:
+        result = await AgentBridge.run_financial_report()
+        for chunk in format_for_telegram(result):
+            await message.answer(chunk)
+
+        # Auto-generate dashboard
+        try:
+            portfolio = await asyncio.to_thread(_collect_portfolio_data)
+            if portfolio and sum(portfolio.values()) > 1:
+                from ..transaction_storage import get_summary
+                expenses = None
+                tinkoff = get_summary()
+                if tinkoff and tinkoff.get("top_categories"):
+                    expenses = dict(tinkoff["top_categories"][:8])
+
+                from ..charts import dashboard
+                png = dashboard(portfolio, expenses)
+                if png:
+                    photo = BufferedInputFile(png, filename="dashboard.png")
+                    await message.answer_photo(photo=photo, caption="Финансовый дашборд")
+        except Exception as e:
+            logger.debug(f"Dashboard generation skipped: {e}")
+
+    except Exception as e:
+        logger.error(f"Report error: {e}", exc_info=True)
+        await message.answer(f"Ошибка: {str(e)[:300]}")
+    finally:
+        stop.set()
+        await typing_task
+        try:
+            await status.delete()
+        except Exception:
+            pass
 
 
 @router.message(Command("portfolio"))
 async def cmd_portfolio(message: Message):
-    await run_with_typing(
-        message,
-        AgentBridge.run_portfolio_summary(),
-        "💼 Собираю данные портфеля... (30–60 сек)",
-    )
+    """Portfolio summary with auto-generated chart."""
+    status = await message.answer("💼 Собираю данные портфеля... (30–60 сек)")
+    stop = asyncio.Event()
+    typing_task = asyncio.create_task(keep_typing(message, stop))
+
+    try:
+        # Run agent for text summary
+        result = await AgentBridge.run_portfolio_summary()
+        for chunk in format_for_telegram(result):
+            await message.answer(chunk)
+
+        # Auto-generate and send chart
+        try:
+            portfolio = await asyncio.to_thread(_collect_portfolio_data)
+            if portfolio and sum(portfolio.values()) > 1:
+                from ..charts import portfolio_pie
+                png = portfolio_pie(portfolio, "Портфель Zinin Corp")
+                if png:
+                    photo = BufferedInputFile(png, filename="portfolio.png")
+                    total = sum(portfolio.values())
+                    await message.answer_photo(
+                        photo=photo,
+                        caption=f"Портфель — ${total:,.0f}",
+                        parse_mode=ParseMode.HTML,
+                    )
+        except Exception as e:
+            logger.debug(f"Chart generation skipped: {e}")
+
+    except Exception as e:
+        logger.error(f"Portfolio error: {e}", exc_info=True)
+        await message.answer(f"Ошибка: {str(e)[:300]}")
+    finally:
+        stop.set()
+        await typing_task
+        try:
+            await status.delete()
+        except Exception:
+            pass
 
 
 @router.message(Command("balances"))
 async def cmd_balances(message: Message):
-    """Show latest balances from parsed screenshots."""
+    """Show latest balances from parsed screenshots as a table."""
     latest = get_latest_balances()
     if not latest:
         await message.answer(
-            "Пока нет данных из скриншотов. "
+            "Пока нет данных из скриншотов.\n"
             "Пришлите скриншот баланса TBC Bank или @wallet."
         )
         return
 
-    lines = ["Последние балансы (из скриншотов):\n"]
+    rows = []
     for source, data in latest.items():
-        lines.append(f"{source} (обновлено: {data['extracted_at'][:10]})")
+        date_str = data.get("extracted_at", "?")[:10]
         for acc in data.get("accounts", []):
-            name = acc.get("name", "N/A")
             balance = acc.get("balance", "?")
             currency = acc.get("currency", "")
-            lines.append(f"  {name}: {balance} {currency}")
-        lines.append("")
+            rows.append([source, f"{balance} {currency}", date_str])
 
-    await message.answer("\n".join(lines))
+    table = mono_table(["Источник", "Баланс", "Дата"], rows)
+    await message.answer(
+        f"<b>Данные из скриншотов</b>\n\n{table}",
+        parse_mode=ParseMode.HTML,
+    )
 
 
 @router.message(Command("tinkoff"))
 async def cmd_tinkoff(message: Message):
-    """Show Tinkoff transaction summary."""
+    """Show Tinkoff transaction summary with tables and sparklines."""
     from ..transaction_storage import get_summary
     summary = get_summary()
     if not summary:
@@ -122,31 +191,42 @@ async def cmd_tinkoff(message: Message):
         )
         return
 
+    period_start = summary['period'].get('start', '?')[:10]
+    period_end = summary['period'].get('end', '?')[:10]
+
     lines = [
-        f"Т-Банк: {summary['period'].get('start', '?')[:10]} — {summary['period'].get('end', '?')[:10]}",
-        f"Операций: {summary['total_count']} (карты: {', '.join(summary['cards'])})",
+        f"<b>Т-Банк</b>  {period_start} — {period_end}",
+        f"Операций: {summary['total_count']}",
         "",
-        f"Доходы: +{summary['income']:,.2f} RUB",
-        f"Расходы: -{summary['expenses']:,.2f} RUB",
-        f"Нетто: {summary['net']:,.2f} RUB",
     ]
 
+    # Summary table
+    summary_rows = [
+        ["Доходы", f"+{summary['income']:,.0f} RUB"],
+        ["Расходы", f"-{summary['expenses']:,.0f} RUB"],
+        ["Нетто", f"{summary['net']:,.0f} RUB"],
+    ]
+    lines.append(mono_table(["", "Сумма"], summary_rows))
+
+    # Top categories
     if summary.get("top_categories"):
         lines.append("")
-        lines.append("Топ расходов:")
-        for cat, amt in summary["top_categories"][:10]:
-            lines.append(f"  {cat}: {amt:,.2f} RUB")
+        cat_rows = [
+            [cat, f"{amt:,.0f} RUB"]
+            for cat, amt in summary["top_categories"][:8]
+        ]
+        lines.append(mono_table(["Категория", "Расход"], cat_rows))
 
+    # Monthly sparkline
     if summary.get("monthly"):
-        lines.append("")
-        lines.append("По месяцам:")
-        for month, data in sorted(summary["monthly"].items(), reverse=True)[:6]:
-            lines.append(
-                f"  {month}: +{data['income']:,.0f} / -{data['expenses']:,.0f}"
-            )
+        months = sorted(summary["monthly"].items())[-6:]
+        expense_values = [m[1]["expenses"] for m in months]
+        spark = sparkline(expense_values)
+        month_labels = " ".join(m[0][-2:] for m in months)
+        lines.append(f"\nРасходы по месяцам:\n{spark}\n{month_labels}")
 
-    lines.append(f"\nОбновлено: {summary['last_updated'][:16]}")
-    await message.answer("\n".join(lines))
+    lines.append(f"\n<i>Обновлено: {summary['last_updated'][:16]}</i>")
+    await message.answer("\n".join(lines), parse_mode=ParseMode.HTML)
 
 
 @router.message(Command("chart"))
@@ -208,7 +288,7 @@ async def cmd_expenses(message: Message):
         return
 
     total = sum(categories.values())
-    caption = f"<b>Расходы — ₽{total:,.0f}</b>\nТоп {len(categories)} категорий"
+    caption = f"<b>Расходы — RUB {total:,.0f}</b>\nТоп {len(categories)} категорий"
 
     photo = BufferedInputFile(png, filename="expenses.png")
     await message.answer_photo(photo=photo, caption=caption, parse_mode=ParseMode.HTML)
@@ -217,6 +297,7 @@ async def cmd_expenses(message: Message):
 def _collect_portfolio_data() -> dict[str, float]:
     """Collect balance data from all tools for chart generation."""
     import os
+    import re
     portfolio = {}
 
     # EVM via Moralis
@@ -225,9 +306,7 @@ def _collect_portfolio_data() -> dict[str, float]:
             from src.tools.financial.moralis_evm import EVMPortfolioTool
             tool = EVMPortfolioTool()
             result = tool._run("")
-            # Parse total from first line
             if "total" in result.lower():
-                import re
                 m = re.search(r"\$([0-9,.]+)\s+USD\s+total", result)
                 if m:
                     portfolio["EVM (5 chains)"] = float(m.group(1).replace(",", ""))
@@ -240,7 +319,6 @@ def _collect_portfolio_data() -> dict[str, float]:
         tool = PapayaPositionsTool()
         result = tool._run()
         if "ИТОГО" in result:
-            import re
             m = re.search(r"\$([0-9,.]+)", result.split("ИТОГО")[-1])
             if m:
                 portfolio["Papaya"] = float(m.group(1).replace(",", ""))
@@ -253,12 +331,25 @@ def _collect_portfolio_data() -> dict[str, float]:
         tool = EventumPortfolioTool()
         result = tool._run()
         if "ИТОГО" in result:
-            import re
             m = re.search(r"\$([0-9,.]+)", result.split("ИТОГО")[-1])
             if m:
                 portfolio["Eventum L3"] = float(m.group(1).replace(",", ""))
     except Exception as e:
         logger.debug(f"Eventum data: {e}")
+
+    # Stacks
+    try:
+        from src.tools.financial.stacks import StacksPortfolioTool
+        tool = StacksPortfolioTool()
+        result = tool._run()
+        if "ИТОГО STX:" in result:
+            m = re.search(r"ИТОГО STX:\s*([0-9,.]+)", result)
+            if m:
+                stx_amount = float(m.group(1).replace(",", ""))
+                if stx_amount > 0:
+                    portfolio["Stacks"] = stx_amount * 0.5  # rough USD estimate
+    except Exception as e:
+        logger.debug(f"Stacks data: {e}")
 
     # Solana
     try:
@@ -266,7 +357,6 @@ def _collect_portfolio_data() -> dict[str, float]:
         tool = SolanaPortfolioTool()
         result = tool._run("")
         if "total" in result.lower():
-            import re
             m = re.search(r"\$([0-9,.]+)\s+USD\s+total", result)
             if m:
                 portfolio["Solana"] = float(m.group(1).replace(",", ""))
@@ -279,7 +369,6 @@ def _collect_portfolio_data() -> dict[str, float]:
         tool = TONPortfolioTool()
         result = tool._run("")
         if "total" in result.lower():
-            import re
             m = re.search(r"\$([0-9,.]+)\s+USD\s+total", result)
             if m:
                 portfolio["TON"] = float(m.group(1).replace(",", ""))
@@ -289,16 +378,73 @@ def _collect_portfolio_data() -> dict[str, float]:
     return portfolio
 
 
+@router.message(Command("status"))
+async def cmd_status(message: Message):
+    """Show status of all financial data connectors."""
+    import os
+    from src.tools.financial.base import CredentialBroker, load_financial_config
+
+    config = load_financial_config()
+    crypto = config.get("crypto_wallets", {})
+    banks = config.get("banks", {})
+    payments = config.get("payments", {})
+
+    rows = []
+
+    # API-based connectors
+    checks = [
+        ("EVM (Moralis)", "moralis", crypto.get("evm", {}).get("enabled")),
+        ("Solana (Helius)", "helius", crypto.get("solana", {}).get("enabled")),
+        ("TON (TonAPI)", "tonapi", crypto.get("ton", {}).get("enabled")),
+        ("Tribute", "tribute", payments.get("tribute", {}).get("enabled")),
+        ("T-Bank", "tbank", banks.get("tbank", {}).get("enabled")),
+    ]
+
+    for name, service, enabled in checks:
+        if not enabled:
+            rows.append([name, "ВЫКЛ"])
+        elif CredentialBroker.is_configured(service):
+            rows.append([name, "OK"])
+        else:
+            rows.append([name, "НЕТ КЛЮЧА"])
+
+    # Free API connectors (no key needed)
+    free_checks = [
+        ("Papaya", bool(crypto.get("evm", {}).get("addresses"))),
+        ("Stacks", bool(crypto.get("stacks", {}).get("addresses"))),
+        ("Eventum", bool(crypto.get("eventum", {}).get("addresses"))),
+        ("CoinGecko", True),
+        ("Forex", True),
+    ]
+    for name, has_config in free_checks:
+        rows.append([name, "OK" if has_config else "НЕТ КОНФИГ"])
+
+    # Data sources
+    screenshots = get_latest_balances()
+    from ..transaction_storage import get_summary
+    tinkoff = get_summary()
+
+    rows.append(["Скриншоты", f"{len(screenshots)} ист." if screenshots else "НЕТ ДАННЫХ"])
+    rows.append(["Т-Банк CSV", f"{tinkoff['total_count']} оп." if tinkoff else "НЕТ ДАННЫХ"])
+
+    table = mono_table(["Источник", "Статус"], rows)
+    await message.answer(
+        f"<b>Статус коннекторов</b>\n\n{table}",
+        parse_mode=ParseMode.HTML,
+    )
+
+
 @router.message(Command("help"))
 async def cmd_help(message: Message):
     await message.answer(
         "Текст → Маттиас отвечает как CFO\n"
         "CSV-файл → разбор выписки Т-Банка\n"
         "Фото/скриншоты → распознавание данных\n\n"
-        "/report — Финансовый отчёт\n"
-        "/portfolio — Портфель (банки + крипто)\n"
+        "/report — Финансовый отчёт + дашборд\n"
+        "/portfolio — Портфель + график\n"
         "/chart — Круговая диаграмма портфеля\n"
         "/expenses — График расходов (Т-Банк)\n"
         "/tinkoff — Сводка по Т-Банку\n"
         "/balances — Данные из скриншотов\n"
+        "/status — Статус коннекторов\n"
     )

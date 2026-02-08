@@ -1,38 +1,26 @@
-"""Storage for financial data extracted from screenshots."""
+"""Storage for financial data extracted from screenshots.
 
-import json
+Uses persistent_storage (PostgreSQL on Railway, local files in dev).
+Data survives container restarts.
+"""
+
 import logging
-import os
 from datetime import datetime
+
+from . import persistent_storage as store
 
 logger = logging.getLogger(__name__)
 
+STORAGE_KEY = "screenshot_data"
 MAX_ENTRIES = 200
 
 
-def _storage_path() -> str:
-    for p in ["/app/data/screenshot_data.json", "data/screenshot_data.json"]:
-        if os.path.isdir(os.path.dirname(p) or "."):
-            return p
-    return "data/screenshot_data.json"
-
-
 def load_all_screenshots() -> list[dict]:
-    path = _storage_path()
-    if os.path.exists(path):
-        try:
-            with open(path, "r", encoding="utf-8") as f:
-                data = json.load(f)
-                return data if isinstance(data, list) else []
-        except Exception:
-            pass
-    return []
+    return store.load(STORAGE_KEY, [])
 
 
 def save_screenshot_data(extracted: dict) -> bool:
     """Append extracted screenshot data to storage."""
-    data = load_all_screenshots()
-
     entry = {
         "extracted_at": datetime.utcnow().isoformat(),
         "source": extracted.get("source", "unknown"),
@@ -41,20 +29,7 @@ def save_screenshot_data(extracted: dict) -> bool:
         "transactions": extracted.get("transactions", []),
         "summary": extracted.get("summary", ""),
     }
-    data.append(entry)
-
-    if len(data) > MAX_ENTRIES:
-        data = data[-MAX_ENTRIES:]
-
-    try:
-        path = _storage_path()
-        os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
-        with open(path, "w", encoding="utf-8") as f:
-            json.dump(data, f, ensure_ascii=False, indent=2, default=str)
-        return True
-    except Exception as e:
-        logger.error(f"Failed to save screenshot data: {e}")
-        return False
+    return store.append_to_list(STORAGE_KEY, entry, max_items=MAX_ENTRIES)
 
 
 def get_latest_balances() -> dict[str, dict]:

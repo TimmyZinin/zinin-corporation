@@ -5,8 +5,6 @@ Explorer runs Blockscout with public API — no key needed.
 """
 
 import logging
-import os
-import yaml
 
 import httpx
 from crewai.tools import BaseTool
@@ -17,14 +15,11 @@ EXPLORER_API = "https://explorer.evedex.com/api/v2"
 
 
 def _load_eventum_addresses() -> list[str]:
-    """Load Eventum addresses from financial config."""
-    for path in ["config/financial_sources.yaml", "/app/config/financial_sources.yaml"]:
-        if os.path.exists(path):
-            with open(path, "r") as f:
-                config = yaml.safe_load(f) or {}
-            addrs = config.get("crypto_wallets", {}).get("eventum", {}).get("addresses", [])
-            return [a for a in addrs if a]
-    return []
+    """Load Eventum addresses from financial config (supports env var on Railway)."""
+    from .base import load_financial_config
+    config = load_financial_config()
+    addrs = config.get("crypto_wallets", {}).get("eventum", {}).get("addresses", [])
+    return [a for a in addrs if a]
 
 
 def get_eventum_balance(address: str) -> dict | None:

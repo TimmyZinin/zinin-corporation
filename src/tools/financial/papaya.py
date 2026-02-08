@@ -177,17 +177,11 @@ def get_all_papaya_positions(addresses: list[str]) -> list[dict]:
 
 
 def _load_evm_addresses() -> list[str]:
-    """Load EVM addresses from financial config."""
-    import os
-    import yaml
-
-    for path in ["config/financial_sources.yaml", "/app/config/financial_sources.yaml"]:
-        if os.path.exists(path):
-            with open(path, "r") as f:
-                config = yaml.safe_load(f) or {}
-            addrs = config.get("crypto_wallets", {}).get("evm", {}).get("addresses", [])
-            return [a for a in addrs if a]
-    return []
+    """Load EVM addresses from financial config (supports FINANCIAL_CONFIG_YAML env)."""
+    from .base import load_financial_config
+    config = load_financial_config()
+    addrs = config.get("crypto_wallets", {}).get("evm", {}).get("addresses", [])
+    return [a for a in addrs if a]
 
 
 class PapayaPositionsTool(BaseTool):

@@ -54,15 +54,31 @@ class TestFormatters:
 # ──────────────────────────────────────────────────────────
 
 class TestScreenshotStorage:
-    def test_save_and_load(self, tmp_path):
+    def test_save_and_load(self):
         from src.telegram.screenshot_storage import (
             save_screenshot_data,
             load_all_screenshots,
-            _storage_path,
         )
 
-        json_path = str(tmp_path / "screenshots.json")
-        with patch("src.telegram.screenshot_storage._storage_path", return_value=json_path):
+        storage = {"screenshot_data": []}
+
+        def mock_load(key, default=None):
+            return storage.get(key, default)
+
+        def mock_save(key, data):
+            storage[key] = data
+
+        def mock_append(key, item, max_items=200):
+            lst = storage.get(key, [])
+            lst.append(item)
+            if len(lst) > max_items:
+                lst = lst[-max_items:]
+            storage[key] = lst
+            return True
+
+        with patch("src.telegram.screenshot_storage.store.load", side_effect=mock_load), \
+             patch("src.telegram.screenshot_storage.store.save", side_effect=mock_save), \
+             patch("src.telegram.screenshot_storage.store.append_to_list", side_effect=mock_append):
             data = {
                 "source": "TBC Bank",
                 "screen_type": "balance",
@@ -73,7 +89,8 @@ class TestScreenshotStorage:
             assert save_screenshot_data(data) is True
 
             loaded = load_all_screenshots()
-            # Will load from default path, not tmp. Test the function logic separately.
+            assert len(loaded) == 1
+            assert loaded[0]["source"] == "TBC Bank"
 
     def test_get_latest_balances_empty(self):
         from src.telegram.screenshot_storage import get_latest_balances
@@ -100,22 +117,24 @@ class TestScreenshotStorage:
             assert "TBC Bank" in result
             assert result["TBC Bank"]["accounts"][0]["balance"] == "1600"
 
-    def test_max_entries_cap(self, tmp_path):
+    def test_max_entries_cap(self):
         from src.telegram.screenshot_storage import save_screenshot_data, MAX_ENTRIES
 
-        json_path = str(tmp_path / "screenshots.json")
         # Pre-fill with MAX_ENTRIES items
         initial = [{"source": f"test_{i}", "accounts": [], "extracted_at": "2026-01-01"} for i in range(MAX_ENTRIES)]
-        os.makedirs(os.path.dirname(json_path) or ".", exist_ok=True)
-        with open(json_path, "w") as f:
-            json.dump(initial, f)
+        storage = {"screenshot_data": list(initial)}
 
-        with patch("src.telegram.screenshot_storage._storage_path", return_value=json_path):
+        def mock_append(key, item, max_items=200):
+            lst = storage.get(key, [])
+            lst.append(item)
+            if len(lst) > max_items:
+                lst = lst[-max_items:]
+            storage[key] = lst
+            return True
+
+        with patch("src.telegram.screenshot_storage.store.append_to_list", side_effect=mock_append):
             save_screenshot_data({"source": "new", "accounts": [], "summary": "new"})
-
-            with open(json_path) as f:
-                data = json.load(f)
-            assert len(data) <= MAX_ENTRIES
+            assert len(storage["screenshot_data"]) <= MAX_ENTRIES
 
 
 # ──────────────────────────────────────────────────────────
@@ -325,11 +344,19 @@ class TestTinkoffParser:
 # ──────────────────────────────────────────────────────────
 
 class TestTransactionStorage:
-    def test_save_and_load(self, tmp_path):
-        from src.telegram.transaction_storage import save_statement, load_transactions, _storage_path
+    def test_save_and_load(self):
+        from src.telegram.transaction_storage import save_statement, load_transactions
 
-        json_path = str(tmp_path / "tinkoff_transactions.json")
-        with patch("src.telegram.transaction_storage._storage_path", return_value=json_path):
+        storage = {}
+
+        def mock_load(key, default=None):
+            return storage.get(key, default)
+
+        def mock_save(key, data):
+            storage[key] = data
+
+        with patch("src.telegram.transaction_storage.store.load", side_effect=mock_load), \
+             patch("src.telegram.transaction_storage.store.save", side_effect=mock_save):
             parsed = {
                 "transactions": [
                     {"date": "2026-01-01T10:00:00", "amount": -500, "description": "Test", "card": "*1234", "op_type": "debit"},
@@ -342,11 +369,19 @@ class TestTransactionStorage:
             txs = load_transactions(limit=10)
             assert len(txs) == 2
 
-    def test_deduplication(self, tmp_path):
+    def test_deduplication(self):
         from src.telegram.transaction_storage import save_statement
 
-        json_path = str(tmp_path / "tinkoff_transactions.json")
-        with patch("src.telegram.transaction_storage._storage_path", return_value=json_path):
+        storage = {}
+
+        def mock_load(key, default=None):
+            return storage.get(key, default)
+
+        def mock_save(key, data):
+            storage[key] = data
+
+        with patch("src.telegram.transaction_storage.store.load", side_effect=mock_load), \
+             patch("src.telegram.transaction_storage.store.save", side_effect=mock_save):
             parsed = {
                 "transactions": [
                     {"date": "2026-01-01T10:00:00", "amount": -500, "description": "Test", "card": "*1234", "op_type": "debit"},

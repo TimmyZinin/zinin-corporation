@@ -172,6 +172,39 @@ class PortfolioSummaryTool(BaseTool):
             else:
                 warnings.append("TON enabled but no addresses configured")
 
+        # Papaya (free API, no key needed)
+        if crypto_config.get("evm", {}).get("addresses"):
+            try:
+                from .papaya import PapayaPositionsTool
+                tool = PapayaPositionsTool()
+                result = tool._run()
+                if "позиций не найдено" not in result:
+                    results.append(result)
+            except Exception as e:
+                warnings.append(f"Papaya: {e}")
+
+        # Stacks (free API, no key needed)
+        if crypto_config.get("stacks", {}).get("addresses"):
+            try:
+                from .stacks import StacksPortfolioTool
+                tool = StacksPortfolioTool()
+                result = tool._run()
+                if "балансов не найдено" not in result:
+                    results.append(result)
+            except Exception as e:
+                warnings.append(f"Stacks: {e}")
+
+        # Eventum (free API, no key needed)
+        if crypto_config.get("eventum", {}).get("addresses"):
+            try:
+                from .eventum import EventumPortfolioTool
+                tool = EventumPortfolioTool()
+                result = tool._run()
+                if "балансов не найдено" not in result:
+                    results.append(result)
+            except Exception as e:
+                warnings.append(f"Eventum: {e}")
+
         if results:
             return "CRYPTO:\n" + "\n".join(results)
         return ""

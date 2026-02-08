@@ -1,21 +1,18 @@
-"""Storage for Tinkoff bank transactions parsed from CSV statements."""
+"""Storage for Tinkoff bank transactions parsed from CSV statements.
 
-import json
+Uses persistent_storage (PostgreSQL on Railway, local files in dev).
+Data survives container restarts.
+"""
+
 import logging
-import os
 from datetime import datetime
 from typing import Optional
 
+from . import persistent_storage as store
+
 logger = logging.getLogger(__name__)
 
-
-def _storage_path() -> str:
-    """Return path to the transactions JSON file."""
-    for base in ["/app/data", "data"]:
-        if os.path.isdir(base):
-            return os.path.join(base, "tinkoff_transactions.json")
-    os.makedirs("data", exist_ok=True)
-    return "data/tinkoff_transactions.json"
+STORAGE_KEY = "tinkoff_transactions"
 
 
 def save_statement(parsed: dict) -> int:
@@ -24,8 +21,9 @@ def save_statement(parsed: dict) -> int:
     Returns number of new transactions added.
     """
     try:
-        path = _storage_path()
-        existing = _load_raw(path)
+        existing = store.load(STORAGE_KEY, {"transactions": [], "cards": [], "period": {}})
+        if not isinstance(existing, dict):
+            existing = {"transactions": [], "cards": [], "period": {}}
 
         # Build dedup key set from existing transactions
         existing_keys = set()
@@ -63,9 +61,7 @@ def save_statement(parsed: dict) -> int:
         if dates:
             existing["period"] = {"start": min(dates), "end": max(dates)}
 
-        with open(path, "w", encoding="utf-8") as f:
-            json.dump(existing, f, ensure_ascii=False, indent=2)
-
+        store.save(STORAGE_KEY, existing)
         logger.info(f"Saved {new_count} new transactions (total: {existing['total_count']})")
         return new_count
 
@@ -83,7 +79,9 @@ def load_transactions(
 ) -> list[dict]:
     """Load transactions with optional filters."""
     try:
-        data = _load_raw(_storage_path())
+        data = store.load(STORAGE_KEY, {"transactions": []})
+        if not isinstance(data, dict):
+            data = {"transactions": []}
         txs = data.get("transactions", [])
 
         if card:
@@ -105,7 +103,9 @@ def load_transactions(
 def get_summary() -> Optional[dict]:
     """Get overall summary of stored transactions."""
     try:
-        data = _load_raw(_storage_path())
+        data = store.load(STORAGE_KEY, {"transactions": []})
+        if not isinstance(data, dict):
+            return None
         if not data.get("transactions"):
             return None
 
@@ -155,14 +155,3 @@ def get_summary() -> Optional[dict]:
 def _tx_key(tx: dict) -> str:
     """Generate a deduplication key for a transaction."""
     return f"{tx.get('date', '')}|{tx.get('amount', '')}|{tx.get('description', '')}|{tx.get('card', '')}"
-
-
-def _load_raw(path: str) -> dict:
-    """Load raw JSON data from file."""
-    if not os.path.exists(path):
-        return {"transactions": [], "cards": [], "period": {}}
-    try:
-        with open(path, "r", encoding="utf-8") as f:
-            return json.load(f)
-    except (json.JSONDecodeError, IOError):
-        return {"transactions": [], "cards": [], "period": {}}

@@ -34,26 +34,23 @@ logger = logging.getLogger(__name__)
 # Local payment storage (webhook-collected)
 # ──────────────────────────────────────────────────────────
 
-def _payments_path() -> str:
-    for p in ["/app/data/tribute_payments.json", "data/tribute_payments.json"]:
-        if os.path.exists(os.path.dirname(p) or "."):
-            return p
-    return "data/tribute_payments.json"
+TRIBUTE_STORAGE_KEY = "tribute_payments"
 
 
 def _load_payments() -> list[dict]:
-    path = _payments_path()
-    if os.path.exists(path):
-        with open(path, "r", encoding="utf-8") as f:
-            return json.load(f)
-    return []
+    try:
+        from src.telegram.persistent_storage import load
+        return load(TRIBUTE_STORAGE_KEY, [])
+    except ImportError:
+        return []
 
 
 def _save_payments(payments: list[dict]):
-    path = _payments_path()
-    os.makedirs(os.path.dirname(path), exist_ok=True)
-    with open(path, "w", encoding="utf-8") as f:
-        json.dump(payments, f, indent=2, ensure_ascii=False, default=str)
+    try:
+        from src.telegram.persistent_storage import save
+        save(TRIBUTE_STORAGE_KEY, payments)
+    except ImportError:
+        pass
 
 
 # ──────────────────────────────────────────────────────────
