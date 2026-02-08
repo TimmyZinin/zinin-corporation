@@ -595,7 +595,7 @@ class VideoCreator(BaseTool):
     def _create_audiogram(self, audio_path: str, title: str, duration: int) -> str:
         """Create audiogram video from audio file."""
         try:
-            from moviepy import AudioFileClip, ImageClip, CompositeVideoClip, TextClip
+            from moviepy import AudioFileClip, ImageClip
         except ImportError:
             return "ERROR: moviepy не установлен"
 
@@ -627,16 +627,14 @@ class VideoCreator(BaseTool):
             bg_clip = ImageClip(bg_path).with_duration(clip_duration)
 
             if title:
-                txt_clip = TextClip(
-                    text=title[:60],
-                    font_size=40,
-                    color="white",
-                    font="DejaVu-Sans-Bold",
-                    size=(900, None),
-                ).with_position(("center", 80)).with_duration(clip_duration)
-                video = CompositeVideoClip([bg_clip, txt_clip])
-            else:
-                video = bg_clip
+                # Burn title into background image with Pillow (font-safe)
+                font_title = _load_font(36)
+                draw.text((540 - len(title[:60]) * 9, 60), title[:60],
+                          fill="white", font=font_title, anchor="mm" if hasattr(draw, 'textbbox') else None)
+                bg.save(bg_path)
+                bg_clip = ImageClip(bg_path).with_duration(clip_duration)
+
+            video = bg_clip
 
             video = video.with_audio(audio.subclipped(0, clip_duration))
 

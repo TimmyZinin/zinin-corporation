@@ -97,21 +97,36 @@ EXPECTED_OUTPUT = (
     "⛔ НИКОГДА не выдумывай цифры, данные или факты. Если данных нет — скажи прямо."
 )
 
-TASK_WRAPPER = (
+TASK_WRAPPER_BASE = (
     "\n\nВАЖНО: Дай ПОЛНЫЙ содержательный ответ. "
     "НИКОГДА НЕ ПРЕДСТАВЛЯЙСЯ. Тим знает кто ты. СРАЗУ переходи к сути. "
     "Ответ должен содержать конкретные детали, шаги и рекомендации.\n\n"
     "⛔ ЗАПРЕТ НА ВЫДУМКИ: НИКОГДА не придумывай цифры, данные, метрики или факты. "
     "Используй ТОЛЬКО реальные данные из инструментов. "
     "Если данных нет — честно скажи: 'У меня нет данных по этому вопросу'. "
-    "Ложь КАТЕГОРИЧЕСКИ ЗАПРЕЩЕНА — Тим принимает решения на основе твоих ответов.\n\n"
-    "⚡ ДЕЛЕГИРОВАНИЕ: Если задача касается контента/SMM/публикаций — "
+    "Ложь КАТЕГОРИЧЕСКИ ЗАПРЕЩЕНА — Тим принимает решения на основе твоих ответов."
+)
+
+# Delegation instructions — ONLY for CEO (manager)
+TASK_WRAPPER_DELEGATION = (
+    "\n\n⚡ ДЕЛЕГИРОВАНИЕ: Если задача касается контента/SMM/публикаций — "
     "ВЫЗОВИ инструмент 'Delegate Task' с agent_name='smm'. "
     "Если задача про финансы/бюджет — ВЫЗОВИ 'Delegate Task' с agent_name='accountant'. "
     "Если задача про технику/API — ВЫЗОВИ 'Delegate Task' с agent_name='automator'. "
     "Если задача про дизайн/картинки/визуал/инфографику/видео — ВЫЗОВИ 'Delegate Task' с agent_name='designer'. "
     "НЕ пиши 'делегирую' или 'поручаю' в тексте — ИСПОЛЬЗУЙ ИНСТРУМЕНТ."
 )
+
+# Specialist reminder — for non-manager agents
+TASK_WRAPPER_SPECIALIST = (
+    "\n\n⚡ ИСПОЛЬЗУЙ СВОИ ИНСТРУМЕНТЫ. Ты — специалист. "
+    "Не делегируй задачу другим — выполни её сам, вызывая свои инструменты. "
+    "Верни конкретный результат с данными из инструментов."
+)
+
+# Combined wrappers
+TASK_WRAPPER = TASK_WRAPPER_BASE + TASK_WRAPPER_DELEGATION  # for manager
+TASK_WRAPPER_AGENT = TASK_WRAPPER_BASE + TASK_WRAPPER_SPECIALIST  # for specialists
 
 
 def load_crew_config() -> dict:
@@ -241,7 +256,8 @@ class AICorporation:
         if hasattr(agent, '_times_executed'):
             agent._times_executed = 0
 
-        full_description = f"{task_description}{TASK_WRAPPER}"
+        wrapper = TASK_WRAPPER if agent_name == "manager" else TASK_WRAPPER_AGENT
+        full_description = f"{task_description}{wrapper}"
         task = create_task(
             description=full_description,
             expected_output=EXPECTED_OUTPUT,
@@ -317,9 +333,26 @@ class AICorporation:
         },
     ]
 
+    # Keywords that force designer even if other agent keywords are present
+    _DESIGNER_PRIORITY_KEYWORDS = [
+        "картинк", "изображен", "баннер", "инфографик", "визуал",
+        "лого", "диаграмм", "обложк", "image", "chart",
+        "видео", "video", "дизайн",
+    ]
+
     def _detect_delegation_need(self, text: str) -> Optional[dict]:
-        """Detect if manager task should be auto-delegated to a specialist."""
+        """Detect if manager task should be auto-delegated to a specialist.
+
+        Designer keywords take priority over SMM when both match,
+        because 'создай изображение для поста' is a design task, not SMM.
+        """
         text_lower = text.lower()
+
+        # Check if designer priority keywords are present — they override SMM
+        for kw in self._DESIGNER_PRIORITY_KEYWORDS:
+            if kw in text_lower:
+                return {"agent_key": "designer"}
+
         for rule in self._DELEGATION_RULES:
             for kw in rule["keywords"]:
                 if kw in text_lower:

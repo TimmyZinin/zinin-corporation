@@ -436,6 +436,23 @@ class TestDesignerAgentIntegration:
         assert "дизайн" in designer_rules[0]["keywords"]
         assert "визуал" in designer_rules[0]["keywords"]
 
+    def test_designer_priority_over_smm(self):
+        """Design keywords should override SMM for mixed prompts like 'create image for post'."""
+        from src.crew import AICorporation
+        corp = AICorporation()
+        # "создай изображение для поста" has both "изображен" (designer) and "пост" (smm)
+        result = corp._detect_delegation_need("Создай изображение для поста в LinkedIn")
+        assert result is not None
+        assert result["agent_key"] == "designer"
+
+    def test_smm_still_works_for_content(self):
+        """Pure content tasks should still go to SMM."""
+        from src.crew import AICorporation
+        corp = AICorporation()
+        result = corp._detect_delegation_need("Напиши пост для LinkedIn про карьеру")
+        assert result is not None
+        assert result["agent_key"] == "smm"
+
     def test_agent_map_includes_designer(self):
         """After initialization, agent_map should have designer key."""
         from src.crew import AICorporation
