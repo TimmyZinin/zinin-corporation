@@ -157,6 +157,20 @@ def _manager_guardrail(task_output) -> tuple[bool, str]:
     return (True, text)
 
 
+def _specialist_guardrail(task_output) -> tuple[bool, str]:
+    """Guardrail for specialists: reject too-short answers without tool data."""
+    try:
+        text = task_output.raw if hasattr(task_output, 'raw') else str(task_output)
+    except Exception:
+        text = str(task_output) if task_output else ""
+    if len(text) < 150:
+        return (False,
+                "Ответ слишком короткий. Ты ОБЯЗАН ВЫЗВАТЬ свои инструменты и вернуть "
+                "результат с РЕАЛЬНЫМИ данными. НЕ пиши 'запускаю' или 'начинаю' — "
+                "ИСПОЛЬЗУЙ Action: <название инструмента> ПРЯМО СЕЙЧАС.")
+    return (True, text)
+
+
 def create_task(description: str, expected_output: str, agent, context=None,
                 output_pydantic=None, tools=None, guardrail=None) -> Task:
     """Create a task for an agent"""
@@ -399,6 +413,7 @@ class AICorporation:
                         specialist_result = self._run_agent(
                             specialist_agent, task_description, specialist_key,
                             use_memory=use_memory,
+                            guardrail=_specialist_guardrail,
                         )
                         log_task_end(specialist_key, short_desc, success=True)
                     except Exception as e:
