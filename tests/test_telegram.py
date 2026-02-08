@@ -396,6 +396,175 @@ class TestTransactionStorage:
 # Test: TinkoffDataTool
 # ──────────────────────────────────────────────────────────
 
+# ──────────────────────────────────────────────────────────
+# Test: Charts & Dashboard
+# ──────────────────────────────────────────────────────────
+
+SAMPLE_DASHBOARD_DATA = {
+    "crypto": {"EVM (5 chains)": 932.0, "Papaya": 296.6, "Eventum L3": 405.34, "Solana": 6.74, "TON": 10.23},
+    "fiat": {"T-Bank": {"usd": 870.0, "original": "85,700 RUB"}},
+    "manual": {"TG @wallet": {"usd": 870.0, "original": "~85,700 RUB"}},
+    "total_usd": 3390.91,
+    "tbank_summary": {
+        "income": 125000.0, "expenses": 87000.0, "net": 38000.0,
+        "top_categories": [("Рестораны", 15000), ("Такси", 12000), ("Подписки", 8000)],
+        "monthly": {"2025-10": {"income": 55000, "expenses": 40000}, "2025-11": {"income": 48000, "expenses": 38000}},
+    },
+    "rates": {"RUB": 98.5, "GEL": 2.73},
+    "timestamp": "2026-02-08 15:30",
+}
+
+
+class TestCharts:
+    def test_portfolio_pie_returns_png(self):
+        from src.telegram.charts import portfolio_pie
+        png = portfolio_pie({"BTC": 100, "ETH": 50}, "Test")
+        assert len(png) > 1000
+        assert png[:8] == b"\x89PNG\r\n\x1a\n"
+
+    def test_portfolio_pie_empty_data(self):
+        from src.telegram.charts import portfolio_pie
+        assert portfolio_pie({}) == b""
+        assert portfolio_pie({"tiny": 0.1}) == b""
+
+    def test_donut_b64_returns_base64(self):
+        from src.telegram.charts import _render_donut_b64
+        b64 = _render_donut_b64({"BTC": 100, "ETH": 50}, 150.0)
+        assert len(b64) > 100
+        import base64
+        png = base64.b64decode(b64)
+        assert png[:4] == b"\x89PNG"
+
+    def test_donut_b64_empty(self):
+        from src.telegram.charts import _render_donut_b64
+        assert _render_donut_b64({}, 0) == ""
+
+    def test_text_sparkline(self):
+        from src.telegram.charts import _text_sparkline
+        spark = _text_sparkline([10, 20, 15, 30, 5])
+        assert len(spark) == 5
+        assert all(c in "▁▂▃▄▅▆▇█" for c in spark)
+
+    def test_text_sparkline_empty(self):
+        from src.telegram.charts import _text_sparkline
+        assert _text_sparkline([]) == ""
+
+    def test_text_sparkline_constant(self):
+        from src.telegram.charts import _text_sparkline
+        spark = _text_sparkline([42, 42, 42])
+        assert len(spark) == 3
+
+    def test_build_dashboard_html(self):
+        from src.telegram.charts import _build_dashboard_html
+        html = _build_dashboard_html(SAMPLE_DASHBOARD_DATA, "fakebase64")
+        assert "ZININ CORP" in html
+        assert "$3,391" in html
+        assert "EVM (5 chains)" in html
+        assert "T-Bank" in html
+        assert "85,700 RUB" in html
+        assert "+125,000" in html
+        assert "-87,000" in html
+        assert "Рестораны" in html
+        assert "1 USD = 98.5 RUB" in html
+
+    def test_build_dashboard_html_no_tbank(self):
+        from src.telegram.charts import _build_dashboard_html
+        data = {**SAMPLE_DASHBOARD_DATA, "tbank_summary": None}
+        html = _build_dashboard_html(data, "fakebase64")
+        assert "ZININ CORP" in html
+        assert "T-BANK" not in html
+
+    def test_html_to_png_no_chromium(self):
+        from src.telegram.charts import _html_to_png
+        with patch("shutil.which", return_value=None), \
+             patch("os.path.exists", return_value=False), \
+             patch.dict(os.environ, {}, clear=True):
+            result = _html_to_png("<html><body>test</body></html>")
+            assert result == b""
+
+    def test_render_donut_fallback(self):
+        from src.telegram.charts import _render_donut_fallback
+        sources = {"BTC": 1000, "ETH": 500, "T-Bank": 300}
+        data = {
+            "crypto": {"BTC": 1000, "ETH": 500},
+            "fiat": {"T-Bank": {"usd": 300, "original": "29,500 RUB"}},
+            "manual": {},
+            "tbank_summary": {"income": 50000, "expenses": 35000},
+        }
+        png = _render_donut_fallback(sources, 1800, data)
+        assert len(png) > 1000
+        assert png[:8] == b"\x89PNG\r\n\x1a\n"
+
+    def test_render_financial_dashboard_with_chromium_fallback(self):
+        """If Chromium is not available, should fall back to matplotlib."""
+        from src.telegram.charts import render_financial_dashboard
+        with patch("src.telegram.charts._html_to_png", return_value=b""):
+            png = render_financial_dashboard(SAMPLE_DASHBOARD_DATA)
+            assert len(png) > 1000
+            assert png[:8] == b"\x89PNG\r\n\x1a\n"
+
+    def test_render_financial_dashboard_empty_data(self):
+        from src.telegram.charts import render_financial_dashboard
+        data = {"crypto": {}, "fiat": {}, "manual": {}, "total_usd": 0}
+        assert render_financial_dashboard(data) == b""
+
+
+class TestChartCaption:
+    def test_build_chart_caption(self):
+        import importlib
+        mod = importlib.import_module("src.telegram.handlers.commands")
+        caption = mod._build_chart_caption(SAMPLE_DASHBOARD_DATA)
+        assert "$3,391" in caption
+        assert "EVM" in caption
+        assert "<b>" in caption
+
+    def test_build_chart_text(self):
+        import importlib
+        mod = importlib.import_module("src.telegram.handlers.commands")
+        text = mod._build_chart_text(SAMPLE_DASHBOARD_DATA)
+        assert "ИТОГО" in text
+        assert "$3,391" in text
+        assert "T-Bank" in text
+        assert "85,700 RUB" in text
+
+
+class TestCollectAllData:
+    def test_collect_all_with_mocked_sources(self):
+        import importlib
+        mod = importlib.import_module("src.telegram.handlers.commands")
+
+        with patch.object(mod, "_collect_portfolio_data", return_value={"BTC": 100}), \
+             patch("src.tools.financial.forex.get_rates", return_value={"rates": {"RUB": 98.5}}), \
+             patch("src.telegram.transaction_storage.get_summary", return_value={
+                 "income": 50000, "expenses": 30000, "net": 20000,
+                 "top_categories": [("Еда", 10000)], "monthly": {},
+             }), \
+             patch("src.tools.financial.base.load_financial_config", return_value={
+                 "manual_sources": {"telegram_wallet": {"last_known_balance": "~85700 RUB"}},
+             }), \
+             patch("src.telegram.screenshot_storage.get_latest_balances", return_value={}):
+            result = mod._collect_all_financial_data()
+            assert result["crypto"] == {"BTC": 100}
+            assert "T-Bank" in result["fiat"]
+            assert "TG @wallet" in result["manual"]
+            assert result["total_usd"] > 100
+
+    def test_collect_all_crypto_only(self):
+        import importlib
+        mod = importlib.import_module("src.telegram.handlers.commands")
+
+        with patch.object(mod, "_collect_portfolio_data", return_value={"BTC": 500}), \
+             patch("src.tools.financial.forex.get_rates", side_effect=Exception("no internet")), \
+             patch("src.telegram.transaction_storage.get_summary", return_value=None), \
+             patch("src.tools.financial.base.load_financial_config", return_value={}), \
+             patch("src.telegram.screenshot_storage.get_latest_balances", return_value={}):
+            result = mod._collect_all_financial_data()
+            assert result["crypto"] == {"BTC": 500}
+            assert result["fiat"] == {}
+            assert result["manual"] == {}
+            assert result["total_usd"] == 500.0
+
+
 class TestTinkoffDataTool:
     def test_no_data(self):
         from src.tools.financial.tinkoff_data import TinkoffDataTool

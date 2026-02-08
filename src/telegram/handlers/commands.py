@@ -248,7 +248,10 @@ async def cmd_chart(message: Message):
             return
 
         from ..charts import render_financial_dashboard
-        png = render_financial_dashboard(data)
+        png = await asyncio.wait_for(
+            asyncio.to_thread(render_financial_dashboard, data),
+            timeout=45,
+        )
 
         if not png:
             # Fallback to basic pie chart

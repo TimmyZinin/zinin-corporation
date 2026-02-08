@@ -272,39 +272,58 @@ def _text_sparkline(values: list[float]) -> str:
 
 
 def _html_to_png(html: str, width: int = 900, height: int = 700) -> bytes:
-    """Render HTML to PNG via headless Chromium. Returns empty bytes on failure."""
-    try:
-        from html2image import Html2Image
-    except ImportError:
-        logger.warning("html2image not installed, falling back to matplotlib")
+    """Render HTML to PNG via headless Chromium subprocess.
+
+    Uses direct subprocess call instead of html2image to avoid
+    signal-in-non-main-thread issues with asyncio.to_thread.
+    """
+    import shutil
+    import subprocess
+
+    # Find chromium binary
+    chrome_bin = os.environ.get("CHROME_BIN")
+    if not chrome_bin:
+        for candidate in ["/usr/bin/chromium", "/usr/bin/chromium-browser",
+                          "/usr/bin/google-chrome", "/usr/bin/google-chrome-stable"]:
+            if os.path.exists(candidate):
+                chrome_bin = candidate
+                break
+    if not chrome_bin:
+        chrome_bin = shutil.which("chromium") or shutil.which("google-chrome")
+    if not chrome_bin:
+        logger.info("Chromium not found, using matplotlib fallback")
         return b""
 
     try:
         with tempfile.TemporaryDirectory() as tmpdir:
-            chrome_bin = os.environ.get("CHROME_BIN")
-            kwargs: dict = {
-                "size": (width, height),
-                "custom_flags": [
-                    "--no-sandbox", "--disable-gpu", "--headless",
-                    "--disable-software-rasterizer", "--disable-dev-shm-usage",
-                ],
-                "output_path": tmpdir,
-            }
-            if chrome_bin:
-                kwargs["browser_executable"] = chrome_bin
+            html_path = os.path.join(tmpdir, "dash.html")
+            png_path = os.path.join(tmpdir, "dash.png")
 
-            hti = Html2Image(**kwargs)
-            paths = hti.screenshot(html_str=html, save_as="dash.png")
-            if paths:
-                fpath = os.path.join(tmpdir, "dash.png")
-                if os.path.exists(fpath):
-                    with open(fpath, "rb") as f:
-                        data = f.read()
-                    if len(data) > 1000:
-                        return data
+            with open(html_path, "w", encoding="utf-8") as f:
+                f.write(html)
+
+            cmd = [
+                chrome_bin,
+                "--headless", "--no-sandbox", "--disable-gpu",
+                "--disable-software-rasterizer", "--disable-dev-shm-usage",
+                "--hide-scrollbars",
+                f"--screenshot={png_path}",
+                f"--window-size={width},{height}",
+                f"file://{html_path}",
+            ]
+            subprocess.run(cmd, timeout=30, capture_output=True)
+
+            if os.path.exists(png_path):
+                with open(png_path, "rb") as f:
+                    data = f.read()
+                if len(data) > 1000:
+                    return data
+        return b""
+    except subprocess.TimeoutExpired:
+        logger.warning("Chromium screenshot timed out (30s)")
         return b""
     except Exception as e:
-        logger.warning(f"html2image render failed: {e}")
+        logger.warning(f"Chromium screenshot failed: {e}")
         return b""
 
 
