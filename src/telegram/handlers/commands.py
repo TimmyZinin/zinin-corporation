@@ -237,7 +237,11 @@ async def cmd_chart(message: Message):
     typing_task = asyncio.create_task(keep_typing(message, stop))
 
     try:
-        portfolio = await asyncio.to_thread(_collect_portfolio_data)
+        portfolio = await asyncio.wait_for(
+            asyncio.to_thread(_collect_portfolio_data),
+            timeout=90,
+        )
+        logger.info(f"Chart: portfolio={portfolio}")
         if not portfolio:
             await message.answer("Нет данных для графика. Попробуйте /portfolio сначала.")
             return
@@ -245,7 +249,7 @@ async def cmd_chart(message: Message):
         from ..charts import portfolio_pie
         png = portfolio_pie(portfolio, "Портфель Zinin Corp")
         if not png:
-            await message.answer("Не удалось построить график.")
+            await message.answer("Не удалось построить график (пустые данные).")
             return
 
         total = sum(portfolio.values())
@@ -258,6 +262,9 @@ async def cmd_chart(message: Message):
         photo = BufferedInputFile(png, filename="portfolio.png")
         await message.answer_photo(photo=photo, caption=caption, parse_mode=ParseMode.HTML)
 
+    except asyncio.TimeoutError:
+        logger.error("Chart: portfolio collection timed out (90s)")
+        await message.answer("Таймаут: сбор данных занял больше 90 секунд.")
     except Exception as e:
         logger.error(f"Chart error: {e}", exc_info=True)
         await message.answer(f"Ошибка графика: {str(e)[:300]}")
@@ -300,81 +307,95 @@ def _collect_portfolio_data() -> dict[str, float]:
     import re
     portfolio = {}
 
+    def _parse_usd_total(text: str) -> float | None:
+        m = re.search(r"\$([0-9,.]+)\s+USD\s+total", text)
+        return float(m.group(1).replace(",", "")) if m else None
+
+    def _parse_itogo(text: str) -> float | None:
+        if "ИТОГО" not in text:
+            return None
+        m = re.search(r"\$([0-9,.]+)", text.split("ИТОГО")[-1])
+        return float(m.group(1).replace(",", "")) if m else None
+
     # EVM via Moralis
     if os.environ.get("MORALIS_API_KEY"):
         try:
             from src.tools.financial.moralis_evm import EVMPortfolioTool
-            tool = EVMPortfolioTool()
-            result = tool._run("")
-            if "total" in result.lower():
-                m = re.search(r"\$([0-9,.]+)\s+USD\s+total", result)
-                if m:
-                    portfolio["EVM (5 chains)"] = float(m.group(1).replace(",", ""))
+            result = EVMPortfolioTool()._run("")
+            val = _parse_usd_total(result)
+            if val is not None:
+                portfolio["EVM (5 chains)"] = val
+            else:
+                logger.warning("Chart/EVM: no total parsed from result")
         except Exception as e:
-            logger.debug(f"EVM data: {e}")
+            logger.warning(f"Chart/EVM error: {e}")
+    else:
+        logger.info("Chart/EVM: MORALIS_API_KEY not set, skipping")
 
     # Papaya
     try:
         from src.tools.financial.papaya import PapayaPositionsTool
-        tool = PapayaPositionsTool()
-        result = tool._run()
-        if "ИТОГО" in result:
-            m = re.search(r"\$([0-9,.]+)", result.split("ИТОГО")[-1])
-            if m:
-                portfolio["Papaya"] = float(m.group(1).replace(",", ""))
+        result = PapayaPositionsTool()._run()
+        val = _parse_itogo(result)
+        if val is not None:
+            portfolio["Papaya"] = val
+        else:
+            logger.warning("Chart/Papaya: no ИТОГО parsed")
     except Exception as e:
-        logger.debug(f"Papaya data: {e}")
+        logger.warning(f"Chart/Papaya error: {e}")
 
     # Eventum
     try:
         from src.tools.financial.eventum import EventumPortfolioTool
-        tool = EventumPortfolioTool()
-        result = tool._run()
-        if "ИТОГО" in result:
-            m = re.search(r"\$([0-9,.]+)", result.split("ИТОГО")[-1])
-            if m:
-                portfolio["Eventum L3"] = float(m.group(1).replace(",", ""))
+        result = EventumPortfolioTool()._run()
+        val = _parse_itogo(result)
+        if val is not None:
+            portfolio["Eventum L3"] = val
+        else:
+            logger.warning("Chart/Eventum: no ИТОГО parsed")
     except Exception as e:
-        logger.debug(f"Eventum data: {e}")
+        logger.warning(f"Chart/Eventum error: {e}")
 
     # Stacks
     try:
         from src.tools.financial.stacks import StacksPortfolioTool
-        tool = StacksPortfolioTool()
-        result = tool._run()
+        result = StacksPortfolioTool()._run()
         if "ИТОГО STX:" in result:
             m = re.search(r"ИТОГО STX:\s*([0-9,.]+)", result)
             if m:
                 stx_amount = float(m.group(1).replace(",", ""))
                 if stx_amount > 0:
-                    portfolio["Stacks"] = stx_amount * 0.5  # rough USD estimate
+                    portfolio["Stacks"] = stx_amount * 0.5
+        else:
+            logger.warning("Chart/Stacks: no ИТОГО STX parsed")
     except Exception as e:
-        logger.debug(f"Stacks data: {e}")
+        logger.warning(f"Chart/Stacks error: {e}")
 
     # Solana
     try:
         from src.tools.financial.helius_solana import SolanaPortfolioTool
-        tool = SolanaPortfolioTool()
-        result = tool._run("")
-        if "total" in result.lower():
-            m = re.search(r"\$([0-9,.]+)\s+USD\s+total", result)
-            if m:
-                portfolio["Solana"] = float(m.group(1).replace(",", ""))
+        result = SolanaPortfolioTool()._run("")
+        val = _parse_usd_total(result)
+        if val is not None:
+            portfolio["Solana"] = val
+        else:
+            logger.warning("Chart/Solana: no total parsed")
     except Exception as e:
-        logger.debug(f"Solana data: {e}")
+        logger.warning(f"Chart/Solana error: {e}")
 
     # TON
     try:
         from src.tools.financial.tonapi import TONPortfolioTool
-        tool = TONPortfolioTool()
-        result = tool._run("")
-        if "total" in result.lower():
-            m = re.search(r"\$([0-9,.]+)\s+USD\s+total", result)
-            if m:
-                portfolio["TON"] = float(m.group(1).replace(",", ""))
+        result = TONPortfolioTool()._run("")
+        val = _parse_usd_total(result)
+        if val is not None:
+            portfolio["TON"] = val
+        else:
+            logger.warning("Chart/TON: no total parsed")
     except Exception as e:
-        logger.debug(f"TON data: {e}")
+        logger.warning(f"Chart/TON error: {e}")
 
+    logger.info(f"Chart portfolio collected: {portfolio}")
     return portfolio
 
 
