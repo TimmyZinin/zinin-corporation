@@ -6,7 +6,7 @@ import logging
 from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
 
-from ..telegram.bot import AuthMiddleware
+from ..telegram.bot import AuthMiddleware, _detach_router
 from ..telegram.bridge import AgentBridge
 from .config import CeoTelegramConfig
 from .handlers import commands, messages
@@ -34,6 +34,10 @@ async def main():
 
     # Auth middleware
     dp.message.middleware(AuthMiddleware(config.allowed_user_ids))
+
+    # Detach routers from any previous dispatcher (needed for retry)
+    _detach_router(commands.router)
+    _detach_router(messages.router)
 
     # Register handlers (commands first, catch-all last)
     dp.include_router(commands.router)

@@ -34,6 +34,19 @@ class AuthMiddleware(BaseMiddleware):
         return None
 
 
+def _detach_router(router):
+    """Detach a router from its parent so it can be re-included."""
+    if hasattr(router, 'parent_router') and router.parent_router is not None:
+        # Remove from parent's sub_routers list
+        parent = router.parent_router
+        if hasattr(parent, '_sub_routers'):
+            try:
+                parent._sub_routers.remove(router)
+            except (ValueError, AttributeError):
+                pass
+        router.parent_router = None
+
+
 async def main():
     logging.basicConfig(
         level=logging.INFO,
@@ -55,18 +68,24 @@ async def main():
     # Auth middleware
     dp.message.middleware(AuthMiddleware(config.allowed_user_ids))
 
+    # Detach routers from any previous dispatcher (needed for retry)
+    _detach_router(commands.router)
+    _detach_router(messages.router)
+
     # Register handlers (order matters: commands first, catch-all last)
     dp.include_router(commands.router)
 
     # Photo handler (imported lazily to avoid issues if vision deps missing)
     try:
         from .handlers import photos
+        _detach_router(photos.router)
         dp.include_router(photos.router)
     except ImportError as e:
         logger.warning(f"Photo handler not available: {e}")
 
     # Document handler (CSV statements)
     from .handlers import documents
+    _detach_router(documents.router)
     dp.include_router(documents.router)
 
     dp.include_router(messages.router)  # catch-all, must be last
