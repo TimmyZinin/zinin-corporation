@@ -58,7 +58,7 @@ async def cmd_start(message: Message):
         "Команды:\n"
         "/report — Финансовый отчёт + дашборд\n"
         "/portfolio — Сводка портфеля + график\n"
-        "/chart — 📊 График портфеля\n"
+        "/chart — 📊 Финансовый дашборд\n"
         "/expenses — 📉 График расходов\n"
         "/tinkoff — Сводка по Т-Банку\n"
         "/balances — Данные из скриншотов\n"
@@ -231,39 +231,45 @@ async def cmd_tinkoff(message: Message):
 
 @router.message(Command("chart"))
 async def cmd_chart(message: Message):
-    """Generate portfolio pie chart from real data."""
-    status = await message.answer("📊 Строю график...")
+    """Generate comprehensive financial dashboard."""
+    status = await message.answer("📊 Строю финансовый дашборд...")
     stop = asyncio.Event()
     typing_task = asyncio.create_task(keep_typing(message, stop))
 
     try:
-        portfolio = await asyncio.wait_for(
-            asyncio.to_thread(_collect_portfolio_data),
+        data = await asyncio.wait_for(
+            asyncio.to_thread(_collect_all_financial_data),
             timeout=90,
         )
-        logger.info(f"Chart: portfolio={portfolio}")
-        if not portfolio:
+        logger.info(f"Chart: total=${data.get('total_usd', 0):.0f}")
+
+        if not data or data.get("total_usd", 0) < 1:
             await message.answer("Нет данных для графика. Попробуйте /portfolio сначала.")
             return
 
-        from ..charts import portfolio_pie
-        png = portfolio_pie(portfolio, "Портфель Zinin Corp")
+        from ..charts import render_financial_dashboard
+        png = render_financial_dashboard(data)
+
         if not png:
-            await message.answer("Не удалось построить график (пустые данные).")
+            # Fallback to basic pie chart
+            from ..charts import portfolio_pie
+            png = portfolio_pie(data.get("crypto", {}), "Портфель Zinin Corp")
+
+        if not png:
+            await message.answer("Не удалось построить дашборд.")
             return
 
-        total = sum(portfolio.values())
-        top3 = sorted(portfolio.items(), key=lambda x: -x[1])[:3]
-        caption = (
-            f"<b>Портфель — ${total:,.0f}</b>\n"
-            + "\n".join(f"  {name}: ${val:,.0f}" for name, val in top3)
-        )
-
-        photo = BufferedInputFile(png, filename="portfolio.png")
+        caption = _build_chart_caption(data)
+        photo = BufferedInputFile(png, filename="dashboard.png")
         await message.answer_photo(photo=photo, caption=caption, parse_mode=ParseMode.HTML)
 
+        # Send detailed text if there's more data than fits in caption
+        full_text = _build_chart_text(data)
+        if full_text and len(caption) > 200:
+            await message.answer(full_text, parse_mode=ParseMode.HTML)
+
     except asyncio.TimeoutError:
-        logger.error("Chart: portfolio collection timed out (90s)")
+        logger.error("Chart: data collection timed out (90s)")
         await message.answer("Таймаут: сбор данных занял больше 90 секунд.")
     except Exception as e:
         logger.error(f"Chart error: {e}", exc_info=True)
@@ -275,6 +281,64 @@ async def cmd_chart(message: Message):
             await status.delete()
         except Exception:
             pass
+
+
+def _build_chart_caption(data: dict) -> str:
+    """Build short caption for the chart photo (max 1024 chars)."""
+    total = data.get("total_usd", 0)
+
+    # Merge all sources and sort
+    all_sources: list[tuple[str, float, str]] = []
+    for name, val in data.get("crypto", {}).items():
+        if val > 0.5:
+            all_sources.append((name, val, ""))
+    for name, info in data.get("fiat", {}).items():
+        all_sources.append((name, info["usd"], info.get("original", "")))
+    for name, info in data.get("manual", {}).items():
+        all_sources.append((name, info["usd"], info.get("original", "")))
+
+    all_sources.sort(key=lambda x: -x[1])
+    top = all_sources[:5]
+
+    lines = [f"<b>Портфель — ${total:,.0f}</b>"]
+    for name, val, orig in top:
+        suffix = f" ({orig})" if orig else ""
+        lines.append(f"  {name}: ${val:,.0f}{suffix}")
+
+    if len(all_sources) > 5:
+        lines.append(f"  ...и ещё {len(all_sources) - 5} источников")
+
+    return "\n".join(lines)
+
+
+def _build_chart_text(data: dict) -> str:
+    """Build detailed text message with full breakdown table."""
+    rows = []
+    for name, val in sorted(data.get("crypto", {}).items(), key=lambda x: -x[1]):
+        if val > 0.5:
+            rows.append([name, f"${val:,.0f}"])
+    for name, info in data.get("fiat", {}).items():
+        rows.append([name, f"${info['usd']:,.0f} ({info.get('original', '')})"])
+    for name, info in data.get("manual", {}).items():
+        rows.append([name, f"${info['usd']:,.0f} ({info.get('original', '')})"])
+
+    if not rows:
+        return ""
+
+    total = data.get("total_usd", 0)
+    rows.append(["ИТОГО", f"${total:,.0f}"])
+
+    table = mono_table(["Источник", "Баланс"], rows)
+
+    # Add T-Bank mini summary
+    tbank = data.get("tbank_summary")
+    tbank_line = ""
+    if tbank:
+        income = tbank.get("income", 0)
+        expenses = tbank.get("expenses", 0)
+        tbank_line = f"\nT-Bank: +{income:,.0f} / -{expenses:,.0f} RUB"
+
+    return f"{table}{tbank_line}"
 
 
 @router.message(Command("expenses"))
@@ -399,6 +463,113 @@ def _collect_portfolio_data() -> dict[str, float]:
     return portfolio
 
 
+def _collect_all_financial_data() -> dict:
+    """Collect ALL financial data: crypto + fiat + manual sources."""
+    import re
+    from datetime import datetime
+
+    result: dict = {
+        "crypto": {},
+        "fiat": {},
+        "manual": {},
+        "total_usd": 0.0,
+        "tbank_summary": None,
+        "rates": {},
+        "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M"),
+    }
+
+    # 1. Crypto portfolio
+    result["crypto"] = _collect_portfolio_data()
+
+    # 2. Exchange rates (fetch once, reuse)
+    try:
+        from src.tools.financial.forex import get_rates
+        rates_data = get_rates("USD")
+        result["rates"] = rates_data.get("rates", {})
+    except Exception as e:
+        logger.warning(f"Chart/forex rates: {e}")
+
+    # 3. T-Bank summary
+    try:
+        from ..transaction_storage import get_summary
+        tbank = get_summary()
+        if tbank:
+            result["tbank_summary"] = tbank
+            net_rub = tbank.get("net", 0)
+            rub_rate = result["rates"].get("RUB")
+            if net_rub and rub_rate:
+                usd_val = net_rub / rub_rate
+                result["fiat"]["T-Bank"] = {
+                    "usd": round(usd_val, 2),
+                    "original": f"{net_rub:,.0f} RUB",
+                }
+    except Exception as e:
+        logger.warning(f"Chart/T-Bank: {e}")
+
+    # 4. Telegram @wallet from config
+    try:
+        from src.tools.financial.base import load_financial_config
+        config = load_financial_config()
+        manual = config.get("manual_sources", {})
+        tg_wallet = manual.get("telegram_wallet", {})
+        balance_str = tg_wallet.get("last_known_balance", "")
+        if balance_str:
+            m = re.search(r"([0-9,.]+)", balance_str.replace(",", ""))
+            if m:
+                amount = float(m.group(1))
+                cur = "RUB"
+                for c in ["USD", "EUR", "GEL", "TRY", "THB"]:
+                    if c in balance_str.upper():
+                        cur = c
+                        break
+                rub_rate = result["rates"].get(cur, 1.0)
+                usd_val = amount / rub_rate if cur != "USD" else amount
+                result["manual"]["TG @wallet"] = {
+                    "usd": round(usd_val, 2),
+                    "original": balance_str.strip(),
+                }
+    except Exception as e:
+        logger.warning(f"Chart/TG wallet: {e}")
+
+    # 5. Screenshot balances
+    try:
+        screenshots = get_latest_balances()
+        for source, data in screenshots.items():
+            for acc in data.get("accounts", []):
+                balance = acc.get("balance")
+                currency = str(acc.get("currency", "USD")).upper()
+                if balance is None:
+                    continue
+                try:
+                    num_balance = float(str(balance).replace(",", "").replace(" ", ""))
+                except (ValueError, TypeError):
+                    continue
+                rate = result["rates"].get(currency, 1.0)
+                usd_val = num_balance / rate if currency != "USD" else num_balance
+                key = source
+                if key in result["manual"]:
+                    key = f"{source} ({currency})"
+                result["manual"][key] = {
+                    "usd": round(usd_val, 2),
+                    "original": f"{num_balance:,.0f} {currency}",
+                }
+    except Exception as e:
+        logger.warning(f"Chart/screenshots: {e}")
+
+    # Total
+    crypto_total = sum(result["crypto"].values())
+    fiat_total = sum(v["usd"] for v in result["fiat"].values())
+    manual_total = sum(v["usd"] for v in result["manual"].values())
+    result["total_usd"] = round(crypto_total + fiat_total + manual_total, 2)
+
+    logger.info(
+        f"Chart all data: crypto=${crypto_total:.0f}, "
+        f"fiat=${fiat_total:.0f}, manual=${manual_total:.0f}, "
+        f"total=${result['total_usd']:.0f}"
+    )
+    return result
+
+
 @router.message(Command("status"))
 async def cmd_status(message: Message):
     """Show status of all financial data connectors."""
@@ -463,7 +634,7 @@ async def cmd_help(message: Message):
         "Фото/скриншоты → распознавание данных\n\n"
         "/report — Финансовый отчёт + дашборд\n"
         "/portfolio — Портфель + график\n"
-        "/chart — Круговая диаграмма портфеля\n"
+        "/chart — Финансовый дашборд (все источники)\n"
         "/expenses — График расходов (Т-Банк)\n"
         "/tinkoff — Сводка по Т-Банку\n"
         "/balances — Данные из скриншотов\n"
