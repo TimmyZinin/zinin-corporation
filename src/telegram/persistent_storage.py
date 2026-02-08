@@ -3,15 +3,19 @@
 Falls back to local JSON files when DATABASE_URL is not set (local dev).
 Data survives Railway container restarts.
 
+SECURITY: Sensitive keys (transactions, screenshots, payments) are
+encrypted via vault.py (AES-256, VAULT_PASSWORD env var).
+
 Tables auto-created on first use:
-  kv_store(key TEXT PRIMARY KEY, value JSONB, updated_at TIMESTAMP)
+  kv_store(key TEXT PRIMARY KEY, value TEXT, updated_at TIMESTAMP)
 """
 
 import json
 import logging
 import os
-from datetime import datetime
 from typing import Optional
+
+from . import vault
 
 logger = logging.getLogger(__name__)
 
@@ -32,7 +36,6 @@ def _init_db():
         return False
 
     # Railway sometimes has uppercase hostnames (Postgres.railway.internal)
-    # DNS is case-insensitive per RFC but some resolvers choke on capitals
     if ".railway.internal" in _db_url.lower() and ".railway.internal" not in _db_url:
         import re
         _db_url = re.sub(
@@ -47,10 +50,11 @@ def _init_db():
         conn = psycopg2.connect(_db_url)
         conn.autocommit = True
         cur = conn.cursor()
+        # Use TEXT for value column (encrypted data is not valid JSON)
         cur.execute("""
             CREATE TABLE IF NOT EXISTS kv_store (
                 key TEXT PRIMARY KEY,
-                value JSONB NOT NULL DEFAULT '{}',
+                value TEXT NOT NULL DEFAULT '{}',
                 updated_at TIMESTAMP DEFAULT NOW()
             )
         """)
@@ -68,17 +72,38 @@ def _init_db():
 
 
 def save(key: str, data) -> bool:
-    """Save data under a key. Returns True on success."""
+    """Save data under a key. Encrypts sensitive keys. Returns True on success."""
+    if vault.is_sensitive(key):
+        blob = vault.encrypt(data)
+    else:
+        blob = json.dumps(data, ensure_ascii=False, default=str)
+
     if _init_db():
-        return _db_save(key, data)
-    return _file_save(key, data)
+        return _db_save(key, blob)
+    return _file_save(key, blob)
 
 
 def load(key: str, default=None):
-    """Load data by key. Returns default if not found."""
+    """Load data by key. Decrypts sensitive keys. Returns default if not found."""
     if _init_db():
-        return _db_load(key, default)
-    return _file_load(key, default)
+        blob = _db_load_raw(key)
+    else:
+        blob = _file_load_raw(key)
+
+    if blob is None:
+        return default
+
+    if vault.is_sensitive(key):
+        result = vault.decrypt(blob)
+        return result if result is not None else default
+
+    # Non-sensitive: parse JSON
+    if isinstance(blob, str):
+        try:
+            return json.loads(blob)
+        except (json.JSONDecodeError, TypeError):
+            return blob
+    return blob
 
 
 def append_to_list(key: str, item: dict, max_items: int = 200) -> bool:
@@ -94,7 +119,7 @@ def append_to_list(key: str, item: dict, max_items: int = 200) -> bool:
 
 # ── PostgreSQL backend ─────────────────────────────────────
 
-def _db_save(key: str, data) -> bool:
+def _db_save(key: str, blob: str) -> bool:
     try:
         import psycopg2
         conn = psycopg2.connect(_db_url)
@@ -103,18 +128,18 @@ def _db_save(key: str, data) -> bool:
         cur.execute(
             """INSERT INTO kv_store (key, value, updated_at) VALUES (%s, %s, NOW())
                ON CONFLICT (key) DO UPDATE SET value = %s, updated_at = NOW()""",
-            (key, json.dumps(data, ensure_ascii=False, default=str),
-             json.dumps(data, ensure_ascii=False, default=str)),
+            (key, blob, blob),
         )
         cur.close()
         conn.close()
         return True
     except Exception as e:
         logger.error(f"DB save '{key}' failed: {e}")
-        return _file_save(key, data)  # fallback
+        return _file_save(key, blob)  # fallback
 
 
-def _db_load(key: str, default=None):
+def _db_load_raw(key: str) -> Optional[str]:
+    """Load raw string from PostgreSQL (may be encrypted)."""
     try:
         import psycopg2
         conn = psycopg2.connect(_db_url)
@@ -124,11 +149,14 @@ def _db_load(key: str, default=None):
         cur.close()
         conn.close()
         if row:
-            return row[0] if isinstance(row[0], (dict, list)) else json.loads(row[0])
-        return default
+            val = row[0]
+            if isinstance(val, (dict, list)):
+                return json.dumps(val, ensure_ascii=False, default=str)
+            return str(val) if val is not None else None
+        return None
     except Exception as e:
         logger.error(f"DB load '{key}' failed: {e}")
-        return _file_load(key, default)  # fallback
+        return _file_load_raw(key)  # fallback
 
 
 # ── File backend (local dev) ──────────────────────────────
@@ -142,25 +170,26 @@ def _file_path(key: str) -> str:
     return f"data/{safe_key}.json"
 
 
-def _file_save(key: str, data) -> bool:
+def _file_save(key: str, blob: str) -> bool:
     try:
         path = _file_path(key)
         os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
         with open(path, "w", encoding="utf-8") as f:
-            json.dump(data, f, ensure_ascii=False, indent=2, default=str)
+            f.write(blob)
         return True
     except Exception as e:
         logger.error(f"File save '{key}' failed: {e}")
         return False
 
 
-def _file_load(key: str, default=None):
+def _file_load_raw(key: str) -> Optional[str]:
+    """Load raw string from file (may be encrypted)."""
     try:
         path = _file_path(key)
         if not os.path.exists(path):
-            return default
+            return None
         with open(path, "r", encoding="utf-8") as f:
-            return json.load(f)
+            return f.read()
     except Exception as e:
         logger.error(f"File load '{key}' failed: {e}")
-        return default
+        return None

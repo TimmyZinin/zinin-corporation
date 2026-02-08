@@ -25,15 +25,11 @@ venv*/
 Thumbs.db
 
 # Data (runtime-generated) — NEVER commit financial data!
-data/activity_log.json
-data/chat_history.json
-data/financial_data.json
-data/tech_data.json
-data/screenshot_data.json
-data/tribute_payments.json
-data/tinkoff_transactions.json
-data/tinkoff_*.json
+# All JSON data is sensitive (transactions, balances, screenshots)
+data/*.json
 data/*.csv
+data/*.db
+data/*.enc
 
 # Bank statements — SENSITIVE
 *.csv

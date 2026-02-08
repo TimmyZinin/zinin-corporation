@@ -14,6 +14,9 @@ langchain-community>=0.3.0
 # Database
 psycopg2-binary>=2.9.9
 
+# Encryption (vault for sensitive financial data)
+cryptography>=43.0.0
+
 # Web search (free, no API key)
 ddgs>=7.0.0
 beautifulsoup4>=4.12.0
