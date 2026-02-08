@@ -120,7 +120,14 @@ class CredentialBroker:
 # ──────────────────────────────────────────────────────────
 
 def load_financial_config() -> dict:
-    """Load financial_sources.yaml config."""
+    """Load financial config from env var or YAML file."""
+    # Prefer env var (for Railway where config file is gitignored)
+    env_config = os.getenv("FINANCIAL_CONFIG_YAML")
+    if env_config:
+        try:
+            return yaml.safe_load(env_config) or {}
+        except Exception:
+            pass
     paths = [
         "/app/config/financial_sources.yaml",
         "config/financial_sources.yaml",
