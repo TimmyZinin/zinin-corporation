@@ -488,3 +488,127 @@ class TestInfrastructure:
         with open(path) as f:
             content = f.read()
         assert "CEO_BOT_PID" in content
+
+
+# ──────────────────────────────────────────────────────────
+# Test: API Diagnostics System
+# ──────────────────────────────────────────────────────────
+
+class TestAPIDiagnostics:
+    """Tests for CTO API diagnostic system with action buttons."""
+
+    def test_diagnostic_keyboard_exists(self):
+        from src.telegram_ceo.keyboards import diagnostic_keyboard
+        kb = diagnostic_keyboard("diag_test_123")
+        assert kb is not None
+        assert len(kb.inline_keyboard) == 2  # 2 rows
+        assert len(kb.inline_keyboard[0]) == 2  # Row 1: recheck + detail
+        assert len(kb.inline_keyboard[1]) == 1  # Row 2: ack
+
+    def test_diagnostic_keyboard_callback_data(self):
+        from src.telegram_ceo.keyboards import diagnostic_keyboard
+        kb = diagnostic_keyboard("diag_20260208_1430")
+        assert kb.inline_keyboard[0][0].callback_data == "api_recheck:diag_20260208_1430"
+        assert kb.inline_keyboard[0][1].callback_data == "api_detail:diag_20260208_1430"
+        assert kb.inline_keyboard[1][0].callback_data == "api_ack:diag_20260208_1430"
+
+    def test_diagnostic_storage_helpers_exist(self):
+        from src.telegram_ceo.handlers.callbacks import (
+            _load_diagnostics, _save_diagnostics, _find_diagnostic, _update_diagnostic,
+        )
+        assert callable(_load_diagnostics)
+        assert callable(_save_diagnostics)
+        assert callable(_find_diagnostic)
+        assert callable(_update_diagnostic)
+
+    def test_load_diagnostics_empty(self):
+        from src.telegram_ceo.handlers.callbacks import _load_diagnostics
+        with patch(
+            "src.telegram_ceo.handlers.callbacks._diagnostic_path",
+            return_value="/tmp/_test_diag_empty.json",
+        ):
+            import os
+            if os.path.exists("/tmp/_test_diag_empty.json"):
+                os.remove("/tmp/_test_diag_empty.json")
+            data = _load_diagnostics()
+            assert "diagnostics" in data
+            assert "stats" in data
+            assert data["diagnostics"] == []
+
+    def test_save_and_load_diagnostics(self):
+        from src.telegram_ceo.handlers.callbacks import (
+            _load_diagnostics, _save_diagnostics, _find_diagnostic,
+        )
+        import os
+        test_path = "/tmp/_test_diag_roundtrip.json"
+        with patch(
+            "src.telegram_ceo.handlers.callbacks._diagnostic_path",
+            return_value=test_path,
+        ):
+            if os.path.exists(test_path):
+                os.remove(test_path)
+            data = _load_diagnostics()
+            data["diagnostics"].append({
+                "id": "diag_test_001",
+                "timestamp": "2026-02-08 14:30:00",
+                "failed_apis": ["moralis"],
+                "results": {"moralis": {"ok": False, "error": "HTTP 401"}},
+                "analysis": "Test analysis",
+                "status": "pending",
+            })
+            _save_diagnostics(data)
+
+            found = _find_diagnostic("diag_test_001")
+            assert found is not None
+            assert found["analysis"] == "Test analysis"
+
+            assert _find_diagnostic("nonexistent") is None
+
+            os.remove(test_path)
+
+    def test_diagnostics_cap_at_100(self):
+        from src.telegram_ceo.handlers.callbacks import _load_diagnostics, _save_diagnostics
+        import os
+        test_path = "/tmp/_test_diag_cap.json"
+        with patch(
+            "src.telegram_ceo.handlers.callbacks._diagnostic_path",
+            return_value=test_path,
+        ):
+            if os.path.exists(test_path):
+                os.remove(test_path)
+            data = _load_diagnostics()
+            for i in range(120):
+                data["diagnostics"].append({"id": f"diag_{i}", "status": "pending"})
+            _save_diagnostics(data)
+
+            reloaded = _load_diagnostics()
+            assert len(reloaded["diagnostics"]) == 100
+            # Last 100 kept (IDs 20-119)
+            assert reloaded["diagnostics"][0]["id"] == "diag_20"
+
+            os.remove(test_path)
+
+    def test_api_recheck_handler_exists(self):
+        from src.telegram_ceo.handlers.callbacks import on_api_recheck
+        assert asyncio.iscoroutinefunction(on_api_recheck)
+
+    def test_api_detail_handler_exists(self):
+        from src.telegram_ceo.handlers.callbacks import on_api_detail
+        assert asyncio.iscoroutinefunction(on_api_detail)
+
+    def test_api_ack_handler_exists(self):
+        from src.telegram_ceo.handlers.callbacks import on_api_ack
+        assert asyncio.iscoroutinefunction(on_api_ack)
+
+    def test_scheduler_uses_diagnostic_keyboard(self):
+        from src.telegram_ceo import scheduler
+        src = inspect.getsource(scheduler.setup_ceo_scheduler)
+        assert "diagnostic_keyboard" in src
+        assert "_call_llm_tech" in src
+        assert "_check_single_api" in src
+
+    def test_scheduler_has_llm_cooldown(self):
+        from src.telegram_ceo import scheduler
+        src = inspect.getsource(scheduler.setup_ceo_scheduler)
+        assert "last_analysis" in src
+        assert "timedelta(minutes=15)" in src

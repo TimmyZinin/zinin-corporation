@@ -1,6 +1,28 @@
-"""Inline keyboards for CEO Telegram bot — CTO improvement proposals."""
+"""Inline keyboards for CEO Telegram bot — CTO proposals & API diagnostics."""
 
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+
+
+def diagnostic_keyboard(diag_id: str) -> InlineKeyboardMarkup:
+    """Action keyboard for CTO API diagnostic reports."""
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [
+            InlineKeyboardButton(
+                text="🔄 Перепроверить",
+                callback_data=f"api_recheck:{diag_id}",
+            ),
+            InlineKeyboardButton(
+                text="📋 Подробнее",
+                callback_data=f"api_detail:{diag_id}",
+            ),
+        ],
+        [
+            InlineKeyboardButton(
+                text="🔇 Принято",
+                callback_data=f"api_ack:{diag_id}",
+            ),
+        ],
+    ])
 
 
 def proposal_keyboard(proposal_id: str) -> InlineKeyboardMarkup:
