@@ -46,6 +46,14 @@ def _get_connection():
     url = _get_db_url()
     if not url:
         return None
+    # Normalize Railway hostname case (Postgres.railway.internal → lowercase)
+    if ".railway.internal" in url.lower() and ".railway.internal" not in url:
+        import re
+        url = re.sub(
+            r"@([A-Za-z0-9.-]+\.railway\.internal)",
+            lambda m: "@" + m.group(1).lower(),
+            url, flags=re.IGNORECASE,
+        )
     return psycopg2.connect(url)
 
 
