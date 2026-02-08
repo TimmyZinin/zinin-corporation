@@ -1,0 +1,28 @@
+{
+  "name": "AI Corporation",
+  "palette": {
+    "primary": "#667eea",
+    "accent": "#DFFF00",
+    "bg_dark": "#1a1a2e",
+    "bg_light": "#ffffff",
+    "text": "#ffffff",
+    "error": "#e94560",
+    "success": "#00d4aa"
+  },
+  "typography": {
+    "heading": "Inter Bold",
+    "body": "Inter Regular",
+    "mono": "JetBrains Mono"
+  },
+  "guidelines": {
+    "image_style": "ISOTYPE pictographic: black + white + lime (#DFFF00)",
+    "tone": "Professional, data-driven, modern",
+    "formats": ["square 1080x1080", "story 1080x1920", "banner 1200x628"],
+    "rules": [
+      "Lime (#DFFF00) only for key element / focal point",
+      "No gradients in ISOTYPE style",
+      "Sharp 90-degree corners only",
+      "Text never inside generated images"
+    ]
+  }
+}

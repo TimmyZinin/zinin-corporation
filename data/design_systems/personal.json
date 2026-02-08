@@ -1,0 +1,19 @@
+{
+  "name": "Тим Зинин (Personal Brand)",
+  "palette": {
+    "primary": "#3b82f6",
+    "accent": "#f59e0b",
+    "bg_dark": "#111827",
+    "bg_light": "#ffffff",
+    "text": "#ffffff"
+  },
+  "typography": {
+    "heading": "Inter Bold",
+    "body": "Inter Regular"
+  },
+  "guidelines": {
+    "image_style": "Clean, professional, LinkedIn-optimized",
+    "tone": "Thoughtful, authentic, AI-savvy",
+    "formats": ["square 1080x1080", "og 1200x630"]
+  }
+}

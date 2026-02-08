@@ -1,0 +1,19 @@
+{
+  "name": "СБОРКА",
+  "palette": {
+    "primary": "#e94560",
+    "accent": "#0f3460",
+    "bg_dark": "#16213e",
+    "bg_light": "#f8f9fa",
+    "text": "#ffffff"
+  },
+  "typography": {
+    "heading": "Inter Bold",
+    "body": "Inter Regular"
+  },
+  "guidelines": {
+    "image_style": "Bold, career-focused, ISOTYPE or brand style",
+    "tone": "Empowering, direct, practical",
+    "formats": ["square 1080x1080", "story 1080x1920"]
+  }
+}

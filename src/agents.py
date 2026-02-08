@@ -196,6 +196,50 @@ def create_smm_agent() -> Optional[Agent]:
         return None
 
 
+def create_designer_agent() -> Optional[Agent]:
+    """Create the Designer (Райан) agent with design tools"""
+    config = load_agent_config("designer")
+    if not config:
+        logger.error("designer.yaml not found")
+        return None
+
+    tools = []
+    try:
+        from .tools.design_tools import (
+            ImageGenerator, ImageEnhancer, ChartGenerator,
+            InfographicBuilder, VisualAnalyzer, VideoCreator,
+            TelegraphPublisher, DesignSystemManager, ImageResizer,
+            BrandVoiceVisual,
+        )
+        tools = [
+            ImageGenerator(), ImageEnhancer(), ChartGenerator(),
+            InfographicBuilder(), VisualAnalyzer(), VideoCreator(),
+            TelegraphPublisher(), DesignSystemManager(), ImageResizer(),
+            BrandVoiceVisual(),
+        ]
+    except Exception as e:
+        logger.warning(f"Could not load design tools: {e}")
+
+    try:
+        model = config.get("llm", "openrouter/anthropic/claude-3.5-haiku")
+        llm = create_llm(model)
+        return Agent(
+            role=config.get("role", "Creative Director Райан Чэнь"),
+            goal=config.get("goal", "Создавать визуальный контент"),
+            backstory=config.get("backstory", "Ты — Райан, Creative Director Zinin Corp"),
+            llm=llm,
+            tools=tools,
+            verbose=True,
+            memory=False,
+            allow_delegation=False,
+            max_iter=10,
+            max_retry_limit=3,
+        )
+    except Exception as e:
+        logger.error(f"Error creating designer: {e}", exc_info=True)
+        return None
+
+
 def create_automator_agent() -> Optional[Agent]:
     """Create the Automator (Мартин) agent with tech tools"""
     config = load_agent_config("automator")

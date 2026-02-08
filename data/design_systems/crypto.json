@@ -1,0 +1,19 @@
+{
+  "name": "Крипто Маркетологи",
+  "palette": {
+    "primary": "#00d4aa",
+    "accent": "#7c3aed",
+    "bg_dark": "#0a0a1a",
+    "bg_light": "#f0fdf4",
+    "text": "#ffffff"
+  },
+  "typography": {
+    "heading": "Inter Bold",
+    "body": "Inter Regular"
+  },
+  "guidelines": {
+    "image_style": "Crypto/tech aesthetic, dark background, neon accents",
+    "tone": "Expert, analytical, community-focused",
+    "formats": ["square 1080x1080", "banner 1200x628"]
+  }
+}

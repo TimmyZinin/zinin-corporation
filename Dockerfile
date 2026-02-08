@@ -4,7 +4,9 @@ WORKDIR /app
 
 ENV CREWAI_STORAGE_DIR=ai_corporation
 
-RUN apt-get update && apt-get install -y curl git ffmpeg && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y curl git ffmpeg chromium fonts-liberation libcairo2 && rm -rf /var/lib/apt/lists/*
+
+ENV CHROMIUM_FLAGS="--no-sandbox --disable-gpu --headless"
 
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt

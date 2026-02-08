@@ -30,6 +30,24 @@ apscheduler>=3.10.0
 
 # Charts & visualization
 matplotlib>=3.8.0
+plotly>=5.18.0
+
+# Design tools — image processing
+Pillow>=10.0.0
+opencv-python-headless>=4.8.0
+CairoSVG>=2.7.0
+
+# Design tools — infographics & templates
+Jinja2>=3.1.0
+html2image>=2.0.4
+
+# Design tools — video & audio
+moviepy>=2.0.0
+ffmpeg-python>=0.2.0
+edge-tts>=6.1.0
+
+# Design tools — Telegram rich content
+telegraph>=2.2.0
 
 # Podcast generation
 pydub>=0.25.1

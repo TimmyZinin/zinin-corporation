@@ -59,7 +59,7 @@ class TestDelegateTaskToolInterface:
     def test_delegatable_agents_correct(self):
         """DELEGATABLE_AGENTS has correct keys."""
         from src.tools.delegation_tool import DELEGATABLE_AGENTS
-        assert set(DELEGATABLE_AGENTS.keys()) == {"accountant", "smm", "automator"}
+        assert set(DELEGATABLE_AGENTS.keys()) == {"accountant", "smm", "automator", "designer"}
         # Manager should NOT be delegatable (prevents self-delegation loops)
         assert "manager" not in DELEGATABLE_AGENTS
 
@@ -75,7 +75,7 @@ class TestDelegateTaskToolValidation:
         """Tool returns error for unknown agent names."""
         from src.tools.delegation_tool import DelegateTaskTool
         tool = DelegateTaskTool()
-        result = tool._run(agent_name="designer", task_description="Сделай баннер")
+        result = tool._run(agent_name="janitor", task_description="Убери офис")
         assert "не найден" in result or "не найден" in result.lower()
 
     def test_rejects_manager_self_delegation(self):
@@ -96,7 +96,7 @@ class TestDelegateTaskToolValidation:
         mock_corp.execute_task.return_value = "Отчёт готов"
 
         with patch("src.crew.get_corporation", return_value=mock_corp):
-            for agent in ["accountant", "smm", "automator"]:
+            for agent in ["accountant", "smm", "automator", "designer"]:
                 result = tool._run(agent_name=agent, task_description="Test task")
                 assert "Ответ от" in result or "Отчёт готов" in result
 

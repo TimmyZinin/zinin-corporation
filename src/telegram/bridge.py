@@ -179,6 +179,14 @@ class AgentBridge:
         return await asyncio.to_thread(_sync)
 
     @classmethod
+    async def run_generate_design(cls, task: str = "", brand: str = "corporation") -> str:
+        """Generate design/visual content with Ryan (Designer)."""
+        def _sync():
+            corp = cls._get_corp()
+            return corp.generate_design(task=task, brand=brand)
+        return await asyncio.to_thread(_sync)
+
+    @classmethod
     async def run_linkedin_publish(cls, text: str, image_path: str = "") -> str:
         """Publish to LinkedIn via Yuki's tool."""
         def _sync():

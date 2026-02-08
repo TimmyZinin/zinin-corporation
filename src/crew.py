@@ -15,6 +15,7 @@ from .agents import (
     create_accountant_agent,
     create_smm_agent,
     create_automator_agent,
+    create_designer_agent,
 )
 from .activity_tracker import (
     log_task_start,
@@ -52,6 +53,7 @@ AGENT_LABELS = {
     "accountant": "🏦 Маттиас",
     "automator": "⚙️ Мартин",
     "smm": "📱 Юки",
+    "designer": "🎨 Райан",
 }
 
 # ──────────────────────────────────────────────────────────
@@ -107,6 +109,7 @@ TASK_WRAPPER = (
     "ВЫЗОВИ инструмент 'Delegate Task' с agent_name='smm'. "
     "Если задача про финансы/бюджет — ВЫЗОВИ 'Delegate Task' с agent_name='accountant'. "
     "Если задача про технику/API — ВЫЗОВИ 'Delegate Task' с agent_name='automator'. "
+    "Если задача про дизайн/картинки/визуал/инфографику/видео — ВЫЗОВИ 'Delegate Task' с agent_name='designer'. "
     "НЕ пиши 'делегирую' или 'поручаю' в тексте — ИСПОЛЬЗУЙ ИНСТРУМЕНТ."
 )
 
@@ -168,6 +171,7 @@ class AICorporation:
         self.accountant = None
         self.smm = None
         self.automator = None
+        self.designer = None
         self.crew = None
         self._initialized = False
 
@@ -185,6 +189,7 @@ class AICorporation:
             self.accountant = create_accountant_agent()
             self.smm = create_smm_agent()
             self.automator = create_automator_agent()
+            self.designer = create_designer_agent()
 
             if not all([self.manager, self.accountant, self.automator]):
                 logger.error("Core agents failed to initialize")
@@ -194,10 +199,16 @@ class AICorporation:
             if not self.smm:
                 logger.warning("SMM agent (Юки) failed to init — continuing without her")
 
+            # Designer agent is optional
+            if not self.designer:
+                logger.warning("Designer agent (Райан) failed to init — continuing without him")
+
             # Create crew with memory enabled
             all_agents = [self.manager, self.accountant, self.automator]
             if self.smm:
                 all_agents.append(self.smm)
+            if self.designer:
+                all_agents.append(self.designer)
 
             self.crew = Crew(
                 agents=all_agents,
@@ -296,6 +307,14 @@ class AICorporation:
                 "сервер", "docker", "railway", "техническ",
             ],
         },
+        {
+            "agent_key": "designer",
+            "keywords": [
+                "дизайн", "картинк", "изображен", "визуал", "инфографик",
+                "баннер", "лого", "график", "диаграмм", "chart",
+                "image", "видео", "video", "обложк",
+            ],
+        },
     ]
 
     def _detect_delegation_need(self, text: str) -> Optional[dict]:
@@ -318,6 +337,7 @@ class AICorporation:
             "accountant": self.accountant,
             "smm": self.smm,
             "automator": self.automator,
+            "designer": self.designer,
         }
 
         agent = agent_map.get(agent_name, self.manager)
@@ -647,6 +667,25 @@ class AICorporation:
         НЕ ДОБАВЛЯЙ ничего от себя. Верни сценарий как есть.
         """
         return self.execute_task(task_desc, "smm")
+
+    def generate_design(self, task: str = "", brand: str = "corporation") -> str:
+        """Generate design/visual content with Ryan (Designer)"""
+        if not self.designer:
+            return "❌ Райан не инициализирован. Проверьте конфигурацию."
+        task_desc = f"""
+        Выполни дизайн-задачу.
+
+        1. Если нужна картинка — используй Image Generator с prompt='{task or "современный баннер для AI корпорации"}', brand='{brand}'
+        2. Если нужна инфографика — используй Infographic Builder
+        3. Если нужен график — используй Chart Generator
+        4. Если нужно видео — используй Video Creator
+
+        Задача: {task or "Создай визуал для AI Corporation"}
+        Бренд: {brand}
+
+        Верни результат с путями к созданным файлам.
+        """
+        return self.execute_task(task_desc, "designer")
 
     def content_review(self, content: str) -> str:
         """Review content with Yuki"""
