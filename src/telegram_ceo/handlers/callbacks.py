@@ -33,12 +33,17 @@ def _find_and_update_proposal(proposal_id: str, updates: dict) -> dict | None:
     data = _load_proposals()
     for p in data.get("proposals", []):
         if p.get("id") == proposal_id:
+            old_status = p.get("status")
             p.update(updates)
             p["reviewed_at"] = datetime.now().isoformat()
-            # Update stats
-            status = updates.get("status")
-            if status and status in ("approved", "rejected", "conditions"):
-                data["stats"][status] = data["stats"].get(status, 0) + 1
+            # Update stats only if status actually changed
+            new_status = updates.get("status")
+            if (
+                new_status
+                and new_status in ("approved", "rejected", "conditions")
+                and new_status != old_status
+            ):
+                data["stats"][new_status] = data["stats"].get(new_status, 0) + 1
             _save_proposals(data)
             return p
     return None
@@ -54,16 +59,19 @@ async def on_cto_approve(callback: CallbackQuery):
         await callback.answer("Предложение не найдено", show_alert=True)
         return
 
-    from ..keyboards import proposal_keyboard
     from ...tools.improvement_advisor import _AGENT_LABELS
 
     target = _AGENT_LABELS.get(proposal.get("target_agent", ""), proposal.get("target_agent", ""))
-    await callback.message.edit_text(
-        f"✅ ОДОБРЕНО\n\n"
-        f"📋 {proposal.get('title', '?')}\n"
-        f"🎯 Агент: {target}\n\n"
-        f"Предложение принято. Мартин учтёт при следующей доработке."
-    )
+    try:
+        await callback.message.edit_text(
+            f"✅ ОДОБРЕНО\n\n"
+            f"📋 {proposal.get('title', '?')}\n"
+            f"🎯 Агент: {target}\n\n"
+            f"Предложение принято. Мартин учтёт при следующей доработке.",
+            reply_markup=None,
+        )
+    except Exception as e:
+        logger.warning(f"edit_text failed for proposal {proposal_id}: {e}")
     await callback.answer("Одобрено!")
     logger.info(f"Proposal {proposal_id} approved")
 
@@ -81,12 +89,16 @@ async def on_cto_reject(callback: CallbackQuery):
     from ...tools.improvement_advisor import _AGENT_LABELS
 
     target = _AGENT_LABELS.get(proposal.get("target_agent", ""), proposal.get("target_agent", ""))
-    await callback.message.edit_text(
-        f"❌ ОТКЛОНЕНО\n\n"
-        f"📋 {proposal.get('title', '?')}\n"
-        f"🎯 Агент: {target}\n\n"
-        f"Предложение отклонено."
-    )
+    try:
+        await callback.message.edit_text(
+            f"❌ ОТКЛОНЕНО\n\n"
+            f"📋 {proposal.get('title', '?')}\n"
+            f"🎯 Агент: {target}\n\n"
+            f"Предложение отклонено.",
+            reply_markup=None,
+        )
+    except Exception as e:
+        logger.warning(f"edit_text failed for proposal {proposal_id}: {e}")
     await callback.answer("Отклонено")
     logger.info(f"Proposal {proposal_id} rejected")
 
@@ -112,12 +124,16 @@ async def on_cto_conditions(callback: CallbackQuery):
     _conditions_state[callback.from_user.id] = proposal_id
 
     target = _AGENT_LABELS.get(proposal.get("target_agent", ""), proposal.get("target_agent", ""))
-    await callback.message.edit_text(
-        f"📝 Введите условия для предложения:\n\n"
-        f"📋 {proposal.get('title', '?')}\n"
-        f"🎯 Агент: {target}\n\n"
-        f"Напишите текст условий — Мартин учтёт их при доработке."
-    )
+    try:
+        await callback.message.edit_text(
+            f"📝 Введите условия для предложения:\n\n"
+            f"📋 {proposal.get('title', '?')}\n"
+            f"🎯 Агент: {target}\n\n"
+            f"Напишите текст условий — Мартин учтёт их при доработке.",
+            reply_markup=None,
+        )
+    except Exception as e:
+        logger.warning(f"edit_text failed for conditions {proposal_id}: {e}")
     await callback.answer()
 
 
@@ -159,7 +175,10 @@ async def on_cto_detail(callback: CallbackQuery):
     if len(text) > 4000:
         text = text[:4000] + "..."
 
-    await callback.message.edit_text(text, reply_markup=proposal_keyboard(proposal_id))
+    try:
+        await callback.message.edit_text(text, reply_markup=proposal_keyboard(proposal_id))
+    except Exception as e:
+        logger.warning(f"edit_text failed for detail {proposal_id}: {e}")
     await callback.answer()
 
 
