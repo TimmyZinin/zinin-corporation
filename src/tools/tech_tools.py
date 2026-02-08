@@ -490,7 +490,7 @@ _API_REGISTRY = {
         "name": "Tribute",
         "category": "financial",
         "env_vars": ["TRIBUTE_API_KEY"],
-        "ping_url": "https://api.tribute.tg/v1/products",
+        "ping_url": "https://tribute.tg/api/v1/products",
         "auth_header": lambda: {"Api-Key": os.getenv("TRIBUTE_API_KEY", "")},
         "description": "Telegram monetization platform",
     },
@@ -590,7 +590,11 @@ def _check_helius_health() -> dict:
                 return {"ok": True, "ms": elapsed, "code": 200}
             return {"ok": False, "ms": elapsed, "error": f"RPC result: {result}"}
     except Exception as e:
-        return {"ok": False, "ms": 0, "error": str(e)}
+        # Sanitize error to avoid leaking API key from URL
+        err_str = str(e)
+        if api_key and api_key in err_str:
+            err_str = err_str.replace(api_key, "***")
+        return {"ok": False, "ms": 0, "error": err_str}
 
 
 def _check_single_api(api_key: str) -> dict:
@@ -645,7 +649,13 @@ def _check_single_api(api_key: str) -> dict:
         elapsed = round((time.time() - start) * 1000)
         return {"ok": False, "configured": True, "ms": elapsed, "error": f"Connection: {e.reason}"}
     except Exception as e:
-        return {"ok": False, "configured": True, "ms": 0, "error": str(e)}
+        # Sanitize: strip any env var values from error message
+        err_str = str(e)
+        for var in api_info.get("env_vars", []):
+            val = os.getenv(var, "")
+            if val and val in err_str:
+                err_str = err_str.replace(val, "***")
+        return {"ok": False, "configured": True, "ms": 0, "error": err_str}
 
 
 class APIHealthInput(BaseModel):
@@ -847,15 +857,21 @@ class APIHealthMonitor(BaseTool):
 # ──────────────────────────────────────────────────────────
 
 def _call_llm_tech(prompt: str, system: str = "", max_tokens: int = 3000) -> Optional[str]:
-    """Call LLM via OpenRouter (free Llama) for prompt engineering tasks."""
+    """Call LLM via OpenRouter (free models) or Groq for prompt engineering tasks."""
     providers = []
     or_key = os.getenv("OPENROUTER_API_KEY", "")
     if or_key:
-        providers.append({
-            "url": "https://openrouter.ai/api/v1/chat/completions",
-            "key": or_key,
-            "model": "meta-llama/llama-3.3-70b-instruct:free",
-        })
+        # Primary: Llama 3.3 70B, fallbacks: Gemma 3 27B, Gemma 3 12B
+        for model in [
+            "meta-llama/llama-3.3-70b-instruct:free",
+            "google/gemma-3-27b-it:free",
+            "google/gemma-3-12b-it:free",
+        ]:
+            providers.append({
+                "url": "https://openrouter.ai/api/v1/chat/completions",
+                "key": or_key,
+                "model": model,
+            })
     groq_key = os.getenv("GROQ_API_KEY", "")
     if groq_key:
         providers.append({
@@ -864,34 +880,56 @@ def _call_llm_tech(prompt: str, system: str = "", max_tokens: int = 3000) -> Opt
             "model": "llama-3.3-70b-versatile",
         })
 
-    messages = []
-    if system:
-        messages.append({"role": "system", "content": system})
-    messages.append({"role": "user", "content": prompt})
+    # Some models (Gemma) don't support system messages — merge into user prompt
+    _SYSTEM_SUPPORTED_PREFIXES = ("meta-llama/", "mistralai/", "deepseek/", "qwen/", "nvidia/")
 
     for provider in providers:
-        try:
-            payload = json.dumps({
-                "model": provider["model"],
-                "messages": messages,
-                "max_tokens": max_tokens,
-                "temperature": 0.7,
-            }).encode("utf-8")
-            req = Request(
-                provider["url"],
-                data=payload,
-                headers={
-                    "Authorization": f"Bearer {provider['key']}",
-                    "Content-Type": "application/json",
-                },
-                method="POST",
-            )
-            with urlopen(req, timeout=90) as resp:
-                data = json.loads(resp.read().decode("utf-8"))
-                return data["choices"][0]["message"]["content"]
-        except Exception as e:
-            logging.warning(f"LLM call failed ({provider['model']}): {e}")
-            continue
+        # Build messages depending on model's system message support
+        model_id = provider["model"]
+        use_system = any(model_id.startswith(p) for p in _SYSTEM_SUPPORTED_PREFIXES)
+        messages = []
+        if system and use_system:
+            messages.append({"role": "system", "content": system})
+            messages.append({"role": "user", "content": prompt})
+        elif system:
+            messages.append({"role": "user", "content": f"{system}\n\n---\n\n{prompt}"})
+        else:
+            messages.append({"role": "user", "content": prompt})
+
+        for attempt in range(2):  # retry once on 429
+            try:
+                payload = json.dumps({
+                    "model": model_id,
+                    "messages": messages,
+                    "max_tokens": max_tokens,
+                    "temperature": 0.7,
+                }).encode("utf-8")
+                req = Request(
+                    provider["url"],
+                    data=payload,
+                    headers={
+                        "Authorization": f"Bearer {provider['key']}",
+                        "Content-Type": "application/json",
+                    },
+                    method="POST",
+                )
+                with urlopen(req, timeout=90) as resp:
+                    data = json.loads(resp.read().decode("utf-8"))
+                    if "error" in data:
+                        raise ValueError(data["error"].get("message", "API error"))
+                    choices = data.get("choices", [])
+                    if not choices:
+                        raise ValueError("Empty choices in response")
+                    return choices[0]["message"]["content"]
+            except HTTPError as e:
+                if e.code == 429 and attempt == 0:
+                    time.sleep(5)  # wait 5s and retry once
+                    continue
+                logging.warning(f"LLM call failed ({provider['model']}): HTTP {e.code}")
+                break  # move to next provider
+            except Exception as e:
+                logging.warning(f"LLM call failed ({provider['model']}): {e}")
+                break  # move to next provider
     return None
 
 

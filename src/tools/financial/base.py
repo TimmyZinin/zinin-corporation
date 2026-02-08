@@ -57,7 +57,7 @@ class CredentialBroker:
         "tribute": {
             "api_key": "TRIBUTE_API_KEY",
             "webhook_secret": "TRIBUTE_WEBHOOK_SECRET",
-            "base_url": "https://api.tribute.tg/v1",
+            "base_url": "https://tribute.tg/api/v1",
         },
         "stripe": {
             "api_key": "STRIPE_SECRET_KEY",

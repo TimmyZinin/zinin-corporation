@@ -30,6 +30,10 @@ data/*.json
 data/*.csv
 data/*.db
 data/*.enc
+data/design_images/
+data/design_videos/
+data/yuki_memory/
+data/yuki_podcasts/
 
 # Bank statements — SENSITIVE
 *.csv
