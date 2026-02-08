@@ -321,6 +321,8 @@ class AICorporation:
             "keywords": [
                 "деплой", "api", "webhook", "интеграц", "мониторинг",
                 "сервер", "docker", "railway", "техническ",
+                "здоровье api", "health check", "статус api", "api status",
+                "промпт агент", "создай агент", "новый агент",
             ],
         },
         {
@@ -655,6 +657,26 @@ class AICorporation:
         4. Вызови Integration Manager с action='list' для проверки интеграций
 
         Дай структурированный отчёт: что работает, что нет, рекомендации.
+        """
+        return self.execute_task(task_desc, "automator")
+
+    def api_health_report(self) -> str:
+        """Run comprehensive API health check from Мартин"""
+        task_desc = """
+        Проведи полную проверку здоровья ВСЕХ API:
+
+        1. Вызови API Health Monitor с action='full_check' — это проверит ВСЕ API
+        2. Проанализируй результаты
+        3. Дай отчёт по каждой категории: финансовые API, AI API, платформы
+        4. Укажи время отклика (latency) для каждого API
+        5. Если есть проблемы — дай конкретные рекомендации по исправлению
+
+        Структура отчёта:
+        - Общий статус (healthy/degraded/critical)
+        - Финансовые API (T-Bank, Moralis, Helius, TonAPI, CoinGecko, Tribute, Forex, Eventum)
+        - AI API (OpenRouter, ElevenLabs, OpenAI, Groq)
+        - Платформы (LinkedIn, Railway)
+        - Рекомендации
         """
         return self.execute_task(task_desc, "automator")
 

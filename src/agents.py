@@ -248,8 +248,8 @@ def create_automator_agent() -> Optional[Agent]:
         return None
 
     try:
-        from .tools.tech_tools import SystemHealthChecker, IntegrationManager
-        tools = [SystemHealthChecker(), IntegrationManager()] + _load_web_tools()
+        from .tools.tech_tools import SystemHealthChecker, IntegrationManager, APIHealthMonitor, AgentPromptWriter
+        tools = [SystemHealthChecker(), IntegrationManager(), APIHealthMonitor(), AgentPromptWriter()] + _load_web_tools()
     except Exception as e:
         logger.warning(f"Could not load tech tools: {e}")
         tools = _load_web_tools()

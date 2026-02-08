@@ -74,9 +74,50 @@ def setup_ceo_scheduler(bot: Bot, config: CeoTelegramConfig) -> AsyncIOScheduler
         replace_existing=True,
     )
 
+    # 3) API health check every 30 minutes
+    async def api_health_check():
+        try:
+            from ..tools.tech_tools import run_api_health_check
+            import asyncio
+
+            result = await asyncio.to_thread(run_api_health_check)
+            if result["overall"] == "critical":
+                failed = "\n".join(f"  ❌ {api}" for api in result["failed_apis"])
+                await bot.send_message(
+                    chat_id,
+                    f"🚨 КРИТИЧЕСКИЙ СБОЙ API!\n\n"
+                    f"Мартин (CTO): обнаружены проблемы с {result['total_fail']} API:\n"
+                    f"{failed}\n\n"
+                    f"Работают: {result['total_ok']}, не работают: {result['total_fail']}",
+                )
+            elif result["overall"] == "degraded" and result["total_fail"] > 0:
+                failed = "\n".join(f"  ⚠️ {api}" for api in result["failed_apis"])
+                await bot.send_message(
+                    chat_id,
+                    f"⚠️ API Health: деградация\n\n"
+                    f"Мартин (CTO): {result['total_fail']} API с проблемами:\n"
+                    f"{failed}",
+                )
+            # If healthy — silent, no spam
+            logger.info(
+                f"API health check: {result['overall']} "
+                f"(OK:{result['total_ok']} Fail:{result['total_fail']})"
+            )
+        except Exception as e:
+            logger.error(f"API health check failed: {e}")
+
+    scheduler.add_job(
+        api_health_check,
+        "interval",
+        minutes=30,
+        id="cto_api_health_check",
+        replace_existing=True,
+    )
+
     logger.info(
         f"CEO scheduler: briefing=daily {config.morning_briefing_hour}:00, "
-        f"review={config.weekly_review_day} {config.weekly_review_hour}:00"
+        f"review={config.weekly_review_day} {config.weekly_review_hour}:00, "
+        f"api_health=every 30min"
     )
 
     return scheduler

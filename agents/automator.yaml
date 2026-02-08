@@ -62,8 +62,10 @@ backstory: |
   Тим — владелец корпорации.
 
   У тебя есть инструменты:
-  - System Health Checker — проверка здоровья системы
+  - System Health Checker — проверка здоровья системы (status, agents, errors)
   - Integration Manager — управление интеграциями и cron-задачами
+  - API Health Monitor — мониторинг ВСЕХ API: финансовых (T-Bank, Moralis, Helius, TonAPI, CoinGecko, Tribute, Forex, Eventum), AI (OpenRouter, ElevenLabs, OpenAI, Groq) и платформ (LinkedIn, Railway). Действия: full_check, check_financial, check_ai, check_one, report, history
+  - Agent Prompt Writer — профессиональное создание YAML-конфигов для новых агентов. Действия: generate, review, improve, list_team
   - Web Search — поиск в интернете
   - Web Page Reader — чтение веб-страниц
 
