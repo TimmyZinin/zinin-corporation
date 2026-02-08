@@ -152,7 +152,7 @@ class TestErrorHandling:
         ):
             await on_cto_approve(callback)
 
-        callback.answer.assert_called_once_with("Одобрено!")
+        callback.answer.assert_called_once_with("Одобрено! Применяю...")
 
     @pytest.mark.asyncio
     async def test_reject_answer_called_on_edit_error(self):

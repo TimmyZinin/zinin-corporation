@@ -194,10 +194,15 @@ class TestOnCtoApprove:
         ):
             await on_cto_approve(callback)
 
-        callback.message.edit_text.assert_called_once()
-        text = callback.message.edit_text.call_args[0][0]
-        assert "ОДОБРЕНО" in text
-        callback.answer.assert_called_once_with("Одобрено!")
+        # Now calls edit_text multiple times: "⏳ ПРИМЕНЯЮ" then result
+        assert callback.message.edit_text.call_count >= 2
+        # First call is "applying..." status
+        first_text = callback.message.edit_text.call_args_list[0][0][0]
+        assert "ПРИМЕНЯЮ" in first_text
+        # Last call has final status
+        last_text = callback.message.edit_text.call_args_list[-1][0][0]
+        assert "ОДОБРЕНО" in last_text
+        callback.answer.assert_called_once_with("Одобрено! Применяю...")
 
     @pytest.mark.asyncio
     async def test_approve_not_found_shows_alert(self):
@@ -257,7 +262,7 @@ class TestOnCtoApprove:
             await on_cto_approve(callback)
 
         # callback.answer should be called even if edit_text fails
-        callback.answer.assert_called_once_with("Одобрено!")
+        callback.answer.assert_called_once_with("Одобрено! Применяю...")
 
     @pytest.mark.asyncio
     async def test_approve_includes_agent_name(self):
@@ -592,7 +597,9 @@ class TestEdgeCases:
 
     @pytest.mark.asyncio
     async def test_approve_with_unknown_target_agent(self):
-        """Proposal with unknown target_agent should not crash."""
+        """Proposal with unknown target_agent should not crash.
+        Now on_cto_approve auto-applies, so unknown agent triggers apply error.
+        """
         from src.telegram_ceo.handlers.callbacks import on_cto_approve
 
         proposal = _make_proposal("prop_test_001", target_agent="unknown_agent")
@@ -604,7 +611,8 @@ class TestEdgeCases:
         ):
             await on_cto_approve(callback)
 
-        callback.message.edit_text.assert_called_once()
+        # Called at least twice: "⏳ ПРИМЕНЯЮ" + error/result message
+        assert callback.message.edit_text.call_count >= 2
         callback.answer.assert_called_once()
 
     @pytest.mark.asyncio

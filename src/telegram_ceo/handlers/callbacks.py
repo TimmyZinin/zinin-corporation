@@ -1,5 +1,6 @@
 """Callback handlers for CTO improvement proposals and API diagnostics in CEO bot."""
 
+import asyncio
 import json
 import logging
 import os
@@ -51,7 +52,7 @@ def _find_and_update_proposal(proposal_id: str, updates: dict) -> dict | None:
 
 @router.callback_query(F.data.startswith("cto_approve:"))
 async def on_cto_approve(callback: CallbackQuery):
-    """Approve a CTO improvement proposal."""
+    """Approve a CTO improvement proposal and auto-apply changes."""
     proposal_id = callback.data.split(":")[1]
     proposal = _find_and_update_proposal(proposal_id, {"status": "approved"})
 
@@ -62,17 +63,88 @@ async def on_cto_approve(callback: CallbackQuery):
     from ...tools.improvement_advisor import _AGENT_LABELS
 
     target = _AGENT_LABELS.get(proposal.get("target_agent", ""), proposal.get("target_agent", ""))
+
+    # Show "applying..." status
     try:
         await callback.message.edit_text(
-            f"✅ ОДОБРЕНО\n\n"
+            f"⏳ ПРИМЕНЯЮ ИЗМЕНЕНИЯ...\n\n"
             f"📋 {proposal.get('title', '?')}\n"
             f"🎯 Агент: {target}\n\n"
-            f"Предложение принято. Мартин учтёт при следующей доработке.",
+            f"Мартин вносит правки в YAML-конфигурацию...",
             reply_markup=None,
         )
     except Exception as e:
         logger.warning(f"edit_text failed for proposal {proposal_id}: {e}")
-    await callback.answer("Одобрено!")
+    await callback.answer("Одобрено! Применяю...")
+
+    # Auto-apply the proposal
+    try:
+        from ...tools.proposal_applier import apply_proposal, format_diff_for_telegram
+
+        result = await asyncio.to_thread(apply_proposal, proposal)
+
+        if result["applied"]:
+            # Store result in proposal record
+            _find_and_update_proposal(proposal_id, {
+                "applied_diff": result["diff"],
+                "applied_at": datetime.now().isoformat(),
+            })
+            diff_text = format_diff_for_telegram(result["diff"])
+            try:
+                await callback.message.edit_text(
+                    f"✅ ОДОБРЕНО И ПРИМЕНЕНО\n\n"
+                    f"📋 {proposal.get('title', '?')}\n"
+                    f"🎯 Агент: {target}\n\n"
+                    f"📝 Изменения в YAML:\n"
+                    f"<pre>{diff_text}</pre>\n\n"
+                    f"💡 {result['message']}",
+                    parse_mode="HTML",
+                    reply_markup=None,
+                )
+            except Exception as e:
+                logger.warning(f"edit_text with diff failed: {e}")
+                # Fallback without HTML formatting
+                try:
+                    await callback.message.edit_text(
+                        f"✅ ОДОБРЕНО И ПРИМЕНЕНО\n\n"
+                        f"📋 {proposal.get('title', '?')}\n"
+                        f"🎯 Агент: {target}\n\n"
+                        f"💡 {result['message']}",
+                        reply_markup=None,
+                    )
+                except Exception:
+                    pass
+        else:
+            # Tool proposals or other non-applicable
+            try:
+                await callback.message.edit_text(
+                    f"✅ ОДОБРЕНО\n\n"
+                    f"📋 {proposal.get('title', '?')}\n"
+                    f"🎯 Агент: {target}\n\n"
+                    f"💡 {result['message']}",
+                    reply_markup=None,
+                )
+            except Exception as e:
+                logger.warning(f"edit_text failed: {e}")
+
+    except Exception as apply_err:
+        logger.error(f"Failed to apply proposal {proposal_id}: {apply_err}")
+        # Store error in proposal record
+        _find_and_update_proposal(proposal_id, {
+            "apply_error": str(apply_err),
+        })
+        try:
+            await callback.message.edit_text(
+                f"✅ ОДОБРЕНО (не применено)\n\n"
+                f"📋 {proposal.get('title', '?')}\n"
+                f"🎯 Агент: {target}\n\n"
+                f"⚠️ Ошибка применения: {str(apply_err)[:500]}\n"
+                f"Предложение одобрено, но изменения не внесены автоматически.",
+                reply_markup=None,
+            )
+        except Exception as e:
+            logger.warning(f"edit_text failed after apply error: {e}")
+
     logger.info(f"Proposal {proposal_id} approved")
 
 
@@ -168,6 +240,18 @@ async def on_cto_detail(callback: CallbackQuery):
         f"💡 Предлагаемое изменение:\n{proposal.get('proposed_change', '—')}\n\n"
         f"📝 Описание:\n{proposal.get('description', '—')[:1500]}"
     )
+
+    # Show applied diff if proposal was applied
+    applied_diff = proposal.get("applied_diff")
+    applied_at = proposal.get("applied_at")
+    if applied_diff:
+        from ...tools.proposal_applier import format_diff_for_telegram
+        diff_text = format_diff_for_telegram(applied_diff, max_len=1500)
+        text += f"\n\n✅ Применено: {applied_at or '?'}\n📝 Diff:\n{diff_text}"
+
+    apply_error = proposal.get("apply_error")
+    if apply_error:
+        text += f"\n\n⚠️ Ошибка применения: {apply_error[:300]}"
 
     from ..keyboards import proposal_keyboard
 
