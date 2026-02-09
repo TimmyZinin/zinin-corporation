@@ -518,6 +518,10 @@ class TestChartCaption:
         assert "$3,391" in caption
         assert "EVM" in caption
         assert "<b>" in caption
+        assert "▸" in caption  # key-value bullets
+        assert "·" in caption  # dot leaders
+        assert "<code>" in caption  # values in code tags
+        assert "━" in caption  # separator
 
     def test_build_chart_text(self):
         import importlib
@@ -525,8 +529,11 @@ class TestChartCaption:
         text = mod._build_chart_text(SAMPLE_DASHBOARD_DATA)
         assert "ИТОГО" in text
         assert "$3,391" in text
-        assert "T-Bank" in text
-        assert "85,700 RUB" in text
+        assert "Т-Банк" in text  # section header
+        assert "<b>" in text  # HTML formatted
+        assert "▸" in text  # key-value bullets
+        assert "+125,000" in text  # income
+        assert "-87,000" in text  # expenses
 
 
 class TestCollectAllData:
@@ -688,6 +695,8 @@ class TestCommandHandlers:
         call_text = msg.answer.call_args[0][0]
         assert "Маттиас" in call_text
         assert "/chart" in call_text
+        assert "<b>" in call_text  # HTML formatted
+        assert "▸" in call_text  # Unicode bullets
 
     @pytest.mark.asyncio
     async def test_cmd_help(self):
@@ -698,6 +707,8 @@ class TestCommandHandlers:
         call_text = msg.answer.call_args[0][0]
         assert "/report" in call_text
         assert "/chart" in call_text
+        assert "<b>" in call_text  # HTML formatted
+        assert "▸" in call_text  # Unicode bullets
 
     @pytest.mark.asyncio
     async def test_cmd_balances_no_data(self):
@@ -927,3 +938,123 @@ class TestFormattersExtended:
         text = "Баланс: ₽85,000 — Т-Банк 🏦"
         result = format_for_telegram(text)
         assert result == [text]
+
+
+# ──────────────────────────────────────────────────────────
+# Test: Markdown → HTML Conversion
+# ──────────────────────────────────────────────────────────
+
+class TestMarkdownToTelegramHtml:
+    def test_empty_input(self):
+        from src.telegram.formatters import markdown_to_telegram_html
+        assert markdown_to_telegram_html("") == ""
+        assert markdown_to_telegram_html(None) == ""
+
+    def test_bold(self):
+        from src.telegram.formatters import markdown_to_telegram_html
+        result = markdown_to_telegram_html("This is **bold** text")
+        assert "<b>bold</b>" in result
+
+    def test_inline_code(self):
+        from src.telegram.formatters import markdown_to_telegram_html
+        result = markdown_to_telegram_html("Use `code` here")
+        assert "<code>code</code>" in result
+
+    def test_code_block(self):
+        from src.telegram.formatters import markdown_to_telegram_html
+        result = markdown_to_telegram_html("```python\nprint('hello')\n```")
+        assert "<pre>" in result
+        assert "print" in result
+
+    def test_headers(self):
+        from src.telegram.formatters import markdown_to_telegram_html
+        result = markdown_to_telegram_html("## Section Title")
+        assert "<b>" in result
+        assert "SECTION TITLE" in result
+        assert "━" in result
+
+    def test_h3_header(self):
+        from src.telegram.formatters import markdown_to_telegram_html
+        result = markdown_to_telegram_html("### Subsection")
+        assert "<b>Subsection</b>" in result
+        assert "───" in result
+
+    def test_bullets(self):
+        from src.telegram.formatters import markdown_to_telegram_html
+        result = markdown_to_telegram_html("- Item one\n- Item two")
+        assert "▸ Item one" in result
+        assert "▸ Item two" in result
+
+    def test_horizontal_rule(self):
+        from src.telegram.formatters import markdown_to_telegram_html
+        result = markdown_to_telegram_html("text\n---\nmore")
+        assert "━━━" in result
+
+    def test_html_escape(self):
+        from src.telegram.formatters import markdown_to_telegram_html
+        result = markdown_to_telegram_html("1 < 2 & 3 > 1")
+        assert "&lt;" in result
+        assert "&amp;" in result
+        assert "&gt;" in result
+        assert "<" not in result.replace("&lt;", "").replace("<b>", "").replace("</b>", "").replace("<i>", "").replace("</i>", "").replace("<code>", "").replace("</code>", "").replace("<pre>", "").replace("</pre>", "").replace("<blockquote>", "").replace("</blockquote>", "")
+
+    def test_italic(self):
+        from src.telegram.formatters import markdown_to_telegram_html
+        result = markdown_to_telegram_html("This is *italic* text")
+        assert "<i>italic</i>" in result
+
+    def test_combined_formatting(self):
+        from src.telegram.formatters import markdown_to_telegram_html
+        result = markdown_to_telegram_html("**bold** and `code` and *italic*")
+        assert "<b>bold</b>" in result
+        assert "<code>code</code>" in result
+        assert "<i>italic</i>" in result
+
+    def test_excessive_blank_lines(self):
+        from src.telegram.formatters import markdown_to_telegram_html
+        result = markdown_to_telegram_html("a\n\n\n\n\nb")
+        assert "\n\n\n" not in result
+
+
+# ──────────────────────────────────────────────────────────
+# Test: Section Builders
+# ──────────────────────────────────────────────────────────
+
+class TestSectionBuilders:
+    def test_section_header(self):
+        from src.telegram.formatters import section_header
+        result = section_header("Портфель", "🏦")
+        assert "🏦" in result
+        assert "<b>Портфель</b>" in result
+        assert "━" in result
+
+    def test_section_header_no_emoji(self):
+        from src.telegram.formatters import section_header
+        result = section_header("Title")
+        assert "<b>Title</b>" in result
+        assert "━" in result
+
+    def test_key_value(self):
+        from src.telegram.formatters import key_value
+        result = key_value("Доход", "+85,000 RUB")
+        assert "▸ Доход" in result
+        assert "·" in result
+        assert "<code>+85,000 RUB</code>" in result
+
+    def test_separator_thick(self):
+        from src.telegram.formatters import separator
+        result = separator("thick")
+        assert "━" in result
+
+    def test_separator_thin(self):
+        from src.telegram.formatters import separator
+        result = separator("thin")
+        assert "─" in result
+
+    def test_status_indicator(self):
+        from src.telegram.formatters import status_indicator
+        assert status_indicator("ok") == "🟢"
+        assert status_indicator("warn") == "🟡"
+        assert status_indicator("error") == "🔴"
+        assert status_indicator("off") == "⚫"
+        assert status_indicator("unknown") == "⚪"

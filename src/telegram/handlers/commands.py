@@ -9,7 +9,11 @@ from aiogram.types import Message, BufferedInputFile
 from aiogram.enums import ParseMode
 
 from ..bridge import AgentBridge
-from ..formatters import format_for_telegram, mono_table, sparkline, progress_bar
+from ..formatters import (
+    format_for_telegram, mono_table, sparkline, progress_bar,
+    markdown_to_telegram_html, section_header, key_value, separator,
+    status_indicator,
+)
 from ..screenshot_storage import get_latest_balances
 
 logger = logging.getLogger(__name__)
@@ -36,8 +40,9 @@ async def run_with_typing(message: Message, coro, wait_msg: str):
     typing_task = asyncio.create_task(keep_typing(message, stop))
     try:
         result = await coro
-        for chunk in format_for_telegram(result):
-            await message.answer(chunk)
+        html = markdown_to_telegram_html(result)
+        for chunk in format_for_telegram(html):
+            await message.answer(chunk, parse_mode=ParseMode.HTML)
     except Exception as e:
         logger.error(f"Command error: {e}", exc_info=True)
         await message.answer(f"Ошибка: {str(e)[:300]}")
@@ -52,21 +57,26 @@ async def run_with_typing(message: Message, coro, wait_msg: str):
 
 @router.message(CommandStart())
 async def cmd_start(message: Message):
-    await message.answer(
-        "Маттиас Бруннер — CFO Zinin Corp\n\n"
-        "Добрый день, Тим. Я Маттиас, ваш финансовый директор.\n\n"
-        "Команды:\n"
-        "/report — Финансовый отчёт + дашборд\n"
-        "/portfolio — Сводка портфеля + график\n"
-        "/chart — 📊 Финансовый дашборд\n"
-        "/expenses — 📉 График расходов\n"
-        "/tinkoff — Сводка по Т-Банку\n"
-        "/balances — Данные из скриншотов\n"
-        "/status — Статус коннекторов\n"
-        "/help — Справка\n\n"
-        "Можете написать любой финансовый вопрос, "
-        "прислать скриншот или CSV-выписку из Т-Банка.",
-    )
+    text = "\n".join([
+        section_header("Маттиас Бруннер — CFO Zinin Corp", "🏦"),
+        "",
+        "Добрый день, Тим. Я Маттиас, ваш финансовый директор.",
+        "",
+        section_header("Команды", "📊"),
+        "▸ /report — Финансовый отчёт + дашборд",
+        "▸ /portfolio — Сводка портфеля + график",
+        "▸ /chart — Финансовый дашборд",
+        "▸ /expenses — График расходов",
+        "▸ /tinkoff — Сводка по Т-Банку",
+        "▸ /balances — Данные из скриншотов",
+        "▸ /status — Статус коннекторов",
+        "",
+        section_header("Принимаю", "💬"),
+        "▸ Текст — финансовые вопросы",
+        "▸ CSV — выписки Т-Банка",
+        "▸ Фото — скриншоты балансов",
+    ])
+    await message.answer(text, parse_mode=ParseMode.HTML)
 
 
 @router.message(Command("report"))
@@ -78,8 +88,9 @@ async def cmd_report(message: Message):
 
     try:
         result = await AgentBridge.run_financial_report()
-        for chunk in format_for_telegram(result):
-            await message.answer(chunk)
+        html = markdown_to_telegram_html(result)
+        for chunk in format_for_telegram(html):
+            await message.answer(chunk, parse_mode=ParseMode.HTML)
 
         # Auto-generate dashboard
         try:
@@ -121,8 +132,9 @@ async def cmd_portfolio(message: Message):
     try:
         # Run agent for text summary
         result = await AgentBridge.run_portfolio_summary()
-        for chunk in format_for_telegram(result):
-            await message.answer(chunk)
+        html = markdown_to_telegram_html(result)
+        for chunk in format_for_telegram(html):
+            await message.answer(chunk, parse_mode=ParseMode.HTML)
 
         # Auto-generate and send chart
         try:
@@ -164,19 +176,18 @@ async def cmd_balances(message: Message):
         )
         return
 
-    rows = []
+    lines = [section_header("Данные из скриншотов", "📸"), ""]
+
     for source, data in latest.items():
         date_str = data.get("extracted_at", "?")[:10]
+        lines.append(f"<b>{source}</b>  <i>{date_str}</i>")
         for acc in data.get("accounts", []):
             balance = acc.get("balance", "?")
             currency = acc.get("currency", "")
-            rows.append([source, f"{balance} {currency}", date_str])
+            lines.append(key_value(currency or "Баланс", f"{balance} {currency}"))
+        lines.append("")
 
-    table = mono_table(["Источник", "Баланс", "Дата"], rows)
-    await message.answer(
-        f"<b>Данные из скриншотов</b>\n\n{table}",
-        parse_mode=ParseMode.HTML,
-    )
+    await message.answer("\n".join(lines), parse_mode=ParseMode.HTML)
 
 
 @router.message(Command("tinkoff"))
@@ -195,22 +206,17 @@ async def cmd_tinkoff(message: Message):
     period_end = summary['period'].get('end', '?')[:10]
 
     lines = [
-        f"<b>Т-Банк</b>  {period_start} — {period_end}",
-        f"Операций: {summary['total_count']}",
+        f"{section_header('Т-Банк', '🏧')}  <i>{period_start} — {period_end}</i>",
         "",
+        key_value("Доходы", f"+{summary['income']:,.0f} RUB"),
+        key_value("Расходы", f"-{summary['expenses']:,.0f} RUB"),
+        key_value("Нетто", f"{summary['net']:+,.0f} RUB"),
     ]
-
-    # Summary table
-    summary_rows = [
-        ["Доходы", f"+{summary['income']:,.0f} RUB"],
-        ["Расходы", f"-{summary['expenses']:,.0f} RUB"],
-        ["Нетто", f"{summary['net']:,.0f} RUB"],
-    ]
-    lines.append(mono_table(["", "Сумма"], summary_rows))
 
     # Top categories
     if summary.get("top_categories"):
         lines.append("")
+        lines.append(section_header("Топ расходов", "📊"))
         cat_rows = [
             [cat, f"{amt:,.0f} RUB"]
             for cat, amt in summary["top_categories"][:8]
@@ -223,9 +229,10 @@ async def cmd_tinkoff(message: Message):
         expense_values = [m[1]["expenses"] for m in months]
         spark = sparkline(expense_values)
         month_labels = " ".join(m[0][-2:] for m in months)
-        lines.append(f"\nРасходы по месяцам:\n{spark}\n{month_labels}")
+        lines.append(f"\n📈 <code>{spark}</code>")
+        lines.append(f"<i>{month_labels}</i>")
 
-    lines.append(f"\n<i>Обновлено: {summary['last_updated'][:16]}</i>")
+    lines.append(f"\n<i>Операций: {summary['total_count']} | Обновлено: {summary['last_updated'][:16]}</i>")
     await message.answer("\n".join(lines), parse_mode=ParseMode.HTML)
 
 
@@ -294,7 +301,7 @@ async def cmd_chart(message: Message):
 
 
 def _build_chart_caption(data: dict) -> str:
-    """Build short caption for the chart photo (max 1024 chars)."""
+    """Build structured caption for the chart photo (max 1024 chars)."""
     total = data.get("total_usd", 0)
 
     # Merge all sources and sort
@@ -308,15 +315,19 @@ def _build_chart_caption(data: dict) -> str:
         all_sources.append((name, info["usd"], info.get("original", "")))
 
     all_sources.sort(key=lambda x: -x[1])
-    top = all_sources[:5]
+    top = all_sources[:6]
 
-    lines = [f"<b>Портфель — ${total:,.0f}</b>"]
+    lines = [section_header(f"Портфель — ${total:,.0f}", "🏦")]
     for name, val, orig in top:
-        suffix = f" ({orig})" if orig else ""
-        lines.append(f"  {name}: ${val:,.0f}{suffix}")
+        pct = val / total * 100 if total > 0 else 0
+        val_str = f"${val:,.0f}"
+        if orig:
+            val_str += f" ({orig})"
+        lines.append(key_value(name, f"{val_str}  {pct:.0f}%"))
 
-    if len(all_sources) > 5:
-        lines.append(f"  ...и ещё {len(all_sources) - 5} источников")
+    if len(all_sources) > 6:
+        rest = sum(v for _, v, _ in all_sources[6:])
+        lines.append(f"  <i>...и ещё {len(all_sources) - 6} ист. (${rest:,.0f})</i>")
 
     return "\n".join(lines)
 
@@ -338,17 +349,28 @@ def _build_chart_text(data: dict) -> str:
     total = data.get("total_usd", 0)
     rows.append(["ИТОГО", f"${total:,.0f}"])
 
-    table = mono_table(["Источник", "Баланс"], rows)
+    parts = [
+        section_header("Детализация", "📊"),
+        mono_table(["Источник", "Баланс"], rows),
+    ]
 
-    # Add T-Bank mini summary
+    # Add T-Bank structured summary
     tbank = data.get("tbank_summary")
-    tbank_line = ""
     if tbank:
         income = tbank.get("income", 0)
         expenses = tbank.get("expenses", 0)
-        tbank_line = f"\nT-Bank: +{income:,.0f} / -{expenses:,.0f} RUB"
+        net = tbank.get("net", income - expenses)
+        parts.append("")
+        parts.append(section_header("Т-Банк (RUB)", "🏧"))
+        parts.append(key_value("Доход", f"+{income:,.0f}"))
+        parts.append(key_value("Расход", f"-{expenses:,.0f}"))
+        parts.append(key_value("Нетто", f"{net:+,.0f}"))
 
-    return f"{table}{tbank_line}"
+    timestamp = data.get("timestamp", "")
+    if timestamp:
+        parts.append(f"\n<i>Обновлено: {timestamp}</i>")
+
+    return "\n".join(parts)
 
 
 @router.message(Command("expenses"))
@@ -369,7 +391,7 @@ async def cmd_expenses(message: Message):
         return
 
     total = sum(categories.values())
-    caption = f"<b>Расходы — RUB {total:,.0f}</b>\nТоп {len(categories)} категорий"
+    caption = f"{section_header(f'Расходы — RUB {total:,.0f}', '📉')}\n<i>Топ {len(categories)} категорий</i>"
 
     photo = BufferedInputFile(png, filename="expenses.png")
     await message.answer_photo(photo=photo, caption=caption, parse_mode=ParseMode.HTML)
@@ -568,7 +590,7 @@ async def cmd_status(message: Message):
     banks = config.get("banks", {})
     payments = config.get("payments", {})
 
-    rows = []
+    lines = [section_header("Статус коннекторов", "⚙️"), ""]
 
     # API-based connectors
     checks = [
@@ -581,11 +603,13 @@ async def cmd_status(message: Message):
 
     for name, service, enabled in checks:
         if not enabled:
-            rows.append([name, "ВЫКЛ"])
+            lines.append(f"{status_indicator('off')} {name} — ВЫКЛ")
         elif CredentialBroker.is_configured(service):
-            rows.append([name, "OK"])
+            lines.append(f"{status_indicator('ok')} {name}")
         else:
-            rows.append([name, "НЕТ КЛЮЧА"])
+            lines.append(f"{status_indicator('warn')} {name} — НЕТ КЛЮЧА")
+
+    lines.append("")
 
     # Free API connectors (no key needed)
     free_checks = [
@@ -596,34 +620,49 @@ async def cmd_status(message: Message):
         ("Forex", True),
     ]
     for name, has_config in free_checks:
-        rows.append([name, "OK" if has_config else "НЕТ КОНФИГ"])
+        if has_config:
+            lines.append(f"{status_indicator('ok')} {name}")
+        else:
+            lines.append(f"{status_indicator('warn')} {name} — НЕТ КОНФИГ")
+
+    lines.append("")
+    lines.append(section_header("Данные", "📁"))
 
     # Data sources
     screenshots = get_latest_balances()
     from ..transaction_storage import get_summary
     tinkoff = get_summary()
 
-    rows.append(["Скриншоты", f"{len(screenshots)} ист." if screenshots else "НЕТ ДАННЫХ"])
-    rows.append(["Т-Банк CSV", f"{tinkoff['total_count']} оп." if tinkoff else "НЕТ ДАННЫХ"])
+    if screenshots:
+        lines.append(f"{status_indicator('ok')} Скриншоты — {len(screenshots)} ист.")
+    else:
+        lines.append(f"{status_indicator('error')} Скриншоты — НЕТ ДАННЫХ")
 
-    table = mono_table(["Источник", "Статус"], rows)
-    await message.answer(
-        f"<b>Статус коннекторов</b>\n\n{table}",
-        parse_mode=ParseMode.HTML,
-    )
+    if tinkoff:
+        lines.append(f"{status_indicator('ok')} Т-Банк CSV — {tinkoff['total_count']} оп.")
+    else:
+        lines.append(f"{status_indicator('error')} Т-Банк CSV — НЕТ ДАННЫХ")
+
+    await message.answer("\n".join(lines), parse_mode=ParseMode.HTML)
 
 
 @router.message(Command("help"))
 async def cmd_help(message: Message):
-    await message.answer(
-        "Текст → Маттиас отвечает как CFO\n"
-        "CSV-файл → разбор выписки Т-Банка\n"
-        "Фото/скриншоты → распознавание данных\n\n"
-        "/report — Финансовый отчёт + дашборд\n"
-        "/portfolio — Портфель + график\n"
-        "/chart — Финансовый дашборд (все источники)\n"
-        "/expenses — График расходов (Т-Банк)\n"
-        "/tinkoff — Сводка по Т-Банку\n"
-        "/balances — Данные из скриншотов\n"
-        "/status — Статус коннекторов\n"
-    )
+    text = "\n".join([
+        section_header("Справка", "📖"),
+        "",
+        section_header("Ввод данных", "💬"),
+        "▸ Текст — Маттиас отвечает как CFO",
+        "▸ CSV-файл — разбор выписки Т-Банка",
+        "▸ Фото — распознавание скриншотов балансов",
+        "",
+        section_header("Команды", "📊"),
+        "▸ /report — Финансовый отчёт + дашборд",
+        "▸ /portfolio — Портфель + график",
+        "▸ /chart — Финансовый дашборд (все источники)",
+        "▸ /expenses — График расходов (Т-Банк)",
+        "▸ /tinkoff — Сводка по Т-Банку",
+        "▸ /balances — Данные из скриншотов",
+        "▸ /status — Статус коннекторов",
+    ])
+    await message.answer(text, parse_mode=ParseMode.HTML)

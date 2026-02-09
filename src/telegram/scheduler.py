@@ -8,7 +8,7 @@ from apscheduler.triggers.cron import CronTrigger
 
 from .bridge import AgentBridge
 from .config import TelegramConfig
-from .formatters import format_for_telegram
+from .formatters import format_for_telegram, markdown_to_telegram_html, section_header
 
 logger = logging.getLogger(__name__)
 
@@ -26,8 +26,9 @@ def setup_scheduler(bot: Bot, config: TelegramConfig) -> AsyncIOScheduler:
     async def weekly_summary():
         try:
             report = await AgentBridge.run_financial_report()
-            for chunk in format_for_telegram(report):
-                await bot.send_message(chat_id, chunk)
+            html = markdown_to_telegram_html(report)
+            for chunk in format_for_telegram(html):
+                await bot.send_message(chat_id, chunk, parse_mode="HTML")
         except Exception as e:
             logger.error(f"Weekly summary failed: {e}")
             await bot.send_message(
@@ -53,17 +54,19 @@ def setup_scheduler(bot: Bot, config: TelegramConfig) -> AsyncIOScheduler:
         if summary and summary.get("period", {}).get("end"):
             last_date = summary["period"]["end"][:10]
 
-        await bot.send_message(
-            chat_id,
-            "Маттиас напоминает:\n\n"
-            "Тим, для финансового отчёта мне нужны актуальные данные:\n\n"
-            "1. CSV-выписка из Т-Банка\n"
-            f"   (последние данные: {last_date or 'нет'})\n"
-            "   Приложение → Счёт → Выписка → CSV → отправь сюда\n\n"
-            "2. Скриншот баланса TBC Bank\n"
-            "3. Скриншот баланса @wallet (вкладка Crypto)\n\n"
-            "Файлы и фото пришли прямо в этот чат.",
-        )
+        text = "\n".join([
+            section_header("Напоминание", "📋"),
+            "",
+            "Тим, для финансового отчёта мне нужны актуальные данные:",
+            "",
+            f"▸ CSV-выписка из Т-Банка <i>(последние: {last_date or 'нет'})</i>",
+            "  Приложение → Счёт → Выписка → CSV → отправь сюда",
+            "▸ Скриншот баланса TBC Bank",
+            "▸ Скриншот баланса @wallet (вкладка Crypto)",
+            "",
+            "<i>Файлы и фото пришли прямо в этот чат.</i>",
+        ])
+        await bot.send_message(chat_id, text, parse_mode="HTML")
 
     scheduler.add_job(
         screenshot_reminder,
@@ -88,10 +91,10 @@ def setup_scheduler(bot: Bot, config: TelegramConfig) -> AsyncIOScheduler:
                 agent_name="accountant",
             )
             if "аномалий нет" not in report.lower():
-                await bot.send_message(
-                    chat_id,
-                    f"Финансовый алерт от Маттиаса:\n\n{report}",
-                )
+                html = markdown_to_telegram_html(report)
+                alert = f"{section_header('Финансовый алерт', '🚨')}\n\n{html}"
+                for chunk in format_for_telegram(alert):
+                    await bot.send_message(chat_id, chunk, parse_mode="HTML")
         except Exception as e:
             logger.error(f"Anomaly check failed: {e}")
 

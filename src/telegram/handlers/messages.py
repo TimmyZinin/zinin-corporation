@@ -5,9 +5,10 @@ import logging
 
 from aiogram import Router, F
 from aiogram.types import Message
+from aiogram.enums import ParseMode
 
 from ..bridge import AgentBridge
-from ..formatters import format_for_telegram
+from ..formatters import format_for_telegram, markdown_to_telegram_html
 
 logger = logging.getLogger(__name__)
 router = Router()
@@ -53,8 +54,9 @@ async def handle_text(message: Message):
         )
         _chat_context.append({"role": "assistant", "text": response})
 
-        for chunk in format_for_telegram(response):
-            await message.answer(chunk)
+        response_html = markdown_to_telegram_html(response)
+        for chunk in format_for_telegram(response_html):
+            await message.answer(chunk, parse_mode=ParseMode.HTML)
 
     except Exception as e:
         logger.error(f"Message handler error: {e}", exc_info=True)

@@ -1,10 +1,110 @@
 """Format CrewAI responses for Telegram (message splitting, cleanup).
 
-Includes: message splitting, monospace tables, progress bars, sparklines.
+Includes: message splitting, monospace tables, progress bars, sparklines,
+markdown→HTML conversion, structured section builders.
 All output uses Telegram HTML parse_mode (<pre>, <b>, <code>).
 """
 
+import re
+
 MAX_LENGTH = 4096
+
+
+# ── Markdown → Telegram HTML ──────────────────────────────────
+
+def markdown_to_telegram_html(text: str) -> str:
+    """Convert markdown text (from CrewAI agents) to Telegram-safe HTML.
+
+    Handles: bold, inline code, code blocks, headers, bullets, quotes, hr.
+    """
+    if not text:
+        return ""
+
+    # 1. HTML-escape first (before any HTML tags are added)
+    text = text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+    # 2. Code blocks: ```...``` → <pre>...</pre>
+    def _code_block(m):
+        code = m.group(1).strip()
+        return f"<pre>{code}</pre>"
+    text = re.sub(r"```(?:\w*)\n?(.*?)```", _code_block, text, flags=re.DOTALL)
+
+    # 3. Inline code: `code` → <code>code</code>
+    text = re.sub(r"`([^`]+)`", r"<code>\1</code>", text)
+
+    # 4. Bold: **text** → <b>text</b>
+    text = re.sub(r"\*\*(.+?)\*\*", r"<b>\1</b>", text)
+
+    # 5. Italic: *text* → <i>text</i> (but not inside <b> tags)
+    text = re.sub(r"(?<!\w)\*([^*]+?)\*(?!\w)", r"<i>\1</i>", text)
+
+    # 6. Headers: ### Header → bold + separator
+    def _header(m):
+        level = len(m.group(1))
+        title = m.group(2).strip().upper() if level <= 2 else m.group(2).strip()
+        sep = "━" * 20 if level <= 2 else "───"
+        return f"\n<b>{title}</b>\n{sep}"
+    text = re.sub(r"^(#{1,4})\s+(.+)$", _header, text, flags=re.MULTILINE)
+
+    # 7. Horizontal rules: --- or *** → thick separator
+    text = re.sub(r"^[-*]{3,}\s*$", "━━━━━━━━━━━━━━━━━━", text, flags=re.MULTILINE)
+
+    # 8. Blockquotes: > text → <blockquote>text</blockquote>
+    def _blockquote(m):
+        lines = m.group(0).split("\n")
+        content = "\n".join(line.lstrip("&gt; ").lstrip("&gt;") for line in lines)
+        return f"<blockquote>{content.strip()}</blockquote>"
+    text = re.sub(r"(?:^&gt;\s?.+\n?)+", _blockquote, text, flags=re.MULTILINE)
+
+    # 9. Bullets: - item or * item → ▸ item
+    text = re.sub(r"^[\-\*]\s+", "▸ ", text, flags=re.MULTILINE)
+
+    # 10. Numbered lists: clean up
+    text = re.sub(r"^(\d+)\.\s+", r"\1. ", text, flags=re.MULTILINE)
+
+    # 11. Clean up excessive blank lines
+    text = re.sub(r"\n{3,}", "\n\n", text)
+
+    return text.strip()
+
+
+# ── Section builders ──────────────────────────────────────────
+
+def section_header(title: str, emoji: str = "") -> str:
+    """Build a visual section header with separator.
+
+    Returns: '{emoji} <b>{title}</b>\n━━━━━━━━━━━━━━━━━━'
+    """
+    prefix = f"{emoji} " if emoji else ""
+    return f"{prefix}<b>{title}</b>\n━━━━━━━━━━━━━━━━━━"
+
+
+def key_value(label: str, value: str, width: int = 20) -> str:
+    """Build a key-value line with dot leaders.
+
+    Returns: 'Label ········· <code>Value</code>'
+    """
+    dots_count = max(2, width - len(label))
+    dots = "·" * dots_count
+    return f"▸ {label} {dots} <code>{value}</code>"
+
+
+def separator(style: str = "thick") -> str:
+    """Return a visual separator line.
+
+    style: 'thick' → ━━━━━━━━━━━━━━━━━━ | 'thin' → ──────────────────
+    """
+    if style == "thin":
+        return "──────────────────"
+    return "━━━━━━━━━━━━━━━━━━"
+
+
+def status_indicator(status: str) -> str:
+    """Return colored status emoji.
+
+    status: 'ok' → 🟢 | 'warn' → 🟡 | 'error' → 🔴 | 'off' → ⚫
+    """
+    return {"ok": "🟢", "warn": "🟡", "error": "🔴", "off": "⚫"}.get(status, "⚪")
 
 # ── Sparklines ──────────────────────────────────────────────
 

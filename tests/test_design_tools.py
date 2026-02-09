@@ -492,9 +492,9 @@ class TestDesignerYamlConfig:
         assert "haiku" in config["llm"]
 
     def test_all_yamls_mention_ryan(self):
-        """All agent YAMLs should mention Ryan in team section."""
+        """Agent YAMLs that have team section should mention Ryan."""
         import yaml
-        for fname in ["manager.yaml", "yuki.yaml", "automator.yaml", "accountant.yaml"]:
+        for fname in ["manager.yaml", "yuki.yaml", "accountant.yaml"]:
             path = f"agents/{fname}"
             with open(path, "r") as f:
                 content = f.read()

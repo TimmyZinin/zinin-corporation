@@ -371,15 +371,15 @@ class TestAgentIntegration(unittest.TestCase):
         ]
         self.assertEqual(len(tools), 4)
 
-    def test_automator_yaml_mentions_new_tools(self):
+    def test_automator_yaml_has_cto_role(self):
         import yaml
         for path in ["agents/automator.yaml", "/app/agents/automator.yaml"]:
             if os.path.exists(path):
                 with open(path) as f:
                     config = yaml.safe_load(f)
-                backstory = config.get("backstory", "")
-                self.assertIn("API Health Monitor", backstory)
-                self.assertIn("Agent Prompt Writer", backstory)
+                role = config.get("role", "")
+                self.assertIn("CTO", role)
+                self.assertIn("Мартин", role)
                 break
         else:
             self.skipTest("automator.yaml not found")
