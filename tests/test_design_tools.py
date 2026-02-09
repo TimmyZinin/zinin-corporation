@@ -500,6 +500,14 @@ class TestDesignerYamlConfig:
                 content = f.read()
             assert "Райан" in content, f"{fname} doesn't mention Райан"
 
+    def test_corporation_yaml_includes_designer(self):
+        """corporation.yaml must list designer as an active agent (not commented out)."""
+        import yaml
+        with open("crews/corporation.yaml", "r") as f:
+            config = yaml.safe_load(f)
+        assert "agents" in config
+        assert "designer" in config["agents"], "designer is missing or commented out in corporation.yaml"
+
     def test_manager_yaml_has_designer_delegation(self):
         with open("agents/manager.yaml", "r") as f:
             content = f.read()
