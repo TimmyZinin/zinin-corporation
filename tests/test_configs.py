@@ -10,7 +10,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 AGENTS_DIR = os.path.join(os.path.dirname(__file__), "..", "agents")
 CREWS_DIR = os.path.join(os.path.dirname(__file__), "..", "crews")
 
-EXPECTED_AGENTS = ["manager", "accountant", "automator", "yuki"]
+EXPECTED_AGENTS = ["manager", "accountant", "automator", "yuki", "designer"]
 
 
 # ── Agent Configs ────────────────────────────────────────
@@ -105,3 +105,34 @@ class TestCrewConfig:
     def test_crew_has_embedder(self):
         cfg = self._load_crew()
         assert "embedder" in cfg
+
+
+# ── Agent Memory Config ────────────────────────────────
+
+class TestAgentMemoryConfig:
+    """Verify memory settings in agent YAMLs."""
+
+    def _load(self, name):
+        path = os.path.join(AGENTS_DIR, f"{name}.yaml")
+        with open(path, "r", encoding="utf-8") as f:
+            return yaml.safe_load(f)
+
+    def test_yuki_memory_enabled(self):
+        cfg = self._load("yuki")
+        assert cfg.get("memory") is True, "yuki.yaml should have memory: true"
+
+    def test_designer_memory_enabled(self):
+        cfg = self._load("designer")
+        assert cfg.get("memory") is True, "designer.yaml should have memory: true"
+
+    def test_manager_memory_disabled(self):
+        cfg = self._load("manager")
+        assert cfg.get("memory") is False, "manager.yaml should have memory: false"
+
+    def test_accountant_memory_disabled(self):
+        cfg = self._load("accountant")
+        assert cfg.get("memory") is False, "accountant.yaml should have memory: false"
+
+    def test_automator_memory_disabled(self):
+        cfg = self._load("automator")
+        assert cfg.get("memory") is False, "automator.yaml should have memory: false"

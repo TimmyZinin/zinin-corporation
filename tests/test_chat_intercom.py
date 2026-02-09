@@ -429,8 +429,8 @@ class TestAgentMemoryDisabled:
                 return
         pytest.fail("create_accountant_agent not found")
 
-    def test_smm_memory_false(self):
-        """SMM agent (Yuki) is created with memory=False (line 138)."""
+    def test_smm_memory_from_config(self):
+        """SMM agent (Yuki) reads memory from YAML config (memory: true)."""
         source = _read_source(AGENTS_PATH)
         tree = ast.parse(source)
 
@@ -439,8 +439,8 @@ class TestAgentMemoryDisabled:
                 func_source = "\n".join(
                     source.splitlines()[node.lineno - 1: node.end_lineno]
                 )
-                assert "memory=False" in func_source, (
-                    "PROBLEM CONFIRMED: SMM agent has memory=False."
+                assert 'config.get("memory"' in func_source, (
+                    "SMM agent should read memory from YAML config."
                 )
                 return
         pytest.fail("create_smm_agent not found")
@@ -461,33 +461,28 @@ class TestAgentMemoryDisabled:
                 return
         pytest.fail("create_automator_agent not found")
 
-    def test_all_four_agents_have_memory_false(self):
-        """Every single agent creation function sets memory=False.
-        This is a systematic problem, not a one-off oversight."""
+    def test_agents_memory_configuration(self):
+        """Manager & accountant & automator have memory=False hardcoded.
+        SMM & designer read memory from YAML config."""
         source = _read_source(AGENTS_PATH)
         tree = ast.parse(source)
 
-        agent_functions = [
-            "create_manager_agent",
-            "create_accountant_agent",
-            "create_smm_agent",
-            "create_automator_agent",
-        ]
+        hardcoded_false = ["create_manager_agent", "create_accountant_agent", "create_automator_agent"]
+        config_based = ["create_smm_agent", "create_designer_agent"]
 
-        memory_false_count = 0
         for node in ast.walk(tree):
-            if isinstance(node, ast.FunctionDef) and node.name in agent_functions:
+            if isinstance(node, ast.FunctionDef):
                 func_source = "\n".join(
                     source.splitlines()[node.lineno - 1: node.end_lineno]
                 )
-                if "memory=False" in func_source:
-                    memory_false_count += 1
-
-        assert memory_false_count == 4, (
-            f"PROBLEM CONFIRMED: All 4 agent creation functions set memory=False. "
-            f"Found {memory_false_count}/4 with memory=False. "
-            f"Agents have no personal memory across conversations."
-        )
+                if node.name in hardcoded_false:
+                    assert "memory=False" in func_source, (
+                        f"{node.name} should have memory=False hardcoded"
+                    )
+                elif node.name in config_based:
+                    assert 'config.get("memory"' in func_source, (
+                        f"{node.name} should read memory from YAML config"
+                    )
 
 
 # ====================================================================

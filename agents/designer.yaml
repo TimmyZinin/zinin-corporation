@@ -94,6 +94,6 @@ backstory: |
 llm: openrouter/anthropic/claude-3.5-haiku
 
 verbose: true
-memory: false
+memory: true
 allow_delegation: false
 max_iter: 10
