@@ -51,17 +51,17 @@ def setup_ceo_scheduler(bot: Bot, config: CeoTelegramConfig) -> AsyncIOScheduler
         replace_existing=True,
     )
 
-    # 2) Weekly strategic review (heavy — 3 agents via LLM)
+    # 2) Weekly full corporation report (heavy — all agents via LLM)
     async def weekly_review():
         try:
-            report = await AgentBridge.run_strategic_review()
+            report = await AgentBridge.run_corporation_report()
             for chunk in format_for_telegram(report):
                 await bot.send_message(chat_id, chunk)
         except Exception as e:
-            logger.error(f"Weekly strategic review failed: {e}")
+            logger.error(f"Weekly corporation report failed: {e}")
             await bot.send_message(
                 chat_id,
-                f"Алексей: Не удалось подготовить стратобзор. Ошибка: {str(e)[:200]}",
+                f"Алексей: Не удалось подготовить еженедельный отчёт. Ошибка: {str(e)[:200]}",
             )
 
     scheduler.add_job(
@@ -286,7 +286,7 @@ def setup_ceo_scheduler(bot: Bot, config: CeoTelegramConfig) -> AsyncIOScheduler
 
     logger.info(
         f"CEO scheduler: briefing=daily {config.morning_briefing_hour}:00, "
-        f"review={config.weekly_review_day} {config.weekly_review_hour}:00, "
+        f"full_report={config.weekly_review_day} {config.weekly_review_hour}:00, "
         f"api_health=every 30min, "
         f"cto_improvement=4x/day (9:30, 13:30, 17:30, 21:30)"
     )

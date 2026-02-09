@@ -395,11 +395,11 @@ class TestCeoScheduler:
         # The morning_briefing function uses get_all_statuses, not AgentBridge
         assert "get_all_statuses" in src
 
-    def test_weekly_review_calls_strategic_review(self):
-        """Weekly review should use AgentBridge.run_strategic_review."""
+    def test_weekly_review_calls_corporation_report(self):
+        """Weekly review should use AgentBridge.run_corporation_report (full report from all agents)."""
         from src.telegram_ceo import scheduler
         src = inspect.getsource(scheduler.setup_ceo_scheduler)
-        assert "run_strategic_review" in src
+        assert "run_corporation_report" in src
 
 
 # ──────────────────────────────────────────────────────────
