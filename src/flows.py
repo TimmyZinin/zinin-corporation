@@ -45,6 +45,7 @@ from .models.corporation_state import (
     load_shared_state,
     save_shared_state,
 )
+from .lessons_learned import add_lesson, get_lessons_for_context
 
 logger = logging.getLogger(__name__)
 
@@ -313,7 +314,10 @@ def detect_delegation(text: str) -> Optional[str]:
 
 def _judge_and_log(agent_name: str, short_desc: str,
                    task_description: str, result: str):
-    """Run LLM judge on agent response and log score. Never raises."""
+    """Run LLM judge on agent response and log score. Never raises.
+
+    If score < REFLECTION_SCORE_THRESHOLD, auto-creates a lesson learned.
+    """
     try:
         from .tools.llm_judge import judge_response
         verdict = judge_response(task_description, result, agent_name)
@@ -326,6 +330,20 @@ def _judge_and_log(agent_name: str, short_desc: str,
                 "feedback": verdict.feedback,
                 "passed": verdict.passed,
             })
+
+            # Auto-lesson on low quality
+            if not verdict.passed and verdict.overall < REFLECTION_SCORE_THRESHOLD:
+                try:
+                    add_lesson(
+                        summary=f"Низкое качество ({verdict.overall:.1f}/5): {short_desc[:100]}",
+                        agent=agent_name,
+                        category="quality",
+                        detail=verdict.feedback or "",
+                        action=f"Улучшить: rel={verdict.relevance}, comp={verdict.completeness}, acc={verdict.accuracy}, fmt={verdict.format_score}",
+                        task_context=short_desc[:200],
+                    )
+                except Exception:
+                    pass
     except Exception as e:
         logger.warning(f"_judge_and_log failed for {agent_name}: {e}")
 
