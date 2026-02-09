@@ -113,23 +113,9 @@ KNOWLEDGE_SOURCES = _load_knowledge_sources()
 
 
 # ──────────────────────────────────────────────────────────
-# Pydantic output models for structured responses
+# Pydantic output models — re-exported from models.outputs
 # ──────────────────────────────────────────────────────────
-class FinancialReport(BaseModel):
-    summary: str = Field(description="Краткая сводка финансового состояния")
-    total_revenue_rub: float = Field(default=0, description="Общий доход в рублях")
-    total_expenses_rub: float = Field(default=0, description="Общие расходы в рублях")
-    mrr_rub: float = Field(default=0, description="Ежемесячный повторяющийся доход")
-    api_costs_usd: float = Field(default=0, description="Расходы на API в долларах")
-    recommendations: list[str] = Field(default_factory=list, description="Рекомендации")
-
-
-class HealthCheckReport(BaseModel):
-    overall_status: str = Field(description="Общий статус: healthy, degraded, critical")
-    services_up: int = Field(default=0, description="Сервисов работает")
-    services_down: int = Field(default=0, description="Сервисов не работает")
-    details: list[str] = Field(default_factory=list, description="Детали по каждому сервису")
-    recommendations: list[str] = Field(default_factory=list, description="Рекомендации")
+from .models.outputs import FinancialReport, HealthCheckReport  # noqa: F401
 
 
 # ──────────────────────────────────────────────────────────
@@ -412,13 +398,17 @@ class AICorporation:
             return f"⚠️ _(восстановлено)_\n\n{result}"
 
     def execute_task(self, task_description: str, agent_name: str = "manager",
-                     use_memory: bool = True) -> str:
-        """Execute a task via CorporationFlow."""
+                     use_memory: bool = True, task_type: str = "chat") -> str:
+        """Execute a task via CorporationFlow.
+
+        Args:
+            task_type: "chat" for free text, "report" for structured output.
+        """
         if not self.is_ready:
             return "❌ Zinin Corp не инициализирована. Проверьте API ключи."
 
         from .flows import run_task
-        return run_task(task_description, agent_name, use_memory)
+        return run_task(task_description, agent_name, use_memory, task_type)
 
     # ──────────────────────────────────────────────────────────
     # Multi-agent tasks with context passing
@@ -447,7 +437,7 @@ class AICorporation:
         - Расходы на AI (+ Claude Code $200/мес фиксированная)
         - Рекомендации
         """
-        return self.execute_task(task_desc, "accountant")
+        return self.execute_task(task_desc, "accountant", task_type="report")
 
     def api_budget_check(self) -> str:
         """Check API budget status from Маттиас"""
@@ -462,7 +452,7 @@ class AICorporation:
         Дай краткий отчёт: расходы по каждому сервису, общая сумма,
         рекомендации по оптимизации.
         """
-        return self.execute_task(task_desc, "accountant")
+        return self.execute_task(task_desc, "accountant", task_type="report")
 
     def subscription_analysis(self) -> str:
         """Analyze subscriptions from Маттиас"""
@@ -472,7 +462,7 @@ class AICorporation:
         1. Используй tribute_revenue для данных о подписках Tribute
         2. Дай сводку: активные подписки, MRR, рекомендации по росту.
         """
-        return self.execute_task(task_desc, "accountant")
+        return self.execute_task(task_desc, "accountant", task_type="report")
 
     def system_health_check(self) -> str:
         """Run system health check task"""
@@ -486,7 +476,7 @@ class AICorporation:
 
         Дай структурированный отчёт: что работает, что нет, рекомендации.
         """
-        return self.execute_task(task_desc, "automator")
+        return self.execute_task(task_desc, "automator", task_type="report")
 
     def api_health_report(self) -> str:
         """Run comprehensive API health check from Мартин"""
@@ -506,7 +496,7 @@ class AICorporation:
         - Платформы (LinkedIn, Railway)
         - Рекомендации
         """
-        return self.execute_task(task_desc, "automator")
+        return self.execute_task(task_desc, "automator", task_type="report")
 
     def cto_generate_proposal(self) -> dict:
         """CTO generates one improvement proposal for an agent. Called by scheduler."""

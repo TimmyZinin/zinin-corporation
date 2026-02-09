@@ -61,6 +61,7 @@ class CorporationState(BaseModel):
     agent_name: str = "manager"
     use_memory: bool = True
     flow_type: str = ""  # "single", "delegated", "strategic_review", "full_report"
+    task_type: str = "chat"  # "chat" (free text) or "report" (structured output)
 
     # Routing
     delegation_target: str = ""  # specialist agent key for auto-delegation
@@ -140,9 +141,13 @@ def get_agent_pool() -> _AgentPool:
 # ──────────────────────────────────────────────────────────
 
 def _run_agent_crew(agent, task_description: str, agent_name: str = "",
-                    use_memory: bool = True, guardrail=None) -> str:
+                    use_memory: bool = True, guardrail=None,
+                    output_pydantic=None) -> str:
     """Run a single agent task with memory fallback. Returns result string.
     Extracted from AICorporation._run_agent for reuse in flows.
+
+    Args:
+        output_pydantic: Optional Pydantic model class for structured output.
     """
     # Reset agent state
     agent.agent_executor = None
@@ -159,6 +164,7 @@ def _run_agent_crew(agent, task_description: str, agent_name: str = "",
         expected_output=output_fmt,
         agent=agent,
         guardrail=guardrail,
+        output_pydantic=output_pydantic,
     )
 
     if not use_memory:
@@ -289,6 +295,8 @@ class CorporationFlow(Flow[CorporationState]):
     @listen("single")
     def run_single_agent(self):
         """Run a single agent task directly."""
+        from .models.outputs import get_output_model
+
         pool = get_agent_pool()
         agent = pool.get(self.state.agent_name) or pool.get("manager")
         agent_name = self.state.agent_name
@@ -299,11 +307,13 @@ class CorporationFlow(Flow[CorporationState]):
 
         log_task_start(agent_name, short_desc)
         grl = _manager_guardrail if agent_name == "manager" else _specialist_guardrail
+        out_model = get_output_model(agent_name, self.state.task_type)
 
         try:
             result = _run_agent_crew(
                 agent, self.state.task_description, agent_name,
                 use_memory=self.state.use_memory, guardrail=grl,
+                output_pydantic=out_model,
             )
             log_task_end(agent_name, short_desc, success=True)
             self.state.final_output = result
@@ -690,13 +700,18 @@ class CorporationFlow(Flow[CorporationState]):
 # ──────────────────────────────────────────────────────────
 
 def run_task(task_description: str, agent_name: str = "manager",
-             use_memory: bool = True) -> str:
-    """Execute a task through the CorporationFlow. Drop-in for execute_task()."""
+             use_memory: bool = True, task_type: str = "chat") -> str:
+    """Execute a task through the CorporationFlow. Drop-in for execute_task().
+
+    Args:
+        task_type: "chat" for free text, "report" for structured output.
+    """
     flow = CorporationFlow()
     flow.kickoff(inputs={
         "task_description": task_description,
         "agent_name": agent_name,
         "use_memory": use_memory,
+        "task_type": task_type,
     })
     return flow.state.final_output
 
