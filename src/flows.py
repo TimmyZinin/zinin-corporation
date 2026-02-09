@@ -41,6 +41,11 @@ from .crew import (
     _send_progress,
 )
 
+from .models.corporation_state import (
+    load_shared_state,
+    save_shared_state,
+)
+
 logger = logging.getLogger(__name__)
 
 
@@ -323,6 +328,34 @@ def _judge_and_log(agent_name: str, short_desc: str,
             })
     except Exception as e:
         logger.warning(f"_judge_and_log failed for {agent_name}: {e}")
+
+
+# ──────────────────────────────────────────────────────────
+# Shared State helpers
+# ──────────────────────────────────────────────────────────
+
+def _update_shared_state_review():
+    """Update shared state after strategic review completes."""
+    try:
+        from datetime import datetime
+        state = load_shared_state()
+        state.last_strategic_review = datetime.now().isoformat()
+        save_shared_state(state)
+        logger.info("Shared state updated after strategic review")
+    except Exception as e:
+        logger.warning(f"Failed to update shared state after review: {e}")
+
+
+def _update_shared_state_report():
+    """Update shared state after full report completes."""
+    try:
+        from datetime import datetime
+        state = load_shared_state()
+        state.last_full_report = datetime.now().isoformat()
+        save_shared_state(state)
+        logger.info("Shared state updated after full report")
+    except Exception as e:
+        logger.warning(f"Failed to update shared state after report: {e}")
 
 
 # ──────────────────────────────────────────────────────────
@@ -618,6 +651,10 @@ class CorporationFlow(Flow[CorporationState]):
                 log_communication_end("smm")
 
             self.state.final_output = str(result)
+
+            # Update shared state timestamp
+            _update_shared_state_review()
+
         except Exception as e:
             logger.error(f"Strategic review failed: {e}", exc_info=True)
             log_task_end("accountant", "Финансовая сводка (стратобзор)", success=False)
@@ -764,6 +801,10 @@ class CorporationFlow(Flow[CorporationState]):
                 log_communication_end(agent_key)
 
             self.state.final_output = str(result)
+
+            # Update shared state timestamp
+            _update_shared_state_report()
+
         except Exception as e:
             logger.error(f"Full corporation report failed: {e}", exc_info=True)
             log_task_end("accountant", "Финансовый отчёт (полный)", success=False)
