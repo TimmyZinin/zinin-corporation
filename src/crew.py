@@ -290,7 +290,11 @@ def create_task(description: str, expected_output: str, agent, context=None,
 
 
 class AICorporation:
-    """Main class for Zinin Corp crew management"""
+    """Main class for Zinin Corp crew management.
+
+    Since Sprint 2, orchestration is done via CorporationFlow (src/flows.py).
+    This class remains as the public API and backward-compat layer.
+    """
 
     def __init__(self):
         self.config = load_crew_config()
@@ -301,42 +305,32 @@ class AICorporation:
         self.designer = None
         self.crew = None
         self._initialized = False
+        self._pool = None  # flows._AgentPool ref
 
     def initialize(self) -> bool:
-        """Initialize all agents and crew"""
+        """Initialize all agents via the shared AgentPool and crew"""
         try:
-            # Check API key
-            api_key = os.getenv("OPENROUTER_API_KEY")
-            if not api_key:
-                logger.error("OPENROUTER_API_KEY not set")
+            from .flows import get_agent_pool
+            pool = get_agent_pool()
+            if not pool.is_ready:
+                logger.error("Agent pool failed to initialize")
                 return False
 
-            # Create agents
-            self.manager = create_manager_agent()
-            self.accountant = create_accountant_agent()
-            self.smm = create_smm_agent()
-            self.automator = create_automator_agent()
-            self.designer = create_designer_agent()
+            # Expose agents as instance attrs for backward compat
+            self.manager = pool.get("manager")
+            self.accountant = pool.get("accountant")
+            self.smm = pool.get("smm")
+            self.automator = pool.get("automator")
+            self.designer = pool.get("designer")
+            self._pool = pool
 
             if not all([self.manager, self.accountant, self.automator]):
                 logger.error("Core agents failed to initialize")
                 return False
 
-            # SMM agent is optional
-            if not self.smm:
-                logger.warning("SMM agent (Юки) failed to init — continuing without her")
-
-            # Designer agent is optional
-            if not self.designer:
-                logger.warning("Designer agent (Райан) failed to init — continuing without him")
-
-            # Create crew with memory enabled
-            all_agents = [self.manager, self.accountant, self.automator]
-            if self.smm:
-                all_agents.append(self.smm)
-            if self.designer:
-                all_agents.append(self.designer)
-
+            # Create crew reference for backward compat (is_ready check)
+            all_agents = [a for a in [self.manager, self.accountant, self.automator,
+                                       self.smm, self.designer] if a]
             self.crew = Crew(
                 agents=all_agents,
                 process=Process.sequential,
@@ -345,7 +339,7 @@ class AICorporation:
             )
 
             self._initialized = True
-            logger.info("Zinin Corp initialized successfully")
+            logger.info("Zinin Corp initialized successfully (Flow-based)")
             return True
 
         except Exception as e:
@@ -417,312 +411,26 @@ class AICorporation:
             result = crew_fallback.kickoff()
             return f"⚠️ _(восстановлено)_\n\n{result}"
 
-    # ── Auto-delegation keywords ──────────────────────────
-    _DELEGATION_RULES = [
-        {
-            "agent_key": "smm",
-            "keywords": [
-                "контент", "пост", "публикац", "linkedin", "копирайт",
-                "smm", "соцсет", "социальн", "контент-план",
-            ],
-        },
-        {
-            "agent_key": "accountant",
-            "keywords": [
-                "бюджет", "финанс", "p&l", "расход", "доход", "прибыл",
-                "подписк", "roi", "портфел", "баланс", "выписк",
-            ],
-        },
-        {
-            "agent_key": "automator",
-            "keywords": [
-                "деплой", "api", "webhook", "интеграц", "мониторинг",
-                "сервер", "docker", "railway", "техническ",
-                "здоровье api", "health check", "статус api", "api status",
-                "промпт агент", "создай агент", "новый агент",
-                "улучшен", "proposal", "предложен", "improvement",
-                "модельный аудит", "model audit", "саморефлекс",
-            ],
-        },
-        {
-            "agent_key": "designer",
-            "keywords": [
-                "дизайн", "картинк", "изображен", "визуал", "инфографик",
-                "баннер", "лого", "график", "диаграмм", "chart",
-                "image", "видео", "video", "обложк",
-            ],
-        },
-    ]
-
-    # Keywords that force designer even if other agent keywords are present
-    _DESIGNER_PRIORITY_KEYWORDS = [
-        "картинк", "изображен", "баннер", "инфографик", "визуал",
-        "лого", "диаграмм", "обложк", "image", "chart",
-        "видео", "video", "дизайн",
-    ]
-
-    def _detect_delegation_need(self, text: str) -> Optional[dict]:
-        """Detect if manager task should be auto-delegated to a specialist.
-
-        Designer keywords take priority over SMM when both match,
-        because 'создай изображение для поста' is a design task, not SMM.
-        """
-        text_lower = text.lower()
-
-        # Check if designer priority keywords are present — they override SMM
-        for kw in self._DESIGNER_PRIORITY_KEYWORDS:
-            if kw in text_lower:
-                return {"agent_key": "designer"}
-
-        for rule in self._DELEGATION_RULES:
-            for kw in rule["keywords"]:
-                if kw in text_lower:
-                    return {"agent_key": rule["agent_key"]}
-        return None
-
     def execute_task(self, task_description: str, agent_name: str = "manager",
                      use_memory: bool = True) -> str:
-        """Execute a task with the specified agent"""
+        """Execute a task via CorporationFlow."""
         if not self.is_ready:
             return "❌ Zinin Corp не инициализирована. Проверьте API ключи."
 
-        agent_map = {
-            "manager": self.manager,
-            "accountant": self.accountant,
-            "smm": self.smm,
-            "automator": self.automator,
-            "designer": self.designer,
-        }
-
-        agent = agent_map.get(agent_name, self.manager)
-        # Extract actual user message when context is present
-        if "---\nНовое сообщение от Тима:" in task_description:
-            short_desc = task_description.split("---\nНовое сообщение от Тима:")[-1].strip()[:100].split("\n")[0]
-        else:
-            short_desc = task_description.strip()[:100].split("\n")[0]
-
-        # ── Auto-delegation for manager ──
-        # If the task is clearly for a specialist, run specialist first,
-        # then pass result to CEO for synthesis.
-        if agent_name == "manager":
-            delegation = self._detect_delegation_need(task_description)
-            if delegation:
-                specialist_key = delegation["agent_key"]
-                specialist_agent = agent_map.get(specialist_key)
-                if specialist_agent:
-                    spec_label = AGENT_LABELS.get(specialist_key, specialist_key)
-                    logger.info(f"Auto-delegation: manager → {specialist_key}")
-                    _send_progress(f"{spec_label} готовит данные...")
-                    log_task_start(specialist_key, short_desc)
-                    try:
-                        specialist_result = self._run_agent(
-                            specialist_agent, task_description, specialist_key,
-                            use_memory=use_memory,
-                            guardrail=_specialist_guardrail,
-                        )
-                        log_task_end(specialist_key, short_desc, success=True)
-                    except Exception as e:
-                        logger.error(f"Specialist {specialist_key} failed: {e}")
-                        log_task_end(specialist_key, short_desc, success=False)
-                        specialist_result = f"❌ Ошибка: {e}"
-
-                    _send_progress(f"{spec_label} → 👑 Алексей: передача данных")
-
-                    # Now pass to CEO for synthesis
-                    enriched = (
-                        f"{task_description}\n\n"
-                        f"--- Результат от специалиста ({specialist_key}) ---\n"
-                        f"{specialist_result}\n"
-                        f"--- Конец результата ---\n\n"
-                        f"НИКОГДА НЕ ПРЕДСТАВЛЯЙСЯ. СРАЗУ к делу.\n"
-                        f"Добавь свой краткий комментарий CEO к результату выше. "
-                        f"Не повторяй весь результат — дай стратегическую оценку."
-                    )
-                    log_task_start(agent_name, short_desc)
-                    try:
-                        ceo_result = self._run_agent(
-                            agent, enriched, agent_name,
-                            use_memory=use_memory,
-                            guardrail=_manager_guardrail,
-                        )
-                        log_task_end(agent_name, short_desc, success=True)
-                        return ceo_result
-                    except Exception as e:
-                        logger.error(f"CEO synthesis failed: {e}")
-                        log_task_end(agent_name, short_desc, success=False)
-                        # Return specialist result anyway
-                        return specialist_result
-
-        # Track: task started
-        log_task_start(agent_name, short_desc)
-
-        # Add guardrail for all agents
-        grl = _manager_guardrail if agent_name == "manager" else _specialist_guardrail
-
-        try:
-            result = self._run_agent(agent, task_description, agent_name,
-                                        use_memory=use_memory, guardrail=grl)
-            log_task_end(agent_name, short_desc, success=True)
-            return result
-        except Exception as e:
-            logger.error(f"Task failed for {agent_name}: {e}", exc_info=True)
-            log_task_end(agent_name, short_desc, success=False)
-            return f"❌ Ошибка выполнения: {e}"
+        from .flows import run_task
+        return run_task(task_description, agent_name, use_memory)
 
     # ──────────────────────────────────────────────────────────
     # Multi-agent tasks with context passing
     # ──────────────────────────────────────────────────────────
 
     def strategic_review(self) -> str:
-        """Run strategic review: Маттиас + Мартин + Юки feed data → Алексей synthesizes"""
+        """Run strategic review via CorporationFlow."""
         if not self.is_ready:
             return "❌ Zinin Corp не инициализирована."
 
-        has_smm = self.smm is not None
-
-        log_task_start("accountant", "Финансовая сводка (стратобзор)")
-        log_task_start("automator", "Проверка систем (стратобзор)")
-        if has_smm:
-            log_task_start("smm", "Контент-сводка (стратобзор)")
-        _send_progress(
-            "📋 Стратегический обзор запущен\n"
-            "🏦 Маттиас готовит финансовую сводку...\n"
-            "⚙️ Мартин проверяет системы..."
-            + ("\n📱 Юки готовит контент-сводку..." if has_smm else "")
-        )
-
-        agents = [self.accountant, self.automator]
-        # Reset all agent state to prevent accumulation
-        for a in agents:
-            a.agent_executor = None
-            a.tools_results = []
-            if hasattr(a, '_times_executed'):
-                a._times_executed = 0
-
-        tasks = []
-
-        task_finance = create_task(
-            description=(
-                "Подготовь краткую финансовую сводку:\n"
-                "1. Используй full_portfolio для общей картины\n"
-                "2. Используй openrouter_usage, elevenlabs_usage, openai_usage для расходов на AI\n"
-                "3. Используй tribute_revenue для доходов\n"
-                "Дай сводку: активы, доходы, расходы на AI."
-                + TASK_WRAPPER
-            ),
-            expected_output="Краткая финансовая сводка с реальными данными из инструментов.",
-            agent=self.accountant,
-        )
-        tasks.append(task_finance)
-
-        task_health = create_task(
-            description=(
-                "Проверь здоровье систем:\n"
-                "1. Вызови System Health Checker с action='status'\n"
-                "2. Вызови Integration Manager с action='list'\n"
-                "Дай сводку: что работает, что нет."
-                + TASK_WRAPPER
-            ),
-            expected_output="Краткий отчёт о состоянии систем и интеграций.",
-            agent=self.automator,
-        )
-        tasks.append(task_health)
-
-        # Task 3: Юки — content/SMM status (if available)
-        if has_smm:
-            self.smm.agent_executor = None
-            task_smm = create_task(
-                description=(
-                    "Подготовь краткую сводку по контенту и SMM:\n"
-                    "1. Используй Yuki Memory с action='get_stats' для статистики генераций\n"
-                    "2. Используй LinkedIn Publisher с action='status' для статуса LinkedIn\n"
-                    "Дай сводку: что опубликовано, что запланировано, статус LinkedIn."
-                    + TASK_WRAPPER
-                ),
-                expected_output="Краткая контент-сводка с данными из инструментов.",
-                agent=self.smm,
-            )
-            tasks.append(task_smm)
-            agents.append(self.smm)
-
-        # CEO synthesis with data from all agents
-        context_agents = "Маттиаса, Мартина" + (" и Юки" if has_smm else "")
-        task_strategy = create_task(
-            description=(
-                f"На основе данных от {context_agents} "
-                "подготовь стратегический обзор:\n"
-                "- Статус каждого проекта\n"
-                "- Приоритеты на неделю (фокус на Крипто и Сборке)\n"
-                "- Контент и публикации (от Юки)\n"
-                "- Конкретные задачи для каждого агента\n"
-                "- Риски и рекомендации\n\n"
-                "⛔ НЕ ПИШИ 'запускаю сбор данных' или 'начинаю сбор информации'. "
-                f"Данные от {context_agents} уже ПОЛУЧЕНЫ и переданы тебе в контексте. "
-                "Проанализируй их и дай КОНКРЕТНЫЙ стратегический обзор."
-                + TASK_WRAPPER
-            ),
-            expected_output=EXPECTED_OUTPUT,
-            agent=self.manager,
-            context=tasks,
-            guardrail=_manager_guardrail,
-        )
-        tasks.append(task_strategy)
-        agents.append(self.manager)
-
-        # Progress messages after each step
-        if has_smm:
-            _step_messages = [
-                "✅ 🏦 Маттиас: финансовая сводка готова\n⚙️ Мартин работает...",
-                "✅ ⚙️ Мартин: техотчёт готов\n📱 Юки работает...",
-                "✅ 📱 Юки: контент-сводка готова\n🏦→👑 Маттиас передаёт данные Алексею\n⚙️→👑 Мартин передаёт данные Алексею\n📱→👑 Юки передаёт данные Алексею\n👑 Алексей анализирует...",
-                None,
-            ]
-        else:
-            _step_messages = [
-                "✅ 🏦 Маттиас: финансовая сводка готова\n⚙️ Мартин работает...",
-                "✅ ⚙️ Мартин: техотчёт готов\n🏦→👑 Маттиас передаёт данные Алексею\n⚙️→👑 Мартин передаёт данные Алексею\n👑 Алексей анализирует...",
-                None,
-            ]
-        _step_idx = [0]
-
-        def _on_task_done(output):
-            idx = _step_idx[0]
-            _step_idx[0] += 1
-            if idx < len(_step_messages) and _step_messages[idx]:
-                _send_progress(_step_messages[idx])
-
-        try:
-            crew = Crew(
-                agents=agents,
-                tasks=tasks,
-                process=Process.sequential,
-                verbose=True,
-                memory=False,
-                task_callback=_on_task_done,
-            )
-            result = crew.kickoff()
-
-            # Track completion and communication
-            log_task_end("accountant", "Финансовая сводка (стратобзор)", success=True)
-            log_task_end("automator", "Проверка систем (стратобзор)", success=True)
-            log_communication("accountant", "manager", "Передача финансовых данных для стратобзора")
-            log_communication("automator", "manager", "Передача техотчёта для стратобзора")
-            if has_smm:
-                log_task_end("smm", "Контент-сводка (стратобзор)", success=True)
-                log_communication("smm", "manager", "Передача контент-сводки для стратобзора")
-            log_task_start("manager", "Стратегический обзор (синтез)")
-            log_task_end("manager", "Стратегический обзор (синтез)", success=True)
-            log_communication_end("accountant")
-            log_communication_end("automator")
-            if has_smm:
-                log_communication_end("smm")
-
-            return str(result)
-        except Exception as e:
-            logger.error(f"Strategic review failed: {e}", exc_info=True)
-            log_task_end("accountant", "Финансовая сводка (стратобзор)", success=False)
-            log_task_end("automator", "Проверка систем (стратобзор)", success=False)
-            return f"❌ Ошибка стратегического обзора: {e}"
+        from .flows import run_strategic_review
+        return run_strategic_review()
 
     def financial_report(self) -> str:
         """Run full financial report from Маттиас"""
@@ -916,159 +624,12 @@ class AICorporation:
         return self.execute_task(task_desc, "smm")
 
     def full_corporation_report(self) -> str:
-        """Full weekly report: all agents contribute, Алексей synthesizes."""
+        """Full weekly report via CorporationFlow."""
         if not self.is_ready:
             return "❌ Zinin Corp не инициализирована."
 
-        agents = [self.accountant, self.automator, self.manager]
-        # Reset all agent state to prevent accumulation
-        for a in agents:
-            a.agent_executor = None
-            a.tools_results = []
-            if hasattr(a, '_times_executed'):
-                a._times_executed = 0
-        tasks = []
-
-        # Track start for all agents
-        log_task_start("accountant", "Финансовый отчёт (полный)")
-        log_task_start("automator", "Техотчёт (полный)")
-        _send_progress(
-            "📊 Полный отчёт корпорации запущен\n"
-            "🏦 Маттиас готовит финансовый отчёт...\n"
-            "⚙️ Мартин проверяет системы...\n"
-            "📱 Юки готовит отчёт по контенту..."
-        )
-
-        # Task 1: Маттиас — financial report
-        task_fin = create_task(
-            description=(
-                "Подготовь полный финансовый отчёт:\n"
-                "1. full_portfolio — общая картина активов\n"
-                "2. tribute_revenue — доходы от подписок\n"
-                "3. openrouter_usage, elevenlabs_usage, openai_usage — расходы на AI\n"
-                "Включи: активы, доходы, расходы на AI + Claude Code $200/мес."
-                + TASK_WRAPPER
-            ),
-            expected_output="Полный финансовый отчёт с данными из инструментов.",
-            agent=self.accountant,
-        )
-        tasks.append(task_fin)
-
-        # Task 2: Мартин — system health
-        task_tech = create_task(
-            description=(
-                "Проведи полную проверку систем:\n"
-                "1. System Health Checker action='status'\n"
-                "2. Integration Manager action='list'\n"
-                "Включи: статус каждого сервиса, время отклика, ошибки."
-                + TASK_WRAPPER
-            ),
-            expected_output="Полный технический отчёт с реальными данными.",
-            agent=self.automator,
-        )
-        tasks.append(task_tech)
-
-        # Task 3: Yuki — content stats (if available)
-        if self.smm:
-            self.smm.agent_executor = None
-            log_task_start("smm", "Отчёт по контенту (полный)")
-            task_smm = create_task(
-                description=(
-                    "Подготовь отчёт по контенту:\n"
-                    "1. Yuki Memory action='get_stats'\n"
-                    "2. LinkedIn Publisher action='status'\n"
-                    "Включи: кол-во генераций, публикаций, статус LinkedIn."
-                    + TASK_WRAPPER
-                ),
-                expected_output="Краткий отчёт по контенту и LinkedIn.",
-                agent=self.smm,
-            )
-            tasks.append(task_smm)
-            agents.insert(2, self.smm)
-
-        # Task 4: Алексей — synthesis with context from all
-        task_ceo = create_task(
-            description=(
-                "На основе данных от всех агентов подготовь еженедельный отчёт для Тима:\n"
-                "- Общее состояние корпорации\n"
-                "- Финансовые показатели (от Маттиаса)\n"
-                "- Техническое здоровье (от Мартина)\n"
-                "- Контент и публикации (от Юки)\n"
-                "- Приоритеты на следующую неделю\n"
-                "- Конкретные задачи для каждого агента\n"
-                "- Риски и рекомендации\n\n"
-                "⛔ НЕ ПИШИ 'запускаю сбор данных' или 'начинаю сбор информации'. "
-                "Данные от агентов уже ПОЛУЧЕНЫ и переданы тебе в контексте. "
-                "Проанализируй их и дай КОНКРЕТНЫЙ отчёт."
-                + TASK_WRAPPER
-            ),
-            expected_output=(
-                "Полный еженедельный отчёт CEO с данными от всех агентов. "
-                "Минимум 400 слов."
-            ),
-            agent=self.manager,
-            context=tasks[:-1] if len(tasks) > 1 else tasks,
-            guardrail=_manager_guardrail,
-        )
-        tasks.append(task_ceo)
-
-        # Progress messages after each step
-        has_smm = self.smm is not None
-        _report_steps = [
-            "✅ 🏦 Маттиас: финансовый отчёт готов\n⚙️ Мартин работает...",
-            ("✅ ⚙️ Мартин: техотчёт готов\n📱 Юки работает..." if has_smm
-             else "✅ ⚙️ Мартин: техотчёт готов\n👑 Алексей анализирует..."),
-            ("✅ 📱 Юки: контент-отчёт готов\n"
-             "🏦→👑 Маттиас передаёт данные Алексею\n"
-             "⚙️→👑 Мартин передаёт данные Алексею\n"
-             "📱→👑 Юки передаёт данные Алексею\n"
-             "👑 Алексей готовит синтез..." if has_smm
-             else None),
-            None,
-        ]
-        _report_idx = [0]
-
-        def _on_report_task_done(output):
-            idx = _report_idx[0]
-            _report_idx[0] += 1
-            if idx < len(_report_steps) and _report_steps[idx]:
-                _send_progress(_report_steps[idx])
-
-        try:
-            crew = Crew(
-                agents=agents,
-                tasks=tasks,
-                process=Process.sequential,
-                verbose=True,
-                memory=False,
-                task_callback=_on_report_task_done,
-            )
-            result = crew.kickoff()
-
-            # Track completion and communication
-            log_task_end("accountant", "Финансовый отчёт (полный)", success=True)
-            log_task_end("automator", "Техотчёт (полный)", success=True)
-            if self.smm:
-                log_task_end("smm", "Отчёт по контенту (полный)", success=True)
-                log_communication("smm", "manager", "Передача контент-отчёта для CEO")
-
-            log_communication("accountant", "manager", "Передача финотчёта для CEO")
-            log_communication("automator", "manager", "Передача техотчёта для CEO")
-            log_task_start("manager", "Еженедельный отчёт CEO (синтез)")
-            log_task_end("manager", "Еженедельный отчёт CEO (синтез)", success=True)
-
-            # Clear communication flags
-            for agent_key in ["accountant", "automator", "smm"]:
-                log_communication_end(agent_key)
-
-            return str(result)
-        except Exception as e:
-            logger.error(f"Full corporation report failed: {e}", exc_info=True)
-            log_task_end("accountant", "Финансовый отчёт (полный)", success=False)
-            log_task_end("automator", "Техотчёт (полный)", success=False)
-            if self.smm:
-                log_task_end("smm", "Отчёт по контенту (полный)", success=False)
-            return f"❌ Ошибка при формировании отчёта: {e}"
+        from .flows import run_full_report
+        return run_full_report()
 
 
 # Singleton instance

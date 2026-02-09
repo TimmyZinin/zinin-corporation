@@ -396,27 +396,23 @@ class TestAgentIntegration(unittest.TestCase):
         self.assertTrue(callable(AgentBridge.run_api_health_report))
 
     def test_delegation_rules_include_api_health_keywords(self):
-        from src.crew import AICorporation
-        corp = AICorporation()
-        rules = corp._DELEGATION_RULES
-        automator_rule = next(r for r in rules if r["agent_key"] == "automator")
+        from src.flows import _DELEGATION_RULES
+        automator_rule = next(r for r in _DELEGATION_RULES if r["agent_key"] == "automator")
         self.assertIn("health check", automator_rule["keywords"])
         self.assertIn("статус api", automator_rule["keywords"])
         self.assertIn("создай агент", automator_rule["keywords"])
 
     def test_auto_delegation_api_health(self):
-        from src.crew import AICorporation
-        corp = AICorporation()
-        result = corp._detect_delegation_need("Проверь статус api всех сервисов")
+        from src.flows import detect_delegation
+        result = detect_delegation("Проверь статус api всех сервисов")
         self.assertIsNotNone(result)
-        self.assertEqual(result["agent_key"], "automator")
+        self.assertEqual(result, "automator")
 
     def test_auto_delegation_create_agent(self):
-        from src.crew import AICorporation
-        corp = AICorporation()
-        result = corp._detect_delegation_need("Создай агент для аналитики данных")
+        from src.flows import detect_delegation
+        result = detect_delegation("Создай агент для аналитики данных")
         self.assertIsNotNone(result)
-        self.assertEqual(result["agent_key"], "automator")
+        self.assertEqual(result, "automator")
 
 
 class TestHealthDataPersistence(unittest.TestCase):

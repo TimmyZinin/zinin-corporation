@@ -560,17 +560,19 @@ class TestDelegationUseless:
         pytest.fail("_run_agent not found in crew.py")
 
     def test_initialize_crew_has_all_agents_but_never_used_for_chat(self):
-        """AICorporation.initialize() creates self.crew with ALL agents,
-        but _run_agent() creates a fresh single-agent Crew for each task.
-        execute_task() handles auto-delegation at the code level."""
+        """AICorporation.initialize() creates self.crew reference,
+        but actual execution is delegated to CorporationFlow (src/flows.py).
+        _run_agent() creates a fresh single-agent Crew for each task."""
         source = _read_source(CREW_PATH)
 
-        # In initialize(), all agents are put into self.crew
-        assert "all_agents = [self.manager, self.accountant, self.automator]" in source, (
-            "initialize() should build all_agents list"
-        )
+        # initialize() assigns self.crew for backward compat (is_ready check)
         assert "self.crew = Crew(" in source, (
             "initialize() should assign self.crew"
+        )
+
+        # execute_task delegates to flows.run_task
+        assert "from .flows import run_task" in source, (
+            "execute_task should delegate to flows.run_task"
         )
 
         # _run_agent creates a LOCAL crew, not self.crew

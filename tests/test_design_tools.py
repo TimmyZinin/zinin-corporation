@@ -429,29 +429,25 @@ class TestDesignerAgentIntegration:
         assert hasattr(corp, "generate_design")
 
     def test_delegation_rules_include_designer(self):
-        from src.crew import AICorporation
-        corp = AICorporation()
-        designer_rules = [r for r in corp._DELEGATION_RULES if r["agent_key"] == "designer"]
+        from src.flows import _DELEGATION_RULES
+        designer_rules = [r for r in _DELEGATION_RULES if r["agent_key"] == "designer"]
         assert len(designer_rules) == 1
         assert "дизайн" in designer_rules[0]["keywords"]
         assert "визуал" in designer_rules[0]["keywords"]
 
     def test_designer_priority_over_smm(self):
         """Design keywords should override SMM for mixed prompts like 'create image for post'."""
-        from src.crew import AICorporation
-        corp = AICorporation()
-        # "создай изображение для поста" has both "изображен" (designer) and "пост" (smm)
-        result = corp._detect_delegation_need("Создай изображение для поста в LinkedIn")
+        from src.flows import detect_delegation
+        result = detect_delegation("Создай изображение для поста в LinkedIn")
         assert result is not None
-        assert result["agent_key"] == "designer"
+        assert result == "designer"
 
     def test_smm_still_works_for_content(self):
         """Pure content tasks should still go to SMM."""
-        from src.crew import AICorporation
-        corp = AICorporation()
-        result = corp._detect_delegation_need("Напиши пост для LinkedIn про карьеру")
+        from src.flows import detect_delegation
+        result = detect_delegation("Напиши пост для LinkedIn про карьеру")
         assert result is not None
-        assert result["agent_key"] == "smm"
+        assert result == "smm"
 
     def test_agent_map_includes_designer(self):
         """After initialization, agent_map should have designer key."""

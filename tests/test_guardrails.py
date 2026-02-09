@@ -179,29 +179,28 @@ class TestSpecialistGuardrail:
 # ── Guardrails applied to all agents ─────────────────────
 
 class TestGuardrailsApplied:
-    """Verify guardrails are wired to all agents in execute_task."""
+    """Verify guardrails are wired to all agents in CorporationFlow."""
 
-    def test_execute_task_applies_specialist_guardrail(self):
-        """Non-manager agents should get _specialist_guardrail."""
+    def test_flow_applies_specialist_guardrail(self):
+        """Non-manager agents should get _specialist_guardrail in flow."""
         import inspect
-        from src.crew import AICorporation
-        src = inspect.getsource(AICorporation.execute_task)
+        from src.flows import CorporationFlow
+        src = inspect.getsource(CorporationFlow.run_single_agent)
         assert "_specialist_guardrail" in src
 
-    def test_execute_task_applies_manager_guardrail(self):
-        """Manager should get _manager_guardrail."""
+    def test_flow_applies_manager_guardrail(self):
+        """Manager should get _manager_guardrail in flow."""
         import inspect
-        from src.crew import AICorporation
-        src = inspect.getsource(AICorporation.execute_task)
+        from src.flows import CorporationFlow
+        src = inspect.getsource(CorporationFlow.run_single_agent)
         assert "_manager_guardrail" in src
 
     def test_auto_delegation_has_specialist_guardrail(self):
         """Auto-delegated specialist tasks should have guardrail."""
         import inspect
-        from src.crew import AICorporation
-        src = inspect.getsource(AICorporation.execute_task)
-        # The auto-delegation path passes guardrail=_specialist_guardrail
-        assert "guardrail=_specialist_guardrail" in src
+        from src.flows import CorporationFlow
+        src = inspect.getsource(CorporationFlow.run_specialist)
+        assert "_specialist_guardrail" in src
 
     def test_create_task_supports_guardrail(self):
         """create_task should accept guardrail parameter."""
