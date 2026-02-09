@@ -150,32 +150,76 @@ def load_crew_config() -> dict:
     return {}
 
 
+# ── Template phrases that indicate fabrication or lazy responses ──
+_TEMPLATE_PHRASES = [
+    "я запущу", "начинаю проверку", "сейчас проверю", "давайте проверим",
+    "начинаю анализ", "приступаю к", "сейчас подготовлю",
+    "предлагаю следующее", "рекомендую обратить",
+    "к сожалению, у меня нет доступа", "я не могу получить",
+    "добрый день, я", "привет, я алексей", "меня зовут",
+    "как ваш ceo", "как cfo", "как cto", "позвольте представиться",
+]
+
+# ── Data indicators: signs that response contains real tool output ──
+_DATA_INDICATORS = [
+    "$", "₽", "%", "rub", "usd", "api", "http", "error", "ok",
+    "✅", "❌", "⚠️", "📊", "📈", "📉",
+]
+
+
+def _has_template_phrases(text: str) -> list[str]:
+    """Return list of found template phrases in text."""
+    lower = text.lower()
+    return [p for p in _TEMPLATE_PHRASES if p in lower]
+
+
+def _has_data_indicators(text: str) -> bool:
+    """Check if text contains indicators of real tool-sourced data."""
+    lower = text.lower()
+    return any(ind in lower for ind in _DATA_INDICATORS)
+
+
 def _manager_guardrail(task_output) -> tuple[bool, str]:
-    """Guardrail for manager: reject too-short answers or missing delegation results."""
+    """Guardrail for manager: reject too-short, template-heavy, or data-free answers."""
     try:
         text = task_output.raw if hasattr(task_output, 'raw') else str(task_output)
     except Exception:
         text = str(task_output) if task_output else ""
-    # If agent wrote less than 100 chars, reject — force tool usage
+    # 1. Minimum length
     if len(text) < 100:
         return (False,
                 "Ответ слишком короткий. Ты ОБЯЗАН вызвать инструмент Delegate Task "
                 "для делегации задачи специалисту, получить результат и включить его в ответ. "
                 "НЕ пиши 'делегирую' — ВЫЗОВИ Action: Delegate Task.")
+    # 2. Template phrases (fabrication check)
+    found = _has_template_phrases(text)
+    if found and len(text) < 300:
+        return (False,
+                f"Ответ содержит шаблонные фразы ({', '.join(found[:3])}). "
+                "Это признак фабрикации. ВЫЗОВИ свои инструменты и дай КОНКРЕТНЫЙ "
+                "ответ с реальными данными. НЕ описывай что собираешься делать — СДЕЛАЙ.")
     return (True, text)
 
 
 def _specialist_guardrail(task_output) -> tuple[bool, str]:
-    """Guardrail for specialists: reject too-short answers without tool data."""
+    """Guardrail for specialists: reject too-short, fabricated, or data-free answers."""
     try:
         text = task_output.raw if hasattr(task_output, 'raw') else str(task_output)
     except Exception:
         text = str(task_output) if task_output else ""
+    # 1. Minimum length
     if len(text) < 150:
         return (False,
                 "Ответ слишком короткий. Ты ОБЯЗАН ВЫЗВАТЬ свои инструменты и вернуть "
                 "результат с РЕАЛЬНЫМИ данными. НЕ пиши 'запускаю' или 'начинаю' — "
                 "ИСПОЛЬЗУЙ Action: <название инструмента> ПРЯМО СЕЙЧАС.")
+    # 2. Template phrases (fabrication check)
+    found = _has_template_phrases(text)
+    if found and not _has_data_indicators(text):
+        return (False,
+                f"Ответ содержит шаблонные фразы ({', '.join(found[:3])}) "
+                "без реальных данных. ВЫЗОВИ свои инструменты, получи РЕАЛЬНЫЕ данные "
+                "и включи их в ответ. Цифры, статусы, URL — что угодно конкретное.")
     return (True, text)
 
 
@@ -463,8 +507,8 @@ class AICorporation:
         # Track: task started
         log_task_start(agent_name, short_desc)
 
-        # Add guardrail for CEO to prevent empty/introduction-only responses
-        grl = _manager_guardrail if agent_name == "manager" else None
+        # Add guardrail for all agents
+        grl = _manager_guardrail if agent_name == "manager" else _specialist_guardrail
 
         try:
             result = self._run_agent(agent, task_description, agent_name,
