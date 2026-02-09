@@ -97,6 +97,14 @@ EXPECTED_OUTPUT = (
     "⛔ НИКОГДА не выдумывай цифры, данные или факты. Если данных нет — скажи прямо."
 )
 
+# Short format for Telegram chat (accountant, automator)
+EXPECTED_OUTPUT_SHORT = (
+    "КОРОТКИЙ ответ на русском. Максимум 3-5 предложений. "
+    "Таблицы и числа вместо длинных абзацев. "
+    "Формат: факт → цифра → вывод. Без воды. "
+    "⛔ НИКОГДА не выдумывай цифры. Если данных нет — скажи прямо."
+)
+
 TASK_WRAPPER_BASE = (
     "\n\nВАЖНО: Дай ПОЛНЫЙ содержательный ответ. "
     "НИКОГДА НЕ ПРЕДСТАВЛЯЙСЯ. Тим знает кто ты. СРАЗУ переходи к сути. "
@@ -272,9 +280,11 @@ class AICorporation:
 
         wrapper = TASK_WRAPPER if agent_name == "manager" else TASK_WRAPPER_AGENT
         full_description = f"{task_description}{wrapper}"
+        # Use short output for accountant/automator in Telegram chat, long for manager/reports
+        output_fmt = EXPECTED_OUTPUT_SHORT if agent_name in ("accountant", "automator") else EXPECTED_OUTPUT
         task = create_task(
             description=full_description,
-            expected_output=EXPECTED_OUTPUT,
+            expected_output=output_fmt,
             agent=agent,
             guardrail=guardrail,
         )
@@ -301,7 +311,7 @@ class AICorporation:
             logger.warning(f"_run_agent({agent_name}) memory failed: {e}, retrying without memory")
             task_retry = create_task(
                 description=full_description,
-                expected_output=EXPECTED_OUTPUT,
+                expected_output=output_fmt,
                 agent=agent,
             )
             crew_fallback = Crew(
