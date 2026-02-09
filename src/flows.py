@@ -18,6 +18,7 @@ from .agents import (
     create_smm_agent,
     create_automator_agent,
     create_designer_agent,
+    create_cpo_agent,
 )
 from .activity_tracker import (
     log_task_start,
@@ -72,6 +73,7 @@ class CorporationState(BaseModel):
     accountant_result: AgentResult = Field(default_factory=AgentResult)
     automator_result: AgentResult = Field(default_factory=AgentResult)
     smm_result: AgentResult = Field(default_factory=AgentResult)
+    cpo_result: AgentResult = Field(default_factory=AgentResult)
     manager_result: AgentResult = Field(default_factory=AgentResult)
 
     # Final output
@@ -101,6 +103,7 @@ class _AgentPool:
         self._agents["automator"] = create_automator_agent()
         self._agents["smm"] = create_smm_agent()
         self._agents["designer"] = create_designer_agent()
+        self._agents["cpo"] = create_cpo_agent()
 
         core_ok = all(self._agents.get(k) for k in ("manager", "accountant", "automator"))
         if not core_ok:
@@ -111,6 +114,8 @@ class _AgentPool:
             logger.warning("SMM agent (Юки) failed to init — continuing without her")
         if not self._agents.get("designer"):
             logger.warning("Designer agent (Райан) failed to init — continuing without him")
+        if not self._agents.get("cpo"):
+            logger.warning("CPO agent (Софи) failed to init — continuing without her")
 
         self._initialized = True
         logger.info("Agent pool initialized")
@@ -269,6 +274,11 @@ _DELEGATION_RULES = [
         "дизайн", "картинк", "изображен", "визуал", "инфографик",
         "баннер", "лого", "график", "диаграмм", "chart",
         "image", "видео", "video", "обложк",
+    ]},
+    {"agent_key": "cpo", "keywords": [
+        "бэклог", "backlog", "спринт", "sprint", "фич", "feature",
+        "продуктов", "product health", "прогресс разработк", "roadmap",
+        "приоритезац", "приоритет фич", "velocity",
     ]},
 ]
 

@@ -240,6 +240,42 @@ def create_designer_agent() -> Optional[Agent]:
         return None
 
 
+def create_cpo_agent() -> Optional[Agent]:
+    """Create the CPO (Софи) agent with product tools"""
+    config = load_agent_config("cpo")
+    if not config:
+        logger.error("cpo.yaml not found")
+        return None
+
+    tools = []
+    try:
+        from .tools.cpo_tools import (
+            FeatureHealthChecker, SprintTracker, BacklogAnalyzer, ProgressReporter,
+        )
+        tools = [FeatureHealthChecker(), SprintTracker(), BacklogAnalyzer(), ProgressReporter()]
+    except Exception as e:
+        logger.warning(f"Could not load cpo tools: {e}")
+
+    try:
+        model = config.get("llm", "openrouter/anthropic/claude-3-5-haiku-latest")
+        llm = create_llm(model)
+        return Agent(
+            role=config.get("role", "CPO Софи Андерсен"),
+            goal=config.get("goal", "Контролировать продуктовое здоровье"),
+            backstory=config.get("backstory", "Ты — Софи, CPO Zinin Corp"),
+            llm=llm,
+            tools=tools,
+            verbose=True,
+            memory=config.get("memory", False),
+            allow_delegation=False,
+            max_iter=10,
+            max_retry_limit=3,
+        )
+    except Exception as e:
+        logger.error(f"Error creating cpo agent: {e}", exc_info=True)
+        return None
+
+
 def create_automator_agent() -> Optional[Agent]:
     """Create the Automator (Мартин) agent with tech tools"""
     config = load_agent_config("automator")

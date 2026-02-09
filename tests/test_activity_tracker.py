@@ -35,17 +35,17 @@ def _tmp_log():
 # ── Agent Registry ───────────────────────────────────────
 
 class TestAgentRegistry:
-    def test_four_agents_in_names(self):
-        assert len(AGENT_NAMES) == 4
+    def test_six_agents_in_names(self):
+        assert len(AGENT_NAMES) == 6
 
-    def test_four_agents_in_emoji(self):
-        assert len(AGENT_EMOJI) == 4
+    def test_six_agents_in_emoji(self):
+        assert len(AGENT_EMOJI) == 6
 
     def test_same_keys(self):
         assert set(AGENT_NAMES.keys()) == set(AGENT_EMOJI.keys())
 
     def test_expected_agents(self):
-        expected = {"manager", "accountant", "smm", "automator"}
+        expected = {"manager", "accountant", "smm", "automator", "designer", "cpo"}
         assert set(AGENT_NAMES.keys()) == expected
 
     def test_names_are_russian(self):

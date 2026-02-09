@@ -21,6 +21,7 @@ agents:
   - automator    # ⚙️ Мартин — CTO, техника и интеграции
   - smm          # 📱 Юки — Head of SMM
   - designer     # 🎨 Райан — Creative Director, дизайн
+  - cpo          # 📋 Софи — CPO, продуктовый контроль
 
 # Настройки памяти
 memory: true

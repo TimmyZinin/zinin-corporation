@@ -74,6 +74,22 @@ class ContentReport(BaseModel):
     recommendations: list[str] = Field(default_factory=list, description="Рекомендации")
 
 
+# ── Product (Софи) ─────────────────────────────────────────
+
+class ProductReport(BaseModel):
+    """Product health report from CPO."""
+    overall_health: str = Field(description="Общее здоровье продукта: healthy, degraded, critical")
+    features_total: int = Field(default=0, description="Всего фич в бэклоге")
+    features_done: int = Field(default=0, description="Завершённых фич")
+    features_in_progress: int = Field(default=0, description="Фич в работе")
+    features_blocked: int = Field(default=0, description="Заблокированных фич")
+    current_sprint: str = Field(default="", description="Название текущего спринта")
+    sprint_progress_pct: int = Field(default=0, description="Прогресс спринта в %")
+    blockers: list[str] = Field(default_factory=list, description="Список блокеров")
+    priorities: list[str] = Field(default_factory=list, description="Приоритеты на неделю")
+    recommendations: list[str] = Field(default_factory=list, description="Рекомендации CPO")
+
+
 # ── CEO (Алексей) ──────────────────────────────────────────
 
 class StrategicReviewReport(BaseModel):
@@ -103,6 +119,7 @@ REPORT_OUTPUT_MODELS = {
     "accountant": FinancialReport,
     "automator": HealthCheckReport,
     "smm": ContentReport,
+    "cpo": ProductReport,
     "manager": StrategicReviewReport,
 }
 

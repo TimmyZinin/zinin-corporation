@@ -16,6 +16,7 @@ from .agents import (
     create_smm_agent,
     create_automator_agent,
     create_designer_agent,
+    create_cpo_agent,
 )
 from .activity_tracker import (
     log_task_start,
@@ -54,6 +55,7 @@ AGENT_LABELS = {
     "automator": "⚙️ Мартин",
     "smm": "📱 Юки",
     "designer": "🎨 Райан",
+    "cpo": "📋 Софи",
 }
 
 # ──────────────────────────────────────────────────────────
@@ -154,6 +156,7 @@ TASK_WRAPPER_DELEGATION = (
     "Если задача про финансы/бюджет — ВЫЗОВИ 'Delegate Task' с agent_name='accountant'. "
     "Если задача про технику/API — ВЫЗОВИ 'Delegate Task' с agent_name='automator'. "
     "Если задача про дизайн/картинки/визуал/инфографику/видео — ВЫЗОВИ 'Delegate Task' с agent_name='designer'. "
+    "Если задача про продукт/бэклог/спринты/фичи/прогресс — ВЫЗОВИ 'Delegate Task' с agent_name='cpo'. "
     "НЕ пиши 'делегирую' или 'поручаю' в тексте — ИСПОЛЬЗУЙ ИНСТРУМЕНТ."
 )
 
@@ -289,6 +292,7 @@ class AICorporation:
         self.smm = None
         self.automator = None
         self.designer = None
+        self.cpo = None
         self.crew = None
         self._initialized = False
         self._pool = None  # flows._AgentPool ref
@@ -308,6 +312,7 @@ class AICorporation:
             self.smm = pool.get("smm")
             self.automator = pool.get("automator")
             self.designer = pool.get("designer")
+            self.cpo = pool.get("cpo")
             self._pool = pool
 
             if not all([self.manager, self.accountant, self.automator]):
@@ -316,7 +321,7 @@ class AICorporation:
 
             # Create crew reference for backward compat (is_ready check)
             all_agents = [a for a in [self.manager, self.accountant, self.automator,
-                                       self.smm, self.designer] if a]
+                                       self.smm, self.designer, self.cpo] if a]
             self.crew = Crew(
                 agents=all_agents,
                 process=Process.sequential,
@@ -612,6 +617,22 @@ class AICorporation:
         Дай краткий отчёт.
         """
         return self.execute_task(task_desc, "smm")
+
+    def product_health(self) -> str:
+        """Run product health check from Софи (CPO)"""
+        if not self.cpo:
+            return "❌ Софи не инициализирована. Проверьте конфигурацию."
+        task_desc = """
+        Подготовь отчёт о продуктовом здоровье:
+
+        1. Используй Feature Health Checker с action='status' для общего состояния
+        2. Используй Sprint Tracker с action='current' для статуса спринта
+        3. Используй Backlog Analyzer с action='metrics' для метрик
+        4. Используй Feature Health Checker с action='blockers' для блокеров
+
+        Дай структурированный отчёт: здоровье, прогресс, блокеры, рекомендации.
+        """
+        return self.execute_task(task_desc, "cpo", task_type="report")
 
     def full_corporation_report(self) -> str:
         """Full weekly report via CorporationFlow."""

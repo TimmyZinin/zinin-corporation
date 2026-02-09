@@ -55,6 +55,8 @@ AGENT_NAMES = {
     "accountant": "Маттиас",
     "smm": "Юки",
     "automator": "Мартин",
+    "designer": "Райан",
+    "cpo": "Софи",
 }
 
 AGENT_EMOJI = {
@@ -62,6 +64,8 @@ AGENT_EMOJI = {
     "accountant": "🏦",
     "smm": "📱",
     "automator": "⚙️",
+    "designer": "🎨",
+    "cpo": "📋",
 }
 
 
@@ -311,6 +315,50 @@ def get_task_progress(agent_key: str) -> Optional[float]:
 
     progress = min(elapsed / max(avg_duration, 1), 0.95)  # cap at 95%
     return round(progress, 2)
+
+
+# ──────────────────────────────────────────────────────────
+# Quality Score Readers
+# ──────────────────────────────────────────────────────────
+
+def get_quality_scores(hours: int = 168, limit: int = 50) -> list[dict]:
+    """Get quality_score events from last N hours (default 7 days)."""
+    with _lock:
+        data = _load_log()
+    cutoff = (datetime.now() - timedelta(hours=hours)).isoformat()
+    scores = [
+        e for e in data.get("events", [])
+        if e.get("type") == "quality_score" and e.get("timestamp", "") >= cutoff
+    ]
+    return scores[-limit:]
+
+
+def get_quality_summary() -> dict:
+    """Aggregate quality metrics for dashboard display.
+
+    Returns dict with keys: count, avg, passed_pct, by_agent.
+    """
+    scores = get_quality_scores(hours=168)
+    if not scores:
+        return {"count": 0, "avg": 0.0, "passed_pct": 0, "by_agent": {}}
+
+    avg = sum(s.get("score", 0) for s in scores) / len(scores)
+    passed = sum(
+        1 for s in scores if s.get("details", {}).get("passed", False)
+    )
+    by_agent: dict[str, list[float]] = {}
+    for s in scores:
+        agent = s.get("agent", "unknown")
+        by_agent.setdefault(agent, []).append(s.get("score", 0))
+
+    return {
+        "count": len(scores),
+        "avg": round(avg, 2),
+        "passed_pct": round(passed / len(scores) * 100) if scores else 0,
+        "by_agent": {
+            k: round(sum(v) / len(v), 2) for k, v in by_agent.items()
+        },
+    }
 
 
 # ──────────────────────────────────────────────────────────
