@@ -141,15 +141,59 @@ def get_agent_pool() -> _AgentPool:
 # Helper: run a single agent as Crew (preserves existing logic)
 # ──────────────────────────────────────────────────────────
 
+REFLECTION_SCORE_THRESHOLD = 2.5
+"""Minimum judge score to accept response without reflection retry."""
+
+
 def _run_agent_crew(agent, task_description: str, agent_name: str = "",
                     use_memory: bool = True, guardrail=None,
-                    output_pydantic=None) -> str:
+                    output_pydantic=None, reflect: bool = False) -> str:
     """Run a single agent task with memory fallback. Returns result string.
     Extracted from AICorporation._run_agent for reuse in flows.
 
     Args:
         output_pydantic: Optional Pydantic model class for structured output.
+        reflect: If True, run LLM judge after first response and retry once
+                 with feedback if score < REFLECTION_SCORE_THRESHOLD.
     """
+    result = _execute_crew(agent, task_description, agent_name,
+                           use_memory, guardrail, output_pydantic)
+
+    if not reflect:
+        return result
+
+    # Reflection: judge the result and retry once if low quality
+    try:
+        from .tools.llm_judge import judge_response
+        verdict = judge_response(task_description, result, agent_name)
+        if verdict and not verdict.passed and verdict.overall < REFLECTION_SCORE_THRESHOLD:
+            logger.info(
+                f"Reflection triggered for {agent_name}: "
+                f"score={verdict.overall}, feedback={verdict.feedback!r}"
+            )
+            reflection_prompt = (
+                f"{task_description}\n\n"
+                f"--- РЕФЛЕКСИЯ ---\n"
+                f"Твой предыдущий ответ получил оценку {verdict.overall}/5.\n"
+                f"Обратная связь: {verdict.feedback}\n"
+                f"Баллы: релевантность={verdict.relevance}, полнота={verdict.completeness}, "
+                f"точность={verdict.accuracy}, формат={verdict.format_score}\n"
+                f"ИСПРАВЬ свой ответ с учётом этой обратной связи. "
+                f"Используй СВОИ ИНСТРУМЕНТЫ для получения реальных данных.\n"
+                f"--- КОНЕЦ РЕФЛЕКСИИ ---"
+            )
+            result = _execute_crew(agent, reflection_prompt, agent_name,
+                                   use_memory, guardrail, output_pydantic)
+    except Exception as e:
+        logger.warning(f"Reflection failed for {agent_name}: {e}")
+
+    return result
+
+
+def _execute_crew(agent, task_description: str, agent_name: str = "",
+                  use_memory: bool = True, guardrail=None,
+                  output_pydantic=None) -> str:
+    """Execute a single Crew run (inner helper for _run_agent_crew)."""
     # Reset agent state
     agent.agent_executor = None
     agent.tools_results = []
@@ -186,7 +230,7 @@ def _run_agent_crew(agent, task_description: str, agent_name: str = "",
         crew = Crew(**crew_kwargs)
         return str(crew.kickoff())
     except Exception as e:
-        logger.warning(f"_run_agent_crew({agent_name}) memory failed: {e}, retrying without memory")
+        logger.warning(f"_execute_crew({agent_name}) memory failed: {e}, retrying without memory")
         task_retry = create_task(
             description=full_description,
             expected_output=output_fmt,
@@ -333,11 +377,12 @@ class CorporationFlow(Flow[CorporationState]):
         grl = _manager_guardrail if agent_name == "manager" else _specialist_guardrail
         out_model = get_output_model(agent_name, self.state.task_type)
 
+        use_reflection = self.state.task_type == "report"
         try:
             result = _run_agent_crew(
                 agent, self.state.task_description, agent_name,
                 use_memory=self.state.use_memory, guardrail=grl,
-                output_pydantic=out_model,
+                output_pydantic=out_model, reflect=use_reflection,
             )
             log_task_end(agent_name, short_desc, success=True)
             self.state.final_output = result
