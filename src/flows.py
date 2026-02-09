@@ -24,6 +24,7 @@ from .activity_tracker import (
     log_task_end,
     log_communication,
     log_communication_end,
+    log_quality_score,
 )
 from .crew import (
     EMBEDDER_CONFIG,
@@ -248,6 +249,29 @@ def detect_delegation(text: str) -> Optional[str]:
 
 
 # ──────────────────────────────────────────────────────────
+# LLM-as-Judge helper (non-blocking)
+# ──────────────────────────────────────────────────────────
+
+def _judge_and_log(agent_name: str, short_desc: str,
+                   task_description: str, result: str):
+    """Run LLM judge on agent response and log score. Never raises."""
+    try:
+        from .tools.llm_judge import judge_response
+        verdict = judge_response(task_description, result, agent_name)
+        if verdict:
+            log_quality_score(agent_name, short_desc, verdict.overall, {
+                "relevance": verdict.relevance,
+                "completeness": verdict.completeness,
+                "accuracy": verdict.accuracy,
+                "format_score": verdict.format_score,
+                "feedback": verdict.feedback,
+                "passed": verdict.passed,
+            })
+    except Exception as e:
+        logger.warning(f"_judge_and_log failed for {agent_name}: {e}")
+
+
+# ──────────────────────────────────────────────────────────
 # CorporationFlow — main Flow class
 # ──────────────────────────────────────────────────────────
 
@@ -317,6 +341,10 @@ class CorporationFlow(Flow[CorporationState]):
             )
             log_task_end(agent_name, short_desc, success=True)
             self.state.final_output = result
+
+            # LLM-as-Judge: score quality (non-blocking)
+            _judge_and_log(agent_name, short_desc, self.state.task_description, result)
+
         except Exception as e:
             logger.error(f"Single agent failed for {agent_name}: {e}", exc_info=True)
             log_task_end(agent_name, short_desc, success=False)
@@ -350,6 +378,7 @@ class CorporationFlow(Flow[CorporationState]):
             self.state.specialist_result = AgentResult(
                 agent_name=specialist_key, success=True, output=specialist_result,
             )
+            _judge_and_log(specialist_key, short_desc, self.state.task_description, specialist_result)
         except Exception as e:
             logger.error(f"Specialist {specialist_key} failed: {e}")
             log_task_end(specialist_key, short_desc, success=False)
@@ -379,6 +408,7 @@ class CorporationFlow(Flow[CorporationState]):
             )
             log_task_end("manager", short_desc, success=True)
             self.state.final_output = ceo_result
+            _judge_and_log("manager", short_desc, self.state.task_description, ceo_result)
         except Exception as e:
             logger.error(f"CEO synthesis failed: {e}")
             log_task_end("manager", short_desc, success=False)

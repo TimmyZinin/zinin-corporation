@@ -209,7 +209,7 @@ class TestActivityTrackerIsEventLogOnly:
         """The only event types are: task_start, task_end, communication, delegation."""
         source = _read(TRACKER_PATH)
         type_matches = re.findall(r'"type":\s*"(\w+)"', source)
-        expected_types = {"task_start", "task_end", "communication", "delegation"}
+        expected_types = {"task_start", "task_end", "communication", "delegation", "quality_score"}
         actual_types = set(type_matches)
         assert actual_types == expected_types
 

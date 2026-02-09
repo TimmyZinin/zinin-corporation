@@ -180,6 +180,26 @@ def log_delegation(from_agent: str, to_agent: str, task_desc: str):
         _save_log(data)
 
 
+def log_quality_score(agent_key: str, task_description: str, score: float,
+                      details: Optional[dict] = None):
+    """Log quality score from LLM judge for an agent response."""
+    with _lock:
+        data = _load_log()
+        now = datetime.now().isoformat()
+
+        data["events"].append({
+            "type": "quality_score",
+            "agent": agent_key,
+            "task": task_description[:120],
+            "score": round(score, 2),
+            "details": details or {},
+            "timestamp": now,
+        })
+
+        _trim_events(data)
+        _save_log(data)
+
+
 def log_communication_end(agent_key: str):
     """Clear communication indicator for an agent."""
     with _lock:
