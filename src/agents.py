@@ -170,8 +170,15 @@ def create_smm_agent() -> Optional[Agent]:
         return None
 
     try:
-        from .tools.smm_tools import ContentGenerator, YukiMemory, LinkedInPublisherTool, PodcastScriptGenerator
-        tools = [ContentGenerator(), YukiMemory(), LinkedInPublisherTool(), PodcastScriptGenerator()]
+        from .tools.smm_tools import (
+            ContentGenerator, YukiMemory, LinkedInPublisherTool,
+            ThreadsPublisherTool, PodcastScriptGenerator
+        )
+        tools = [
+            ContentGenerator(), YukiMemory(),
+            LinkedInPublisherTool(), ThreadsPublisherTool(),
+            PodcastScriptGenerator(),
+        ]
     except Exception as e:
         logger.warning(f"Could not load smm tools: {e}")
         tools = []

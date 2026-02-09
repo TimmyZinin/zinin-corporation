@@ -657,30 +657,37 @@ class YukiMemory(BaseTool):
 
 
 # ──────────────────────────────────────────────────────────
-# Tool 3: LinkedIn Publisher
+# Tool 3: LinkedIn Publisher (Modern REST API)
 # ──────────────────────────────────────────────────────────
+
+_LINKEDIN_API_VERSION = "202502"
+_LINKEDIN_BASE = "https://api.linkedin.com"
+
 
 class LinkedInPublisherInput(BaseModel):
     action: str = Field(
         ...,
         description=(
-            "Action: 'publish' (publish post — needs text), "
+            "Action: 'publish_text' (text post — needs text), "
+            "'publish_image' (post with image — needs text + image_url), "
             "'check_token' (check if LinkedIn is configured), "
             "'status' (LinkedIn integration status)"
         ),
     )
-    text: Optional[str] = Field(None, description="Post text to publish")
+    text: Optional[str] = Field(None, description="Post text (max 3000 chars)")
+    image_url: Optional[str] = Field(None, description="Image URL to attach (for publish_image)")
 
 
 class LinkedInPublisherTool(BaseTool):
     name: str = "LinkedIn Publisher"
     description: str = (
-        "Publishes posts to LinkedIn via API v2. "
-        "Actions: publish, check_token, status."
+        "Publishes posts to LinkedIn via modern REST API. "
+        "Actions: publish_text, publish_image, check_token, status. "
+        "Supports text posts (up to 3000 chars) and image posts."
     )
     args_schema: Type[BaseModel] = LinkedInPublisherInput
 
-    def _run(self, action: str, text: str = None) -> str:
+    def _run(self, action: str, text: str = None, image_url: str = None) -> str:
         from urllib.request import urlopen, Request
         from urllib.error import HTTPError
 
@@ -693,7 +700,8 @@ class LinkedInPublisherTool(BaseTool):
                 f"LINKEDIN STATUS:\n"
                 f"  Configured: {'✅ Yes' if configured else '❌ No'}\n"
                 f"  Token: {'Set' if access_token else 'MISSING'}\n"
-                f"  Person ID: {'Set' if person_id else 'MISSING'}"
+                f"  Person ID: {'Set' if person_id else 'MISSING'}\n"
+                f"  API: REST /rest/posts (v{_LINKEDIN_API_VERSION})"
             )
 
         if action == "check_token":
@@ -701,10 +709,10 @@ class LinkedInPublisherTool(BaseTool):
                 return "❌ LINKEDIN_ACCESS_TOKEN not set"
             try:
                 req = Request(
-                    "https://api.linkedin.com/v2/userinfo",
+                    f"{_LINKEDIN_BASE}/v2/userinfo",
                     headers={
                         "Authorization": f"Bearer {access_token}",
-                        "LinkedIn-Version": "202502",
+                        "LinkedIn-Version": _LINKEDIN_API_VERSION,
                     },
                 )
                 with urlopen(req, timeout=10) as resp:
@@ -718,55 +726,400 @@ class LinkedInPublisherTool(BaseTool):
             except Exception as e:
                 return f"❌ LinkedIn error: {e}"
 
-        if action == "publish":
+        if action in ("publish_text", "publish"):
             if not text:
                 return "Error: need text to publish"
             if not access_token or not person_id:
                 return "❌ LinkedIn not configured. Set LINKEDIN_ACCESS_TOKEN and LINKEDIN_PERSON_ID."
-
             if len(text) > 3000:
                 text = text[:2997] + "..."
+            return self._publish_post(access_token, person_id, text)
 
-            payload = {
-                "author": f"urn:li:person:{person_id}",
-                "lifecycleState": "PUBLISHED",
-                "specificContent": {
-                    "com.linkedin.ugc.ShareContent": {
-                        "shareCommentary": {"text": text},
-                        "shareMediaCategory": "NONE",
-                    }
+        if action == "publish_image":
+            if not text:
+                return "Error: need text for image post"
+            if not image_url:
+                return "Error: need image_url for image post"
+            if not access_token or not person_id:
+                return "❌ LinkedIn not configured. Set LINKEDIN_ACCESS_TOKEN and LINKEDIN_PERSON_ID."
+            if len(text) > 3000:
+                text = text[:2997] + "..."
+            return self._publish_image_post(access_token, person_id, text, image_url)
+
+        return f"Unknown action: {action}. Use: publish_text, publish_image, check_token, status"
+
+    def _publish_post(self, token: str, person_id: str, text: str) -> str:
+        """Publish a text-only post via modern REST API."""
+        from urllib.request import urlopen, Request
+        from urllib.error import HTTPError
+
+        payload = {
+            "author": f"urn:li:person:{person_id}",
+            "commentary": text,
+            "visibility": "PUBLIC",
+            "distribution": {
+                "feedDistribution": "MAIN_FEED",
+                "targetEntities": [],
+                "thirdPartyDistributionChannels": [],
+            },
+            "lifecycleState": "PUBLISHED",
+        }
+
+        try:
+            req = Request(
+                f"{_LINKEDIN_BASE}/rest/posts",
+                data=json.dumps(payload).encode("utf-8"),
+                headers={
+                    "Authorization": f"Bearer {token}",
+                    "Content-Type": "application/json",
+                    "LinkedIn-Version": _LINKEDIN_API_VERSION,
+                    "X-Restli-Protocol-Version": "2.0.0",
                 },
-                "visibility": {
-                    "com.linkedin.ugc.MemberNetworkVisibility": "PUBLIC"
-                },
+                method="POST",
+            )
+            with urlopen(req, timeout=30) as resp:
+                post_id = resp.headers.get("x-restli-id", "")
+                url = f"https://www.linkedin.com/feed/update/{post_id}" if post_id else ""
+                return f"✅ Published to LinkedIn!\nPost ID: {post_id}\nURL: {url}"
+        except HTTPError as e:
+            error_body = e.read().decode("utf-8") if e.fp else ""
+            if e.code == 401:
+                return "❌ LinkedIn token EXPIRED. Refresh at https://linkedin.com/developers/tools/oauth"
+            return f"❌ LinkedIn publish error: HTTP {e.code}\n{error_body[:200]}"
+        except Exception as e:
+            return f"❌ LinkedIn publish error: {e}"
+
+    def _publish_image_post(self, token: str, person_id: str, text: str, image_url: str) -> str:
+        """Publish a post with image via modern REST API (3-step: init upload, upload binary, create post)."""
+        from urllib.request import urlopen, Request
+        from urllib.error import HTTPError
+
+        # Step 1: Initialize image upload
+        init_payload = {
+            "initializeUploadRequest": {
+                "owner": f"urn:li:person:{person_id}",
             }
+        }
+        try:
+            req = Request(
+                f"{_LINKEDIN_BASE}/rest/images?action=initializeUpload",
+                data=json.dumps(init_payload).encode("utf-8"),
+                headers={
+                    "Authorization": f"Bearer {token}",
+                    "Content-Type": "application/json",
+                    "LinkedIn-Version": _LINKEDIN_API_VERSION,
+                },
+                method="POST",
+            )
+            with urlopen(req, timeout=15) as resp:
+                init_data = json.loads(resp.read().decode("utf-8"))
+                value = init_data.get("value", {})
+                upload_url = value.get("uploadUrl", "")
+                image_urn = value.get("image", "")
+                if not upload_url or not image_urn:
+                    return f"❌ LinkedIn image init failed: no uploadUrl or image URN"
+        except HTTPError as e:
+            error_body = e.read().decode("utf-8") if e.fp else ""
+            return f"❌ LinkedIn image init error: HTTP {e.code}\n{error_body[:200]}"
+        except Exception as e:
+            return f"❌ LinkedIn image init error: {e}"
 
+        # Step 2: Download image and upload to LinkedIn
+        try:
+            img_req = Request(image_url, headers={"User-Agent": "ZininCorp/1.0"})
+            with urlopen(img_req, timeout=30) as img_resp:
+                image_data = img_resp.read()
+
+            upload_req = Request(
+                upload_url,
+                data=image_data,
+                headers={
+                    "Authorization": f"Bearer {token}",
+                    "Content-Type": "application/octet-stream",
+                },
+                method="PUT",
+            )
+            with urlopen(upload_req, timeout=60) as _:
+                pass
+        except Exception as e:
+            return f"❌ LinkedIn image upload error: {e}"
+
+        # Step 3: Create post with image
+        post_payload = {
+            "author": f"urn:li:person:{person_id}",
+            "commentary": text,
+            "visibility": "PUBLIC",
+            "distribution": {
+                "feedDistribution": "MAIN_FEED",
+                "targetEntities": [],
+                "thirdPartyDistributionChannels": [],
+            },
+            "content": {
+                "media": {
+                    "title": "Image",
+                    "id": image_urn,
+                }
+            },
+            "lifecycleState": "PUBLISHED",
+        }
+
+        try:
+            req = Request(
+                f"{_LINKEDIN_BASE}/rest/posts",
+                data=json.dumps(post_payload).encode("utf-8"),
+                headers={
+                    "Authorization": f"Bearer {token}",
+                    "Content-Type": "application/json",
+                    "LinkedIn-Version": _LINKEDIN_API_VERSION,
+                    "X-Restli-Protocol-Version": "2.0.0",
+                },
+                method="POST",
+            )
+            with urlopen(req, timeout=30) as resp:
+                post_id = resp.headers.get("x-restli-id", "")
+                url = f"https://www.linkedin.com/feed/update/{post_id}" if post_id else ""
+                return f"✅ Published to LinkedIn with image!\nPost ID: {post_id}\nURL: {url}"
+        except HTTPError as e:
+            error_body = e.read().decode("utf-8") if e.fp else ""
+            if e.code == 401:
+                return "❌ LinkedIn token EXPIRED."
+            return f"❌ LinkedIn image post error: HTTP {e.code}\n{error_body[:200]}"
+        except Exception as e:
+            return f"❌ LinkedIn image post error: {e}"
+
+
+# ──────────────────────────────────────────────────────────
+# Tool 3b: Threads Publisher (Meta API)
+# ──────────────────────────────────────────────────────────
+
+_THREADS_BASE = "https://graph.threads.net/v1.0"
+
+
+class ThreadsPublisherInput(BaseModel):
+    action: str = Field(
+        ...,
+        description=(
+            "Action: 'publish_text' (text post — needs text), "
+            "'publish_image' (image post — needs text + image_url), "
+            "'publish_carousel' (carousel — needs text + image_urls comma-separated), "
+            "'check_token' (verify Threads is configured), "
+            "'status' (Threads integration status)"
+        ),
+    )
+    text: Optional[str] = Field(None, description="Post text (max 500 chars)")
+    image_url: Optional[str] = Field(None, description="Image URL for single image post")
+    image_urls: Optional[str] = Field(
+        None, description="Comma-separated image URLs for carousel (2-20 images)"
+    )
+
+
+class ThreadsPublisherTool(BaseTool):
+    name: str = "Threads Publisher"
+    description: str = (
+        "Publishes posts to Threads (Meta) via official API. "
+        "Actions: publish_text, publish_image, publish_carousel, check_token, status. "
+        "Supports text, image, and carousel posts."
+    )
+    args_schema: Type[BaseModel] = ThreadsPublisherInput
+
+    def _run(
+        self,
+        action: str,
+        text: str = None,
+        image_url: str = None,
+        image_urls: str = None,
+    ) -> str:
+        from urllib.request import urlopen, Request
+        from urllib.error import HTTPError
+        from urllib.parse import urlencode
+        import time
+
+        access_token = os.getenv("THREADS_ACCESS_TOKEN", "")
+        user_id = os.getenv("THREADS_USER_ID", "")
+
+        if action == "status":
+            configured = bool(access_token and user_id)
+            return (
+                f"THREADS STATUS:\n"
+                f"  Configured: {'✅ Yes' if configured else '❌ No'}\n"
+                f"  Token: {'Set' if access_token else 'MISSING'}\n"
+                f"  User ID: {'Set' if user_id else 'MISSING'}\n"
+                f"  API: {_THREADS_BASE}"
+            )
+
+        if action == "check_token":
+            if not access_token or not user_id:
+                return "❌ THREADS_ACCESS_TOKEN or THREADS_USER_ID not set"
             try:
-                req = Request(
-                    "https://api.linkedin.com/v2/ugcPosts",
-                    data=json.dumps(payload).encode("utf-8"),
-                    headers={
-                        "Authorization": f"Bearer {access_token}",
-                        "Content-Type": "application/json",
-                        "LinkedIn-Version": "202502",
-                        "X-Restli-Protocol-Version": "2.0.0",
-                    },
-                    method="POST",
-                )
-                with urlopen(req, timeout=30) as resp:
-                    post_id = resp.headers.get("x-restli-id", "")
-                    url = f"https://www.linkedin.com/feed/update/{post_id}" if post_id else ""
-                    return f"✅ Published to LinkedIn!\nPost ID: {post_id}\nURL: {url}"
-
+                params = urlencode({"access_token": access_token})
+                req = Request(f"{_THREADS_BASE}/{user_id}?{params}")
+                with urlopen(req, timeout=10) as resp:
+                    data = json.loads(resp.read().decode("utf-8"))
+                    name = data.get("name", data.get("username", "Unknown"))
+                    return f"✅ Threads token valid. User: {name}"
             except HTTPError as e:
-                error_body = e.read().decode("utf-8") if e.fp else ""
-                if e.code == 401:
-                    return "❌ LinkedIn token EXPIRED. Refresh at https://linkedin.com/developers/tools/oauth"
-                return f"❌ LinkedIn publish error: HTTP {e.code}\n{error_body[:200]}"
+                if e.code == 190 or e.code == 401:
+                    return "❌ Threads token EXPIRED. Re-authorize at developers.meta.com"
+                return f"❌ Threads error: HTTP {e.code}"
             except Exception as e:
-                return f"❌ LinkedIn publish error: {e}"
+                return f"❌ Threads error: {e}"
 
-        return f"Unknown action: {action}"
+        if action in ("publish_text", "publish"):
+            if not text:
+                return "Error: need text to publish"
+            if not access_token or not user_id:
+                return "❌ Threads not configured. Set THREADS_ACCESS_TOKEN and THREADS_USER_ID."
+            if len(text) > 500:
+                text = text[:497] + "..."
+            return self._publish_text(access_token, user_id, text)
+
+        if action == "publish_image":
+            if not text:
+                return "Error: need text for image post"
+            if not image_url:
+                return "Error: need image_url for image post"
+            if not access_token or not user_id:
+                return "❌ Threads not configured. Set THREADS_ACCESS_TOKEN and THREADS_USER_ID."
+            if len(text) > 500:
+                text = text[:497] + "..."
+            return self._publish_image(access_token, user_id, text, image_url)
+
+        if action == "publish_carousel":
+            if not text:
+                return "Error: need text for carousel"
+            if not image_urls:
+                return "Error: need image_urls (comma-separated) for carousel"
+            if not access_token or not user_id:
+                return "❌ Threads not configured. Set THREADS_ACCESS_TOKEN and THREADS_USER_ID."
+            urls = [u.strip() for u in image_urls.split(",") if u.strip()]
+            if len(urls) < 2:
+                return "Error: carousel needs at least 2 images"
+            if len(urls) > 20:
+                urls = urls[:20]
+            if len(text) > 500:
+                text = text[:497] + "..."
+            return self._publish_carousel(access_token, user_id, text, urls)
+
+        return f"Unknown action: {action}. Use: publish_text, publish_image, publish_carousel, check_token, status"
+
+    def _create_container(self, token: str, user_id: str, params: dict) -> str:
+        """Create a media container. Returns container ID or error string starting with '❌'."""
+        from urllib.request import urlopen, Request
+        from urllib.error import HTTPError
+        from urllib.parse import urlencode
+
+        params["access_token"] = token
+        url = f"{_THREADS_BASE}/{user_id}/threads"
+        try:
+            req = Request(
+                url,
+                data=urlencode(params).encode("utf-8"),
+                method="POST",
+            )
+            with urlopen(req, timeout=30) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+                container_id = data.get("id", "")
+                if not container_id:
+                    return "❌ Threads: no container ID returned"
+                return container_id
+        except HTTPError as e:
+            error_body = e.read().decode("utf-8") if e.fp else ""
+            return f"❌ Threads container error: HTTP {e.code}\n{error_body[:200]}"
+        except Exception as e:
+            return f"❌ Threads container error: {e}"
+
+    def _publish_container(self, token: str, user_id: str, container_id: str) -> str:
+        """Publish a media container. Returns success message or error."""
+        from urllib.request import urlopen, Request
+        from urllib.error import HTTPError
+        from urllib.parse import urlencode
+        import time
+
+        # Wait for container processing
+        time.sleep(5)
+
+        params = {"creation_id": container_id, "access_token": token}
+        url = f"{_THREADS_BASE}/{user_id}/threads_publish"
+        try:
+            req = Request(
+                url,
+                data=urlencode(params).encode("utf-8"),
+                method="POST",
+            )
+            with urlopen(req, timeout=30) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+                post_id = data.get("id", "")
+                return post_id
+        except HTTPError as e:
+            error_body = e.read().decode("utf-8") if e.fp else ""
+            return f"❌ Threads publish error: HTTP {e.code}\n{error_body[:200]}"
+        except Exception as e:
+            return f"❌ Threads publish error: {e}"
+
+    def _publish_text(self, token: str, user_id: str, text: str) -> str:
+        """Publish a text-only Threads post."""
+        container_id = self._create_container(token, user_id, {
+            "media_type": "TEXT",
+            "text": text,
+        })
+        if container_id.startswith("❌"):
+            return container_id
+
+        result = self._publish_container(token, user_id, container_id)
+        if result.startswith("❌"):
+            return result
+        return f"✅ Published to Threads!\nPost ID: {result}\nURL: https://www.threads.net/post/{result}"
+
+    def _publish_image(self, token: str, user_id: str, text: str, image_url: str) -> str:
+        """Publish a Threads post with image."""
+        container_id = self._create_container(token, user_id, {
+            "media_type": "IMAGE",
+            "text": text,
+            "image_url": image_url,
+        })
+        if container_id.startswith("❌"):
+            return container_id
+
+        result = self._publish_container(token, user_id, container_id)
+        if result.startswith("❌"):
+            return result
+        return f"✅ Published to Threads with image!\nPost ID: {result}\nURL: https://www.threads.net/post/{result}"
+
+    def _publish_carousel(self, token: str, user_id: str, text: str, image_urls: list) -> str:
+        """Publish a Threads carousel post (3-step: items → carousel container → publish)."""
+        import time
+
+        # Step 1: Create item containers
+        item_ids = []
+        for url in image_urls:
+            item_id = self._create_container(token, user_id, {
+                "media_type": "IMAGE",
+                "image_url": url,
+                "is_carousel_item": "true",
+            })
+            if item_id.startswith("❌"):
+                return f"❌ Carousel item failed: {item_id}"
+            item_ids.append(item_id)
+            time.sleep(1)
+
+        # Step 2: Create carousel container
+        children_str = ",".join(item_ids)
+        carousel_id = self._create_container(token, user_id, {
+            "media_type": "CAROUSEL",
+            "text": text,
+            "children": children_str,
+        })
+        if carousel_id.startswith("❌"):
+            return carousel_id
+
+        # Step 3: Publish
+        result = self._publish_container(token, user_id, carousel_id)
+        if result.startswith("❌"):
+            return result
+        return (
+            f"✅ Published carousel to Threads! ({len(image_urls)} images)\n"
+            f"Post ID: {result}\nURL: https://www.threads.net/post/{result}"
+        )
 
 
 # ──────────────────────────────────────────────────────────

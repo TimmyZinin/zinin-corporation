@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Zinin Corp - Настройка LinkedIn и Threads</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #0f0c29 0%, #302b63 50%, #24243e 100%);
+            color: #e0e0e0;
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container { max-width: 700px; margin: 0 auto; }
+        h1 {
+            text-align: center;
+            font-size: 28px;
+            margin-bottom: 10px;
+            background: linear-gradient(90deg, #667eea, #764ba2);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .subtitle {
+            text-align: center;
+            color: #8888aa;
+            margin-bottom: 30px;
+            font-size: 14px;
+        }
+        .platform {
+            background: rgba(255,255,255,0.06);
+            border-radius: 16px;
+            padding: 24px;
+            margin-bottom: 24px;
+            border: 1px solid rgba(255,255,255,0.08);
+        }
+        .platform-header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+        .platform-icon {
+            width: 48px;
+            height: 48px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+        }
+        .linkedin-icon { background: #0077B5; }
+        .threads-icon { background: #000; border: 2px solid #444; }
+        .platform-name { font-size: 22px; font-weight: 700; }
+        .platform-time { font-size: 13px; color: #8888aa; }
+        .step {
+            display: flex;
+            gap: 16px;
+            margin-bottom: 16px;
+            position: relative;
+        }
+        .step-num {
+            width: 36px;
+            height: 36px;
+            min-width: 36px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 16px;
+            color: #fff;
+        }
+        .linkedin-num { background: #0077B5; }
+        .threads-num { background: #E1306C; }
+        .step-content { flex: 1; }
+        .step-title { font-weight: 600; font-size: 16px; margin-bottom: 4px; }
+        .step-desc { font-size: 14px; color: #aaa; line-height: 1.5; }
+        .step-link {
+            display: inline-block;
+            margin-top: 6px;
+            padding: 6px 14px;
+            background: rgba(102,126,234,0.2);
+            border: 1px solid rgba(102,126,234,0.4);
+            border-radius: 8px;
+            color: #667eea;
+            text-decoration: none;
+            font-size: 13px;
+            font-weight: 500;
+        }
+        .step-link:hover { background: rgba(102,126,234,0.3); }
+        .warning {
+            background: rgba(255,193,7,0.1);
+            border: 1px solid rgba(255,193,7,0.3);
+            border-radius: 10px;
+            padding: 12px 16px;
+            margin: 12px 0;
+            font-size: 13px;
+            color: #ffd54f;
+        }
+        .checklist {
+            background: rgba(76,175,80,0.08);
+            border: 1px solid rgba(76,175,80,0.25);
+            border-radius: 16px;
+            padding: 24px;
+            margin-top: 24px;
+        }
+        .checklist h2 {
+            font-size: 20px;
+            margin-bottom: 16px;
+            color: #81c784;
+        }
+        .check-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 0;
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+            font-size: 15px;
+        }
+        .check-item:last-child { border-bottom: none; }
+        .check-box {
+            width: 22px;
+            height: 22px;
+            border: 2px solid #81c784;
+            border-radius: 4px;
+            min-width: 22px;
+        }
+        .divider {
+            height: 1px;
+            background: rgba(255,255,255,0.08);
+            margin: 10px 0 16px 52px;
+        }
+        .footer {
+            text-align: center;
+            margin-top: 30px;
+            padding: 16px;
+            color: #666;
+            font-size: 12px;
+        }
+        .token-info {
+            background: rgba(33,150,243,0.1);
+            border: 1px solid rgba(33,150,243,0.3);
+            border-radius: 10px;
+            padding: 12px 16px;
+            margin: 12px 0;
+            font-size: 13px;
+            color: #90caf9;
+        }
+        code {
+            background: rgba(255,255,255,0.1);
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 13px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Настройка LinkedIn + Threads</h1>
+        <p class="subtitle">Инструкция для подключения AI-агента Юки к твоим аккаунтам</p>
+
+        <!-- LINKEDIN -->
+        <div class="platform">
+            <div class="platform-header">
+                <div class="platform-icon linkedin-icon">in</div>
+                <div>
+                    <div class="platform-name">LinkedIn</div>
+                    <div class="platform-time">~15 минут</div>
+                </div>
+            </div>
+
+            <div class="step">
+                <div class="step-num linkedin-num">1</div>
+                <div class="step-content">
+                    <div class="step-title">Открой LinkedIn Developer Portal</div>
+                    <div class="step-desc">Зайди по ссылке и авторизуйся своим обычным LinkedIn-аккаунтом.</div>
+                    <a class="step-link" href="https://www.linkedin.com/developers/" target="_blank">linkedin.com/developers</a>
+                </div>
+            </div>
+            <div class="divider"></div>
+
+            <div class="step">
+                <div class="step-num linkedin-num">2</div>
+                <div class="step-content">
+                    <div class="step-title">Нажми "Create App"</div>
+                    <div class="step-desc">
+                        Заполни:<br>
+                        - <b>App name:</b> любое (например, "Yuki SMM")<br>
+                        - <b>LinkedIn Page:</b> выбери свою страницу (или создай новую)<br>
+                        - <b>App logo:</b> загрузи любую картинку<br>
+                        - Прими соглашение
+                    </div>
+                </div>
+            </div>
+            <div class="divider"></div>
+
+            <div class="step">
+                <div class="step-num linkedin-num">3</div>
+                <div class="step-content">
+                    <div class="step-title">Запроси доступ "Share on LinkedIn"</div>
+                    <div class="step-desc">
+                        Перейди во вкладку <b>"Products"</b> в настройках приложения.<br>
+                        Найди <b>"Share on LinkedIn"</b> и нажми <b>"Request access"</b>.<br>
+                        Одобрение обычно мгновенное.
+                    </div>
+                </div>
+            </div>
+            <div class="divider"></div>
+
+            <div class="step">
+                <div class="step-num linkedin-num">4</div>
+                <div class="step-content">
+                    <div class="step-title">Скопируй Client ID и Client Secret</div>
+                    <div class="step-desc">
+                        Вкладка <b>"Auth"</b> → скопируй:<br>
+                        - <b>Client ID</b> (длинная строка)<br>
+                        - <b>Client Secret</b> (нажми на глазик, чтобы увидеть)
+                    </div>
+                    <div class="warning">Никому не показывай Client Secret! Это как пароль.</div>
+                </div>
+            </div>
+            <div class="divider"></div>
+
+            <div class="step">
+                <div class="step-num linkedin-num">5</div>
+                <div class="step-content">
+                    <div class="step-title">Получи Access Token</div>
+                    <div class="step-desc">
+                        Перейди в <b>OAuth Token Tools</b> по ссылке ниже.<br>
+                        Выбери своё приложение, нажми <b>"Request access token"</b>.<br>
+                        Скопируй полученный <b>Access Token</b>.
+                    </div>
+                    <a class="step-link" href="https://www.linkedin.com/developers/tools/oauth" target="_blank">LinkedIn OAuth Tool</a>
+                    <div class="token-info">Access Token действует <b>60 дней</b>. Через 60 дней нужно будет получить новый.</div>
+                </div>
+            </div>
+            <div class="divider"></div>
+
+            <div class="step">
+                <div class="step-num linkedin-num">6</div>
+                <div class="step-content">
+                    <div class="step-title">Узнай свой Person ID</div>
+                    <div class="step-desc">
+                        Открой свой профиль LinkedIn в браузере.<br>
+                        В адресной строке будет: <code>linkedin.com/in/kristina-zhukova/</code><br>
+                        <b>Person ID</b> = часть после /in/ (без слешей).<br>
+                        Или Тим найдёт его через API по твоему токену.
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- THREADS -->
+        <div class="platform">
+            <div class="platform-header">
+                <div class="platform-icon threads-icon">@</div>
+                <div>
+                    <div class="platform-name">Threads</div>
+                    <div class="platform-time">~20 минут</div>
+                </div>
+            </div>
+
+            <div class="step">
+                <div class="step-num threads-num">1</div>
+                <div class="step-content">
+                    <div class="step-title">Открой Meta Developer Portal</div>
+                    <div class="step-desc">Зайди по ссылке. Авторизуйся через Facebook-аккаунт.</div>
+                    <a class="step-link" href="https://developers.meta.com/" target="_blank">developers.meta.com</a>
+                </div>
+            </div>
+            <div class="divider"></div>
+
+            <div class="step">
+                <div class="step-num threads-num">2</div>
+                <div class="step-content">
+                    <div class="step-title">Создай приложение</div>
+                    <div class="step-desc">
+                        Нажми <b>"Create App"</b>.<br>
+                        Выбери use case: <b>"Access the Threads API"</b>.<br>
+                        Тип: <b>Business</b>.<br>
+                        Название: любое (например, "Yuki Threads").<br>
+                        Email: твой.
+                    </div>
+                </div>
+            </div>
+            <div class="divider"></div>
+
+            <div class="step">
+                <div class="step-num threads-num">3</div>
+                <div class="step-content">
+                    <div class="step-title">Добавь себя как тестера</div>
+                    <div class="step-desc">
+                        В настройках приложения перейди: <b>App roles</b> → <b>Roles</b>.<br>
+                        Нажми <b>"Add People"</b>, введи свой Instagram username.<br>
+                        Потом открой Threads: <b>Settings</b> → <b>Account</b> → <b>Website permissions</b>.<br>
+                        Прими приглашение тестера.
+                    </div>
+                    <div class="warning">Твой аккаунт Threads должен быть публичным (не приватным)!</div>
+                </div>
+            </div>
+            <div class="divider"></div>
+
+            <div class="step">
+                <div class="step-num threads-num">4</div>
+                <div class="step-content">
+                    <div class="step-title">Скопируй App ID и App Secret</div>
+                    <div class="step-desc">
+                        В настройках приложения: <b>Settings</b> → <b>Basic</b>.<br>
+                        Скопируй <b>App ID</b> и <b>App Secret</b>.
+                    </div>
+                </div>
+            </div>
+            <div class="divider"></div>
+
+            <div class="step">
+                <div class="step-num threads-num">5</div>
+                <div class="step-content">
+                    <div class="step-title">Получи Access Token</div>
+                    <div class="step-desc">
+                        Перейди в <b>Graph API Explorer</b> по ссылке.<br>
+                        Выбери своё приложение.<br>
+                        Добавь permissions: <code>threads_basic</code> + <code>threads_content_publish</code>.<br>
+                        Нажми <b>"Generate Access Token"</b>.<br>
+                        Авторизуйся через Instagram → скопируй токен.
+                    </div>
+                    <a class="step-link" href="https://developers.facebook.com/tools/explorer/" target="_blank">Graph API Explorer</a>
+                    <div class="token-info">
+                        Это короткий токен (1 час). Тим конвертирует его в длинный (60 дней).
+                    </div>
+                </div>
+            </div>
+            <div class="divider"></div>
+
+            <div class="step">
+                <div class="step-num threads-num">6</div>
+                <div class="step-content">
+                    <div class="step-title">Узнай свой Threads User ID</div>
+                    <div class="step-desc">
+                        Тим получит его автоматически через API по твоему токену.<br>
+                        Или: в Graph API Explorer сделай запрос <code>GET /me</code> → поле <b>id</b>.
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- CHECKLIST -->
+        <div class="checklist">
+            <h2>Что прислать Тиму</h2>
+            <div class="check-item">
+                <div class="check-box"></div>
+                <div><b>LinkedIn Access Token</b> (длинная строка, начинается с AQ...)</div>
+            </div>
+            <div class="check-item">
+                <div class="check-box"></div>
+                <div><b>LinkedIn Person ID</b> (или URL профиля — Тим найдёт ID)</div>
+            </div>
+            <div class="check-item">
+                <div class="check-box"></div>
+                <div><b>Threads Access Token</b> (из Graph API Explorer)</div>
+            </div>
+            <div class="check-item">
+                <div class="check-box"></div>
+                <div><b>Threads App ID</b> (из настроек Meta App)</div>
+            </div>
+            <div class="check-item">
+                <div class="check-box"></div>
+                <div><b>Threads App Secret</b> (из настроек Meta App)</div>
+            </div>
+
+            <div class="warning" style="margin-top: 16px;">
+                Все токены — секретные! Присылай только в личные сообщения Тиму, не в групповые чаты.
+            </div>
+        </div>
+
+        <div class="footer">
+            Zinin Corporation AI | Юки (SMM Agent)<br>
+            При проблемах — пиши Тиму
+        </div>
+    </div>
+</body>
+</html>
