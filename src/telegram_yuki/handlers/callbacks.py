@@ -124,16 +124,29 @@ async def on_time_select(callback: CallbackQuery):
 
 
 async def _do_publish(callback: CallbackQuery, post_id: str, draft: dict, platforms: list[str]):
-    """Execute publishing to all selected platforms."""
+    """Execute publishing to all selected platforms with content adaptation."""
     results = []
-    text = draft["text"]
+    base_text = draft["text"]
     image_path = draft.get("image_path", "")
+
+    # Adapt content for each platform (non-blocking)
+    adapted = {}
+    if len(platforms) > 1:
+        try:
+            import asyncio
+            from ...tools.content_adapter import adapt_for_all_platforms
+            adapted = await asyncio.to_thread(adapt_for_all_platforms, base_text)
+        except Exception as e:
+            logger.warning(f"Content adaptation failed, using original: {e}")
 
     for platform_name in platforms:
         pub = get_publisher(platform_name)
         if not pub:
             results.append(f"❌ {platform_name}: неизвестная платформа")
             continue
+
+        # Use adapted text if available, otherwise original
+        text = adapted.get(platform_name, base_text)
 
         try:
             if platform_name == "telegram" and hasattr(pub, 'publish'):
