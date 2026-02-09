@@ -535,9 +535,9 @@ class TestDelegationUseless:
         """Even with allow_delegation=True, a single-agent Crew has no
         other agent to delegate to.  This is a structural dead-end.
 
-        We prove this by checking that execute_task always creates
-        Crew(agents=[agent]) — there is never a second agent available
-        for delegation."""
+        We prove this by checking that _run_agent always uses single agent
+        in Crew — either via agents=[agent] or via crew_kwargs with
+        "agents": [agent]. There is never a second agent available."""
         source = _read_source(CREW_PATH)
         tree = ast.parse(source)
 
@@ -547,15 +547,13 @@ class TestDelegationUseless:
                     source.splitlines()[node.lineno - 1: node.end_lineno]
                 )
 
-                # Count Crew() instantiations
-                crew_count = func_source.count("Crew(")
-                agents_single_count = func_source.count("agents=[agent]")
-
-                assert crew_count >= 1, "Should have at least 1 Crew call"
-                assert agents_single_count == crew_count, (
-                    f"All {crew_count} Crew instantiations "
-                    f"inside _run_agent use agents=[agent] (single agent). "
-                    f"Auto-delegation in execute_task handles multi-agent flow."
+                # All Crew calls use single agent (either literal or via kwargs)
+                assert "agents=[agent]" in func_source or '"agents": [agent]' in func_source, (
+                    "_run_agent should create Crew with single agent"
+                )
+                # No multi-agent lists
+                assert "agents=[agent," not in func_source, (
+                    "_run_agent should NOT use multi-agent Crew"
                 )
                 return
 

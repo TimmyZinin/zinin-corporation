@@ -67,6 +67,52 @@ os.environ.setdefault("CREWAI_STORAGE_DIR", "ai_corporation")
 
 
 # ──────────────────────────────────────────────────────────
+# Knowledge Sources — business documents for RAG
+# ──────────────────────────────────────────────────────────
+def _load_knowledge_sources() -> list:
+    """Load knowledge sources from knowledge/ directory."""
+    knowledge_dir_candidates = [
+        os.path.join(os.path.dirname(os.path.dirname(__file__)), "knowledge"),
+        "/app/knowledge",
+        "knowledge",
+    ]
+    knowledge_dir = None
+    for d in knowledge_dir_candidates:
+        if os.path.isdir(d):
+            knowledge_dir = d
+            break
+    if not knowledge_dir:
+        logger.info("No knowledge/ directory found — skipping knowledge sources")
+        return []
+    try:
+        from crewai.knowledge.sources import TextFileKnowledgeSource
+        md_files = [
+            os.path.join(knowledge_dir, f)
+            for f in sorted(os.listdir(knowledge_dir))
+            if f.endswith((".md", ".txt"))
+        ]
+        if not md_files:
+            logger.info("No .md/.txt files in knowledge/ — skipping")
+            return []
+        source = TextFileKnowledgeSource(
+            file_paths=md_files,
+            chunk_size=4000,
+            chunk_overlap=200,
+        )
+        logger.info(f"Loaded knowledge source: {len(md_files)} files from {knowledge_dir}")
+        return [source]
+    except ImportError:
+        logger.warning("crewai.knowledge not available — skipping knowledge sources")
+        return []
+    except Exception as e:
+        logger.warning(f"Failed to load knowledge sources: {e}")
+        return []
+
+
+KNOWLEDGE_SOURCES = _load_knowledge_sources()
+
+
+# ──────────────────────────────────────────────────────────
 # Pydantic output models for structured responses
 # ──────────────────────────────────────────────────────────
 class FinancialReport(BaseModel):
@@ -342,14 +388,17 @@ class AICorporation:
             )
             return str(crew.kickoff())
         try:
-            crew = Crew(
-                agents=[agent],
-                tasks=[task],
-                process=Process.sequential,
-                verbose=True,
-                memory=True,
-                embedder=EMBEDDER_CONFIG,
-            )
+            crew_kwargs = {
+                "agents": [agent],
+                "tasks": [task],
+                "process": Process.sequential,
+                "verbose": True,
+                "memory": True,
+                "embedder": EMBEDDER_CONFIG,
+            }
+            if KNOWLEDGE_SOURCES:
+                crew_kwargs["knowledge_sources"] = KNOWLEDGE_SOURCES
+            crew = Crew(**crew_kwargs)
             return str(crew.kickoff())
         except Exception as e:
             logger.warning(f"_run_agent({agent_name}) memory failed: {e}, retrying without memory")
