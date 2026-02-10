@@ -13,8 +13,12 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from src.tools.smm_tools import (
     LinkedInPublisherTool,
     LinkedInPublisherInput,
+    LinkedInTimPublisher,
+    LinkedInKristinaPublisher,
     ThreadsPublisherTool,
     ThreadsPublisherInput,
+    ThreadsTimPublisher,
+    ThreadsKristinaPublisher,
     _LINKEDIN_API_VERSION,
     _THREADS_BASE,
 )
@@ -491,3 +495,129 @@ class TestThreadsContainerHelpers:
         result = tool._publish_container("token", "user_1", "container_1")
         assert "❌" in result
         assert "500" in result
+
+
+# ══════════════════════════════════════════════════════════
+# MULTI-ACCOUNT TESTS
+# ══════════════════════════════════════════════════════════
+
+
+class TestMultiAccountLinkedIn:
+    """Verify Tim and Kristina LinkedIn publishers use separate env vars."""
+
+    def test_tim_tool_name(self):
+        tool = LinkedInTimPublisher()
+        assert "Tim" in tool.name
+
+    def test_kristina_tool_name(self):
+        tool = LinkedInKristinaPublisher()
+        assert "Kristina" in tool.name
+
+    def test_backward_compat_alias(self):
+        assert LinkedInPublisherTool is LinkedInTimPublisher
+
+    def test_tim_reads_tim_env(self):
+        tool = LinkedInTimPublisher()
+        env = {"LINKEDIN_ACCESS_TOKEN": "tim_tok", "LINKEDIN_PERSON_ID": "tim_id"}
+        with patch.dict(os.environ, env, clear=False):
+            result = tool._run("status")
+            assert "✅ Yes" in result
+            assert "Tim" in result
+
+    def test_kristina_reads_kristina_env(self):
+        tool = LinkedInKristinaPublisher()
+        env = {
+            "LINKEDIN_ACCESS_TOKEN_KRISTINA": "kris_tok",
+            "LINKEDIN_PERSON_ID_KRISTINA": "kris_id",
+        }
+        with patch.dict(os.environ, env, clear=False):
+            result = tool._run("status")
+            assert "✅ Yes" in result
+            assert "Kristina" in result
+
+    def test_kristina_not_configured_without_kristina_env(self):
+        tool = LinkedInKristinaPublisher()
+        env = {"LINKEDIN_ACCESS_TOKEN": "tim_tok", "LINKEDIN_PERSON_ID": "tim_id"}
+        with patch.dict(os.environ, env, clear=True):
+            result = tool._run("status")
+            assert "❌ No" in result
+
+    def test_tim_not_configured_without_tim_env(self):
+        tool = LinkedInTimPublisher()
+        env = {
+            "LINKEDIN_ACCESS_TOKEN_KRISTINA": "kris_tok",
+            "LINKEDIN_PERSON_ID_KRISTINA": "kris_id",
+        }
+        with patch.dict(os.environ, env, clear=True):
+            result = tool._run("status")
+            assert "❌ No" in result
+
+    @patch("urllib.request.urlopen")
+    def test_kristina_publish_uses_kristina_token(self, mock_urlopen):
+        mock_urlopen.return_value = _mock_response(
+            {}, headers={"x-restli-id": "kris_post_1"}
+        )
+        tool = LinkedInKristinaPublisher()
+        env = {
+            "LINKEDIN_ACCESS_TOKEN_KRISTINA": "kris_token_val",
+            "LINKEDIN_PERSON_ID_KRISTINA": "kris_person_val",
+        }
+        with patch.dict(os.environ, env, clear=False):
+            result = tool._run("publish_text", text="Hello from Kristina")
+            assert "✅" in result
+            assert "kris_post_1" in result
+            # Verify the request used Kristina's token
+            call_args = mock_urlopen.call_args
+            req = call_args[0][0]
+            assert "kris_token_val" in req.get_header("Authorization")
+
+
+class TestMultiAccountThreads:
+    """Verify Tim and Kristina Threads publishers use separate env vars."""
+
+    def test_tim_tool_name(self):
+        tool = ThreadsTimPublisher()
+        assert "Tim" in tool.name
+
+    def test_kristina_tool_name(self):
+        tool = ThreadsKristinaPublisher()
+        assert "Kristina" in tool.name
+
+    def test_backward_compat_alias(self):
+        assert ThreadsPublisherTool is ThreadsTimPublisher
+
+    def test_tim_reads_tim_env(self):
+        tool = ThreadsTimPublisher()
+        env = {"THREADS_ACCESS_TOKEN": "tim_tok", "THREADS_USER_ID": "tim_id"}
+        with patch.dict(os.environ, env, clear=False):
+            result = tool._run("status")
+            assert "✅ Yes" in result
+            assert "Tim" in result
+
+    def test_kristina_reads_kristina_env(self):
+        tool = ThreadsKristinaPublisher()
+        env = {
+            "THREADS_ACCESS_TOKEN_KRISTINA": "kris_tok",
+            "THREADS_USER_ID_KRISTINA": "kris_id",
+        }
+        with patch.dict(os.environ, env, clear=False):
+            result = tool._run("status")
+            assert "✅ Yes" in result
+            assert "Kristina" in result
+
+    def test_kristina_not_configured_without_kristina_env(self):
+        tool = ThreadsKristinaPublisher()
+        env = {"THREADS_ACCESS_TOKEN": "tim_tok", "THREADS_USER_ID": "tim_id"}
+        with patch.dict(os.environ, env, clear=True):
+            result = tool._run("status")
+            assert "❌ No" in result
+
+    def test_tim_not_configured_without_tim_env(self):
+        tool = ThreadsTimPublisher()
+        env = {
+            "THREADS_ACCESS_TOKEN_KRISTINA": "kris_tok",
+            "THREADS_USER_ID_KRISTINA": "kris_id",
+        }
+        with patch.dict(os.environ, env, clear=True):
+            result = tool._run("status")
+            assert "❌ No" in result

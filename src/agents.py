@@ -171,12 +171,14 @@ def create_smm_agent() -> Optional[Agent]:
 
     try:
         from .tools.smm_tools import (
-            ContentGenerator, YukiMemory, LinkedInPublisherTool,
-            ThreadsPublisherTool, PodcastScriptGenerator
+            ContentGenerator, YukiMemory, PodcastScriptGenerator,
+            LinkedInTimPublisher, LinkedInKristinaPublisher,
+            ThreadsTimPublisher, ThreadsKristinaPublisher,
         )
         tools = [
             ContentGenerator(), YukiMemory(),
-            LinkedInPublisherTool(), ThreadsPublisherTool(),
+            LinkedInTimPublisher(), LinkedInKristinaPublisher(),
+            ThreadsTimPublisher(), ThreadsKristinaPublisher(),
             PodcastScriptGenerator(),
         ]
     except Exception as e:

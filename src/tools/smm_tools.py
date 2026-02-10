@@ -678,26 +678,28 @@ class LinkedInPublisherInput(BaseModel):
     image_url: Optional[str] = Field(None, description="Image URL to attach (for publish_image)")
 
 
-class LinkedInPublisherTool(BaseTool):
+class _LinkedInPublisherBase(BaseTool):
+    """Base LinkedIn publisher — subclass with specific name/env vars per account."""
     name: str = "LinkedIn Publisher"
-    description: str = (
-        "Publishes posts to LinkedIn via modern REST API. "
-        "Actions: publish_text, publish_image, check_token, status. "
-        "Supports text posts (up to 3000 chars) and image posts."
-    )
+    description: str = "Publishes posts to LinkedIn via modern REST API."
     args_schema: Type[BaseModel] = LinkedInPublisherInput
+
+    _token_env: str = "LINKEDIN_ACCESS_TOKEN"
+    _person_id_env: str = "LINKEDIN_PERSON_ID"
+    _owner_label: str = ""
 
     def _run(self, action: str, text: str = None, image_url: str = None) -> str:
         from urllib.request import urlopen, Request
         from urllib.error import HTTPError
 
-        access_token = os.getenv("LINKEDIN_ACCESS_TOKEN", "")
-        person_id = os.getenv("LINKEDIN_PERSON_ID", "")
+        access_token = os.getenv(self._token_env, "")
+        person_id = os.getenv(self._person_id_env, "")
 
         if action == "status":
             configured = bool(access_token and person_id)
+            label = f" ({self._owner_label})" if self._owner_label else ""
             return (
-                f"LINKEDIN STATUS:\n"
+                f"LINKEDIN STATUS{label}:\n"
                 f"  Configured: {'✅ Yes' if configured else '❌ No'}\n"
                 f"  Token: {'Set' if access_token else 'MISSING'}\n"
                 f"  Person ID: {'Set' if person_id else 'MISSING'}\n"
@@ -706,7 +708,7 @@ class LinkedInPublisherTool(BaseTool):
 
         if action == "check_token":
             if not access_token:
-                return "❌ LINKEDIN_ACCESS_TOKEN not set"
+                return f"❌ {self._token_env} not set"
             try:
                 req = Request(
                     f"{_LINKEDIN_BASE}/v2/userinfo",
@@ -730,7 +732,7 @@ class LinkedInPublisherTool(BaseTool):
             if not text:
                 return "Error: need text to publish"
             if not access_token or not person_id:
-                return "❌ LinkedIn not configured. Set LINKEDIN_ACCESS_TOKEN and LINKEDIN_PERSON_ID."
+                return f"❌ LinkedIn not configured. Set {self._token_env} and {self._person_id_env}."
             if len(text) > 3000:
                 text = text[:2997] + "..."
             return self._publish_post(access_token, person_id, text)
@@ -741,7 +743,7 @@ class LinkedInPublisherTool(BaseTool):
             if not image_url:
                 return "Error: need image_url for image post"
             if not access_token or not person_id:
-                return "❌ LinkedIn not configured. Set LINKEDIN_ACCESS_TOKEN and LINKEDIN_PERSON_ID."
+                return f"❌ LinkedIn not configured. Set {self._token_env} and {self._person_id_env}."
             if len(text) > 3000:
                 text = text[:2997] + "..."
             return self._publish_image_post(access_token, person_id, text, image_url)
@@ -888,6 +890,35 @@ class LinkedInPublisherTool(BaseTool):
             return f"❌ LinkedIn image post error: {e}"
 
 
+# Concrete LinkedIn publishers per account
+class LinkedInTimPublisher(_LinkedInPublisherBase):
+    name: str = "LinkedIn Tim Zinin"
+    description: str = (
+        "Publishes posts to TIM ZININ's LinkedIn. "
+        "Use ONLY when the post is meant for Tim's account. "
+        "Actions: publish_text, publish_image, check_token, status."
+    )
+    _token_env: str = "LINKEDIN_ACCESS_TOKEN"
+    _person_id_env: str = "LINKEDIN_PERSON_ID"
+    _owner_label: str = "Tim Zinin"
+
+
+class LinkedInKristinaPublisher(_LinkedInPublisherBase):
+    name: str = "LinkedIn Kristina Zhukova"
+    description: str = (
+        "Publishes posts to KRISTINA ZHUKOVA's LinkedIn. "
+        "Use ONLY when the post is meant for Kristina's account. "
+        "Actions: publish_text, publish_image, check_token, status."
+    )
+    _token_env: str = "LINKEDIN_ACCESS_TOKEN_KRISTINA"
+    _person_id_env: str = "LINKEDIN_PERSON_ID_KRISTINA"
+    _owner_label: str = "Kristina Zhukova"
+
+
+# Backward-compat alias
+LinkedInPublisherTool = LinkedInTimPublisher
+
+
 # ──────────────────────────────────────────────────────────
 # Tool 3b: Threads Publisher (Meta API)
 # ──────────────────────────────────────────────────────────
@@ -913,14 +944,15 @@ class ThreadsPublisherInput(BaseModel):
     )
 
 
-class ThreadsPublisherTool(BaseTool):
+class _ThreadsPublisherBase(BaseTool):
+    """Base Threads publisher — subclass with specific name/env vars per account."""
     name: str = "Threads Publisher"
-    description: str = (
-        "Publishes posts to Threads (Meta) via official API. "
-        "Actions: publish_text, publish_image, publish_carousel, check_token, status. "
-        "Supports text, image, and carousel posts."
-    )
+    description: str = "Publishes posts to Threads (Meta) via official API."
     args_schema: Type[BaseModel] = ThreadsPublisherInput
+
+    _token_env: str = "THREADS_ACCESS_TOKEN"
+    _user_id_env: str = "THREADS_USER_ID"
+    _owner_label: str = ""
 
     def _run(
         self,
@@ -934,13 +966,14 @@ class ThreadsPublisherTool(BaseTool):
         from urllib.parse import urlencode
         import time
 
-        access_token = os.getenv("THREADS_ACCESS_TOKEN", "")
-        user_id = os.getenv("THREADS_USER_ID", "")
+        access_token = os.getenv(self._token_env, "")
+        user_id = os.getenv(self._user_id_env, "")
 
         if action == "status":
             configured = bool(access_token and user_id)
+            label = f" ({self._owner_label})" if self._owner_label else ""
             return (
-                f"THREADS STATUS:\n"
+                f"THREADS STATUS{label}:\n"
                 f"  Configured: {'✅ Yes' if configured else '❌ No'}\n"
                 f"  Token: {'Set' if access_token else 'MISSING'}\n"
                 f"  User ID: {'Set' if user_id else 'MISSING'}\n"
@@ -949,7 +982,7 @@ class ThreadsPublisherTool(BaseTool):
 
         if action == "check_token":
             if not access_token or not user_id:
-                return "❌ THREADS_ACCESS_TOKEN or THREADS_USER_ID not set"
+                return f"❌ {self._token_env} or {self._user_id_env} not set"
             try:
                 params = urlencode({"access_token": access_token})
                 req = Request(f"{_THREADS_BASE}/{user_id}?{params}")
@@ -968,7 +1001,7 @@ class ThreadsPublisherTool(BaseTool):
             if not text:
                 return "Error: need text to publish"
             if not access_token or not user_id:
-                return "❌ Threads not configured. Set THREADS_ACCESS_TOKEN and THREADS_USER_ID."
+                return f"❌ Threads not configured. Set {self._token_env} and {self._user_id_env}."
             if len(text) > 500:
                 text = text[:497] + "..."
             return self._publish_text(access_token, user_id, text)
@@ -979,7 +1012,7 @@ class ThreadsPublisherTool(BaseTool):
             if not image_url:
                 return "Error: need image_url for image post"
             if not access_token or not user_id:
-                return "❌ Threads not configured. Set THREADS_ACCESS_TOKEN and THREADS_USER_ID."
+                return f"❌ Threads not configured. Set {self._token_env} and {self._user_id_env}."
             if len(text) > 500:
                 text = text[:497] + "..."
             return self._publish_image(access_token, user_id, text, image_url)
@@ -990,7 +1023,7 @@ class ThreadsPublisherTool(BaseTool):
             if not image_urls:
                 return "Error: need image_urls (comma-separated) for carousel"
             if not access_token or not user_id:
-                return "❌ Threads not configured. Set THREADS_ACCESS_TOKEN and THREADS_USER_ID."
+                return f"❌ Threads not configured. Set {self._token_env} and {self._user_id_env}."
             urls = [u.strip() for u in image_urls.split(",") if u.strip()]
             if len(urls) < 2:
                 return "Error: carousel needs at least 2 images"
@@ -1120,6 +1153,35 @@ class ThreadsPublisherTool(BaseTool):
             f"✅ Published carousel to Threads! ({len(image_urls)} images)\n"
             f"Post ID: {result}\nURL: https://www.threads.net/post/{result}"
         )
+
+
+# Concrete Threads publishers per account
+class ThreadsTimPublisher(_ThreadsPublisherBase):
+    name: str = "Threads Tim Zinin"
+    description: str = (
+        "Publishes posts to TIM ZININ's Threads. "
+        "Use ONLY when the post is meant for Tim's account. "
+        "Actions: publish_text, publish_image, publish_carousel, check_token, status."
+    )
+    _token_env: str = "THREADS_ACCESS_TOKEN"
+    _user_id_env: str = "THREADS_USER_ID"
+    _owner_label: str = "Tim Zinin"
+
+
+class ThreadsKristinaPublisher(_ThreadsPublisherBase):
+    name: str = "Threads Kristina Zhukova"
+    description: str = (
+        "Publishes posts to KRISTINA ZHUKOVA's Threads. "
+        "Use ONLY when the post is meant for Kristina's account. "
+        "Actions: publish_text, publish_image, publish_carousel, check_token, status."
+    )
+    _token_env: str = "THREADS_ACCESS_TOKEN_KRISTINA"
+    _user_id_env: str = "THREADS_USER_ID_KRISTINA"
+    _owner_label: str = "Kristina Zhukova"
+
+
+# Backward-compat alias
+ThreadsPublisherTool = ThreadsTimPublisher
 
 
 # ──────────────────────────────────────────────────────────
