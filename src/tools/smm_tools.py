@@ -984,7 +984,7 @@ class _ThreadsPublisherBase(BaseTool):
             if not access_token or not user_id:
                 return f"❌ {self._token_env} or {self._user_id_env} not set"
             try:
-                params = urlencode({"access_token": access_token})
+                params = urlencode({"fields": "id,username,name", "access_token": access_token})
                 req = Request(f"{_THREADS_BASE}/{user_id}?{params}")
                 with urlopen(req, timeout=10) as resp:
                     data = json.loads(resp.read().decode("utf-8"))
