@@ -16,7 +16,7 @@ This is a **production multi-agent system** with 6 specialized AI agents, 3 Tele
 - **Product:** Backlog management, sprint tracking, feature health monitoring
 - **Tasks:** Shared Task Pool with dependency blocking and auto-routing
 
-**Key constraint:** All changes must pass 1700+ existing tests. Never break existing functionality.
+**Key constraint:** All changes must pass 1800+ existing tests. Never break existing functionality.
 
 ---
 
@@ -110,7 +110,8 @@ See [AGENTS.md](AGENTS.md) for full registry with triggers, tools, and handoff r
 - **Commands:** `/start`, `/help`, `/status`, `/review`, `/report`, `/content <topic>`, `/linkedin`, `/task <title>`, `/tasks`, `/delegate <agent> <task>`, `/test`
 - **Task Pool:** `/task` creates tasks with auto-tag + agent suggestion. Inline keyboards for assign/start/complete/block.
 - **Brain Dump:** Long messages (>300 chars with list markers) auto-parsed into Task Pool.
-- **Scheduler:** Morning briefing, weekly report, API health (30min), CTO proposals (4x/day)
+- **Scheduler:** Morning briefing, weekly report, API health (30min), CTO proposals (4x/day), archive_daily (01:00), orphan_patrol (10:00)
+- **Escalation:** When `suggest_assignee()` confidence < 0.3, shows 4-option keyboard (extend prompt, create agent, split task, manual assign)
 - **Entry:** `run_alexey_bot.py`
 
 ### CFO Маттиас (`src/telegram/`)
@@ -152,11 +153,11 @@ Banking: `TBankBalance`, `TBankStatement` | Crypto: `EVMPortfolio`, `SolanaPortf
 |--------|---------|-------|--------|
 | `cfo-mcp` | Financial data (Маттиас tools) | 8 tools: balance, portfolio, crypto, tribute, forex, API costs | **Active** |
 | `tribute-mcp` | Revenue/subscriber data | 4 tools: products, revenue, subscriptions, stats | **Active** |
-| `telegram-mcp` | CEO Алексей <-> Agent Teams | Planned | Planned |
+| `telegram-mcp` | CEO Алексей ↔ Task Pool bridge | 6 tools: create/get/assign/complete tasks, pool summary | **Active** |
+| `kb-mcp` | Knowledge base search | 3 tools: search, list topics, read topic | **Active** |
 | `crypto-mcp` | Crypto bot notifications | Planned | Planned |
-| `qmd` | Knowledge base search | Planned | Planned |
 
-**Run:** `python run_cfo_mcp.py` / `python run_tribute_mcp.py`
+**Run:** `python run_cfo_mcp.py` / `python run_tribute_mcp.py` / `python run_telegram_mcp.py` / `python run_kb_mcp.py`
 
 ---
 
@@ -192,8 +193,10 @@ ai_corporation/
 │   ├── task_extractor.py  # Legacy task extraction from messages
 │   ├── models/            # Pydantic models (CorporationState, outputs)
 │   ├── mcp_servers/        # MCP servers for Agent Teams
-│   │   ├── cfo_server.py  # CFO financial tools (8 MCP tools)
-│   │   └── tribute_server.py  # Tribute revenue tools (4 MCP tools)
+│   │   ├── cfo_server.py      # CFO financial tools (8 MCP tools)
+│   │   ├── tribute_server.py  # Tribute revenue tools (4 MCP tools)
+│   │   ├── telegram_server.py # Task Pool bridge (6 MCP tools)
+│   │   └── kb_server.py       # Knowledge base search (3 MCP tools)
 │   ├── tools/             # Agent tools
 │   │   ├── financial/     # 20+ financial API tools
 │   │   ├── smm_tools.py   # Content + publishers (4 accounts)
@@ -203,9 +206,11 @@ ai_corporation/
 │   ├── telegram/          # CFO Маттиас bot
 │   ├── telegram_ceo/      # CEO Алексей bot
 │   └── telegram_yuki/     # SMM Юки bot
-├── tests/                 # 1700+ tests (45+ files)
+├── tests/                 # 1800+ tests (45+ files)
 ├── run_cfo_mcp.py         # CFO MCP server entry point
 ├── run_tribute_mcp.py     # Tribute MCP server entry point
+├── run_telegram_mcp.py    # Telegram Task Pool MCP entry point
+├── run_kb_mcp.py          # Knowledge Base MCP entry point
 ├── data/                  # Persistent storage (not in git)
 ├── Dockerfile
 ├── start.sh               # Launches 3 bots
@@ -245,7 +250,7 @@ pip install -r requirements.txt
 
 ### Tests
 ```bash
-pytest tests/ -v              # All 1700+ tests
+pytest tests/ -v              # All 1800+ tests
 pytest tests/test_X.py -v     # Single file
 ```
 
@@ -281,4 +286,4 @@ See [STATE.md](STATE.md) for live progress tracking.
 
 ---
 
-*Updated: February 12, 2026 — Sprint 2 (Task Pool + MCP Servers)*
+*Updated: February 13, 2026 — Sprint 3 (Archiver + Escalation + telegram-mcp + kb-mcp)*

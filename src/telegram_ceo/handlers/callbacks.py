@@ -296,6 +296,115 @@ async def on_task_delete(callback: CallbackQuery):
     await callback.answer("Удалено")
 
 
+# ═══════════════════════════════════════════════════════════════
+# Escalation callbacks (when no agent matches task tags)
+# ═══════════════════════════════════════════════════════════════
+
+# State for split-task mode
+_split_task_state: dict[int, str] = {}  # user_id → task_id
+
+
+def is_in_split_mode(user_id: int) -> bool:
+    return user_id in _split_task_state
+
+
+@router.callback_query(F.data.startswith("esc_extend:"))
+async def on_esc_extend(callback: CallbackQuery):
+    """Suggest extending the closest agent's prompt with new tags."""
+    from ...task_pool import get_task, suggest_assignee, AGENT_TAGS
+
+    task_id = callback.data.split(":")[1]
+    task = get_task(task_id)
+    if not task:
+        await callback.answer("Задача не найдена", show_alert=True)
+        return
+
+    suggestions = suggest_assignee(task.tags)
+    if suggestions:
+        agent, conf = suggestions[0]
+        existing = set(AGENT_TAGS.get(agent, []))
+        new_tags = [t for t in task.tags if t not in existing]
+        text = (
+            f"🔧 <b>Расширить промпт</b>\n\n"
+            f"Ближайший агент: <b>{agent}</b> ({conf:.0%})\n"
+            f"Новые теги для добавления: {', '.join(new_tags) or '—'}\n\n"
+            f"Добавьте эти теги в <code>agents/{agent}.yaml</code> "
+            f"и <code>src/task_pool.py:AGENT_TAGS</code>"
+        )
+    else:
+        text = (
+            "🔧 <b>Расширить промпт</b>\n\n"
+            "Нет подходящих агентов. Рассмотрите создание нового агента."
+        )
+
+    try:
+        await callback.message.edit_text(text, parse_mode="HTML")
+    except Exception:
+        await callback.message.answer(text, parse_mode="HTML")
+    await callback.answer()
+
+
+@router.callback_query(F.data.startswith("esc_create:"))
+async def on_esc_create(callback: CallbackQuery):
+    """Suggest creating a new agent for unmatched task tags."""
+    from ...task_pool import get_task
+
+    task_id = callback.data.split(":")[1]
+    task = get_task(task_id)
+    if not task:
+        await callback.answer("Задача не найдена", show_alert=True)
+        return
+
+    tags_str = ", ".join(task.tags) if task.tags else "—"
+    text = (
+        f"🤖 <b>Создать нового агента</b>\n\n"
+        f"Задача: {task.title}\n"
+        f"Теги: {tags_str}\n\n"
+        f"Шаблон для нового агента:\n"
+        f"<code>agents/new_agent.yaml</code>\n"
+        f"role: \"New Agent\"\n"
+        f"goal: \"...\"\n"
+        f"tags: [{tags_str}]\n\n"
+        f"Создайте агента и добавьте его теги в AGENT_TAGS."
+    )
+
+    try:
+        await callback.message.edit_text(text, parse_mode="HTML")
+    except Exception:
+        await callback.message.answer(text, parse_mode="HTML")
+    await callback.answer()
+
+
+@router.callback_query(F.data.startswith("esc_split:"))
+async def on_esc_split(callback: CallbackQuery):
+    """Enter split-task mode — user types subtask titles."""
+    task_id = callback.data.split(":")[1]
+    _split_task_state[callback.from_user.id] = task_id
+    await callback.message.edit_text(
+        "✂️ Разделить задачу — введите подзадачи (каждая с новой строки):"
+    )
+    await callback.answer()
+
+
+@router.callback_query(F.data.startswith("esc_manual:"))
+async def on_esc_manual(callback: CallbackQuery):
+    """Fallback to standard agent assignment keyboard."""
+    from ..keyboards import task_assign_keyboard
+
+    task_id = callback.data.split(":")[1]
+    text = "👤 Выберите агента для ручного назначения:"
+
+    try:
+        await callback.message.edit_text(
+            text, reply_markup=task_assign_keyboard(task_id)
+        )
+    except Exception:
+        await callback.message.answer(
+            text, reply_markup=task_assign_keyboard(task_id)
+        )
+    await callback.answer()
+
+
 def is_in_conditions_mode(user_id: int) -> bool:
     """Check if user is currently entering conditions for a proposal."""
     return user_id in _conditions_state

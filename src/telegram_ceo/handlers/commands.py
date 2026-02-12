@@ -196,21 +196,31 @@ async def cmd_task(message: Message):
         await message.answer(summary, reply_markup=task_menu_keyboard(), parse_mode="HTML")
         return
 
-    from ...task_pool import create_task, suggest_assignee, format_task_summary
+    from ...task_pool import create_task, suggest_assignee, format_task_summary, ESCALATION_THRESHOLD
     task = create_task(title, source="telegram", assigned_by="tim")
 
     suggestion = suggest_assignee(task.tags)
     text_parts = [format_task_summary(task)]
-    if suggestion:
+
+    # Escalation: if no good match, show escalation keyboard
+    if not suggestion or suggestion[0][1] < ESCALATION_THRESHOLD:
+        max_conf = suggestion[0][1] if suggestion else 0
+        text_parts.append(f"\n⚠️ Нет подходящего агента (max confidence: {max_conf:.0%})")
+        from ..keyboards import escalation_keyboard
+        await message.answer(
+            "\n".join(text_parts),
+            reply_markup=escalation_keyboard(task.id),
+            parse_mode="HTML",
+        )
+    else:
         best_agent, confidence = suggestion[0]
         text_parts.append(f"\n💡 Рекомендация: <b>{best_agent}</b> ({confidence:.0%})")
-
-    from ..keyboards import task_detail_keyboard
-    await message.answer(
-        "\n".join(text_parts),
-        reply_markup=task_detail_keyboard(task.id, task.status.value),
-        parse_mode="HTML",
-    )
+        from ..keyboards import task_detail_keyboard
+        await message.answer(
+            "\n".join(text_parts),
+            reply_markup=task_detail_keyboard(task.id, task.status.value),
+            parse_mode="HTML",
+        )
 
 
 @router.message(Command("tasks"))

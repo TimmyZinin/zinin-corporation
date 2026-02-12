@@ -3,11 +3,13 @@
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from src.task_pool import TaskStatus, create_task, get_task, _load_pool
+from src.task_pool import TaskStatus, create_task, get_task, _load_pool, ESCALATION_THRESHOLD
 from src.telegram_ceo.keyboards import (
     task_menu_keyboard,
     task_detail_keyboard,
     task_assign_keyboard,
+    escalation_keyboard,
+    stale_task_keyboard,
 )
 
 
@@ -178,3 +180,73 @@ class TestTasksCommand:
         assert "Task A" in text
         assert "Task B" in text
         assert "Task Pool" in text
+
+
+# ──────────────────────────────────────────────────────────
+# Escalation keyboard tests
+# ──────────────────────────────────────────────────────────
+
+class TestEscalationKeyboards:
+    def test_escalation_keyboard_has_4_buttons(self):
+        kb = escalation_keyboard("abc")
+        all_buttons = [b for row in kb.inline_keyboard for b in row]
+        assert len(all_buttons) == 4
+
+    def test_escalation_callback_data(self):
+        kb = escalation_keyboard("abc")
+        callbacks = [b.callback_data for row in kb.inline_keyboard for b in row]
+        assert "esc_extend:abc" in callbacks
+        assert "esc_create:abc" in callbacks
+        assert "esc_split:abc" in callbacks
+        assert "esc_manual:abc" in callbacks
+
+    def test_stale_task_keyboard(self):
+        kb = stale_task_keyboard("xyz")
+        callbacks = [b.callback_data for row in kb.inline_keyboard for b in row]
+        assert "task_assign:xyz" in callbacks
+        assert "task_block:xyz" in callbacks
+        assert "task_detail:xyz" in callbacks
+
+
+class TestEscalationCallbacks:
+    @pytest.fixture(autouse=True)
+    def _setup(self, tmp_path, monkeypatch):
+        path = str(tmp_path / "pool.json")
+        monkeypatch.setattr("src.task_pool._pool_path", lambda: path)
+
+    def test_split_mode_state(self):
+        from src.telegram_ceo.handlers.callbacks import (
+            is_in_split_mode, _split_task_state,
+        )
+        _split_task_state.clear()
+        assert is_in_split_mode(123) is False
+        _split_task_state[123] = "task-1"
+        assert is_in_split_mode(123) is True
+        del _split_task_state[123]
+        assert is_in_split_mode(123) is False
+
+
+class TestEscalationInTaskCreation:
+    @pytest.fixture(autouse=True)
+    def _setup(self, tmp_path, monkeypatch):
+        path = str(tmp_path / "pool.json")
+        monkeypatch.setattr("src.task_pool._pool_path", lambda: path)
+
+    @pytest.mark.asyncio
+    async def test_unknown_task_triggers_escalation(self):
+        """Task with no matching tags should trigger escalation keyboard."""
+        from src.telegram_ceo.handlers.commands import cmd_task
+        msg = _make_message("/task Prepare magical unicorn parade")
+        await cmd_task(msg)
+        call_kwargs = msg.answer.call_args
+        # Should contain escalation warning
+        assert "⚠️" in call_kwargs.args[0] or "Нет подходящего" in call_kwargs.args[0]
+
+    @pytest.mark.asyncio
+    async def test_known_task_shows_recommendation(self):
+        """Task with matching tags should show recommendation."""
+        from src.telegram_ceo.handlers.commands import cmd_task
+        msg = _make_message("/task Настроить MCP инфраструктуру")
+        await cmd_task(msg)
+        call_kwargs = msg.answer.call_args
+        assert "Рекомендация" in call_kwargs.args[0] or "automator" in call_kwargs.args[0]

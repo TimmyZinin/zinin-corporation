@@ -12,6 +12,7 @@ from src.task_pool import (
     auto_tag,
     suggest_assignee,
     AGENT_TAGS,
+    ESCALATION_THRESHOLD,
     create_task,
     assign_task,
     start_task,
@@ -27,6 +28,12 @@ from src.task_pool import (
     get_pool_summary,
     format_task_summary,
     format_pool_summary,
+    archive_done_tasks,
+    get_archived_tasks,
+    get_archive_stats,
+    get_stale_tasks,
+    format_stale_report,
+    _archive_dir,
     _load_pool,
     _save_pool,
     _pool_path,
@@ -751,3 +758,240 @@ class TestStatusFlow:
         # Actually blocked_by is empty, so it becomes ASSIGNED
         assert result.status == TaskStatus.ASSIGNED
         assert result.assignee == "automator"
+
+
+# ──────────────────────────────────────────────────────────
+# updated_at tracking
+# ──────────────────────────────────────────────────────────
+
+class TestUpdatedAt:
+    @pytest.fixture(autouse=True)
+    def _setup(self, tmp_path, monkeypatch):
+        path = str(tmp_path / "pool.json")
+        monkeypatch.setattr("src.task_pool._pool_path", lambda: path)
+
+    def test_create_sets_updated_at(self):
+        t = create_task("Test")
+        assert t.updated_at is not None
+
+    def test_assign_updates_updated_at(self):
+        t = create_task("Test")
+        old = t.updated_at
+        result = assign_task(t.id, "smm")
+        assert result.updated_at >= old
+
+    def test_start_updates_updated_at(self):
+        t = create_task("Test", assignee="smm")
+        result = start_task(t.id)
+        assert result.updated_at is not None
+
+    def test_complete_updates_updated_at(self):
+        t = create_task("Test", assignee="smm")
+        start_task(t.id)
+        result = complete_task(t.id)
+        assert result.updated_at is not None
+
+    def test_block_updates_updated_at(self):
+        t = create_task("Test", assignee="smm")
+        result = block_task(t.id)
+        assert result.updated_at is not None
+
+
+# ──────────────────────────────────────────────────────────
+# Archive tests
+# ──────────────────────────────────────────────────────────
+
+class TestArchive:
+    @pytest.fixture(autouse=True)
+    def _setup(self, tmp_path, monkeypatch):
+        pool_path = str(tmp_path / "pool.json")
+        arc_dir = str(tmp_path / "archive")
+        monkeypatch.setattr("src.task_pool._pool_path", lambda: pool_path)
+        monkeypatch.setattr("src.task_pool._archive_dir", lambda: arc_dir)
+        self.arc_dir = arc_dir
+
+    def test_archive_moves_done_tasks(self):
+        from datetime import datetime, timedelta
+        t = create_task("Done task", assignee="smm")
+        complete_task(t.id)
+        # Manually backdate the completed_at
+        pool = _load_pool()
+        pool[0]["completed_at"] = (datetime.now() - timedelta(days=5)).isoformat()
+        _save_pool(pool)
+
+        count = archive_done_tasks(keep_recent_days=1)
+        assert count == 1
+        assert len(get_all_tasks()) == 0
+
+    def test_archive_keeps_recent_done(self):
+        t = create_task("Recent done", assignee="smm")
+        complete_task(t.id)
+        count = archive_done_tasks(keep_recent_days=1)
+        assert count == 0
+        assert len(get_all_tasks()) == 1
+
+    def test_archive_keeps_non_done(self):
+        create_task("TODO task")
+        count = archive_done_tasks(keep_recent_days=0)
+        assert count == 0
+
+    def test_get_archived_tasks(self):
+        from datetime import datetime, timedelta
+        t = create_task("Archived", assignee="smm")
+        complete_task(t.id)
+        pool = _load_pool()
+        yesterday = datetime.now() - timedelta(days=2)
+        pool[0]["completed_at"] = yesterday.isoformat()
+        _save_pool(pool)
+
+        archive_done_tasks(keep_recent_days=1)
+        date_str = yesterday.strftime("%Y-%m-%d")
+        archived = get_archived_tasks(date_str)
+        assert len(archived) == 1
+        assert archived[0].title == "Archived"
+
+    def test_get_archived_tasks_nonexistent_date(self):
+        assert get_archived_tasks("2020-01-01") == []
+
+    def test_get_archive_stats_empty(self):
+        stats = get_archive_stats()
+        assert stats["files"] == 0
+        assert stats["total_tasks"] == 0
+
+    def test_get_archive_stats(self):
+        from datetime import datetime, timedelta
+        t = create_task("Stat task", assignee="smm")
+        complete_task(t.id)
+        pool = _load_pool()
+        pool[0]["completed_at"] = (datetime.now() - timedelta(days=3)).isoformat()
+        _save_pool(pool)
+        archive_done_tasks(keep_recent_days=1)
+
+        stats = get_archive_stats()
+        assert stats["files"] == 1
+        assert stats["total_tasks"] == 1
+        assert len(stats["dates"]) == 1
+
+    def test_archive_appends_to_existing_file(self):
+        from datetime import datetime, timedelta
+        target_date = datetime.now() - timedelta(days=5)
+
+        t1 = create_task("First", assignee="smm")
+        complete_task(t1.id)
+        pool = _load_pool()
+        pool[0]["completed_at"] = target_date.isoformat()
+        _save_pool(pool)
+        archive_done_tasks(keep_recent_days=1)
+
+        t2 = create_task("Second", assignee="smm")
+        complete_task(t2.id)
+        pool = _load_pool()
+        pool[0]["completed_at"] = target_date.isoformat()
+        _save_pool(pool)
+        archive_done_tasks(keep_recent_days=1)
+
+        date_str = target_date.strftime("%Y-%m-%d")
+        archived = get_archived_tasks(date_str)
+        assert len(archived) == 2
+
+    def test_archive_returns_zero_when_nothing_to_archive(self):
+        count = archive_done_tasks(keep_recent_days=1)
+        assert count == 0
+
+
+# ──────────────────────────────────────────────────────────
+# Stale task detection tests
+# ──────────────────────────────────────────────────────────
+
+class TestStaleTasks:
+    @pytest.fixture(autouse=True)
+    def _setup(self, tmp_path, monkeypatch):
+        path = str(tmp_path / "pool.json")
+        monkeypatch.setattr("src.task_pool._pool_path", lambda: path)
+
+    def test_no_stale_tasks(self):
+        create_task("Fresh", assignee="smm")
+        assert get_stale_tasks(stale_days=3) == []
+
+    def test_stale_assigned_task(self):
+        from datetime import datetime, timedelta
+        t = create_task("Stale", assignee="smm")
+        # Backdate updated_at
+        pool = _load_pool()
+        pool[0]["updated_at"] = (datetime.now() - timedelta(days=5)).isoformat()
+        _save_pool(pool)
+
+        stale = get_stale_tasks(stale_days=3)
+        assert len(stale) == 1
+        assert stale[0].id == t.id
+
+    def test_stale_in_progress_task(self):
+        from datetime import datetime, timedelta
+        t = create_task("In progress stale", assignee="smm")
+        start_task(t.id)
+        pool = _load_pool()
+        pool[0]["updated_at"] = (datetime.now() - timedelta(days=4)).isoformat()
+        _save_pool(pool)
+
+        stale = get_stale_tasks(stale_days=3)
+        assert len(stale) == 1
+
+    def test_done_not_stale(self):
+        from datetime import datetime, timedelta
+        t = create_task("Done", assignee="smm")
+        complete_task(t.id)
+        pool = _load_pool()
+        pool[0]["updated_at"] = (datetime.now() - timedelta(days=10)).isoformat()
+        _save_pool(pool)
+
+        assert get_stale_tasks(stale_days=3) == []
+
+    def test_todo_not_stale(self):
+        from datetime import datetime, timedelta
+        create_task("Todo")
+        pool = _load_pool()
+        pool[0]["updated_at"] = (datetime.now() - timedelta(days=10)).isoformat()
+        _save_pool(pool)
+
+        assert get_stale_tasks(stale_days=3) == []
+
+    def test_stale_sorted_by_priority(self):
+        from datetime import datetime, timedelta
+        old = (datetime.now() - timedelta(days=5)).isoformat()
+        create_task("Low", assignee="smm", priority=TaskPriority.LOW)
+        create_task("Critical", assignee="smm", priority=TaskPriority.CRITICAL)
+        pool = _load_pool()
+        for t in pool:
+            t["updated_at"] = old
+        _save_pool(pool)
+
+        stale = get_stale_tasks(stale_days=3)
+        assert stale[0].priority == TaskPriority.CRITICAL
+        assert stale[1].priority == TaskPriority.LOW
+
+    def test_format_stale_report_empty(self):
+        report = format_stale_report([])
+        assert "orphan'ов нет" in report
+
+    def test_format_stale_report_with_tasks(self):
+        t = PoolTask(title="Stale task", assignee="smm", status=TaskStatus.ASSIGNED)
+        report = format_stale_report([t])
+        assert "Stale task" in report
+        assert "smm" in report
+
+
+# ──────────────────────────────────────────────────────────
+# Escalation threshold
+# ──────────────────────────────────────────────────────────
+
+class TestEscalation:
+    def test_threshold_value(self):
+        assert ESCALATION_THRESHOLD == 0.3
+
+    def test_known_tags_above_threshold(self):
+        suggestions = suggest_assignee(["finance"])
+        assert suggestions and suggestions[0][1] >= ESCALATION_THRESHOLD
+
+    def test_unknown_tags_no_match(self):
+        suggestions = suggest_assignee(["xxxxxx"])
+        assert len(suggestions) == 0

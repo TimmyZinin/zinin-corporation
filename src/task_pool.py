@@ -6,12 +6,14 @@ Agent Tag Router подсказывает оптимального исполн�
 Dependency Engine автоматически разблокирует задачи при завершении зависимостей.
 """
 
+import glob as glob_mod
 import json
 import logging
 import os
 import re
+import shutil
 import threading
-from datetime import datetime
+from datetime import datetime, timedelta
 from enum import Enum
 from typing import Optional
 from uuid import uuid4
@@ -58,10 +60,15 @@ class PoolTask(BaseModel):
     blocked_by: list[str] = Field(default_factory=list)
     blocks: list[str] = Field(default_factory=list)
     created_at: str = Field(default_factory=lambda: datetime.now().isoformat())
+    updated_at: Optional[str] = None
     assigned_at: Optional[str] = None
     completed_at: Optional[str] = None
     result: Optional[str] = None
     source: str = ""             # "telegram", "brain_dump", "scheduler", "manual"
+
+
+# Escalation threshold — if best suggest_assignee confidence < this, escalate
+ESCALATION_THRESHOLD = 0.3
 
 
 # ──────────────────────────────────────────────────────────
@@ -235,9 +242,11 @@ def create_task(
     )
 
     # If assignee provided at creation, set status to ASSIGNED
+    now_iso = datetime.now().isoformat()
+    task.updated_at = now_iso
     if assignee:
         task.status = TaskStatus.ASSIGNED
-        task.assigned_at = datetime.now().isoformat()
+        task.assigned_at = now_iso
 
     # If blocked, mark as BLOCKED
     if task.blocked_by:
@@ -272,9 +281,11 @@ def assign_task(task_id: str, assignee: str, assigned_by: str = "ceo-alexey") ->
             logger.warning(f"Task {task_id} cannot be assigned (status={raw['status']})")
             return None
 
+        now_iso = datetime.now().isoformat()
         raw["assignee"] = assignee
         raw["assigned_by"] = assigned_by
-        raw["assigned_at"] = datetime.now().isoformat()
+        raw["assigned_at"] = now_iso
+        raw["updated_at"] = now_iso
 
         # Check if all dependencies are DONE
         unmet = _get_unmet_deps(pool, raw)
@@ -303,6 +314,7 @@ def start_task(task_id: str) -> Optional[PoolTask]:
             return None
 
         raw["status"] = TaskStatus.IN_PROGRESS
+        raw["updated_at"] = datetime.now().isoformat()
         _save_pool(pool)
 
     task = PoolTask(**raw)
@@ -322,8 +334,10 @@ def complete_task(task_id: str, result: str = "") -> Optional[PoolTask]:
             logger.warning(f"Task {task_id} cannot complete (status={raw['status']})")
             return None
 
+        now_iso = datetime.now().isoformat()
         raw["status"] = TaskStatus.DONE
-        raw["completed_at"] = datetime.now().isoformat()
+        raw["completed_at"] = now_iso
+        raw["updated_at"] = now_iso
         raw["result"] = result
 
         # Dependency Engine: unblock dependent tasks
@@ -348,6 +362,7 @@ def block_task(task_id: str) -> Optional[PoolTask]:
             return None
 
         raw["status"] = TaskStatus.BLOCKED
+        raw["updated_at"] = datetime.now().isoformat()
         _save_pool(pool)
 
     return PoolTask(**raw)
@@ -527,4 +542,161 @@ def format_pool_summary() -> str:
                      "DONE": "✅", "BLOCKED": "🚫"}.get(status.value, "❓")
             lines.append(f"{emoji} {status.value}: {count}")
     lines.append(f"\n📊 Всего: {summary.get('total', 0)}")
+    return "\n".join(lines)
+
+
+# ──────────────────────────────────────────────────────────
+# Archive — move DONE tasks to daily JSON files
+# ──────────────────────────────────────────────────────────
+
+def _archive_dir() -> str:
+    """Get path for archive directory."""
+    for base in ["/app/data/archive", "data/archive"]:
+        parent = os.path.dirname(base)
+        if os.path.isdir(parent):
+            return base
+    return "data/archive"
+
+
+def archive_done_tasks(keep_recent_days: int = 1) -> int:
+    """Move DONE tasks older than keep_recent_days to daily archive files.
+
+    Returns number of archived tasks.
+    """
+    cutoff = datetime.now() - timedelta(days=keep_recent_days)
+    archived_count = 0
+
+    with _lock:
+        pool = _load_pool()
+        to_keep = []
+        to_archive: dict[str, list[dict]] = {}  # date_str → tasks
+
+        for t in pool:
+            if t.get("status") == TaskStatus.DONE and t.get("completed_at"):
+                try:
+                    completed = datetime.fromisoformat(t["completed_at"])
+                    if completed < cutoff:
+                        date_str = completed.strftime("%Y-%m-%d")
+                        to_archive.setdefault(date_str, []).append(t)
+                        archived_count += 1
+                        continue
+                except (ValueError, TypeError):
+                    pass
+            to_keep.append(t)
+
+        if not to_archive:
+            return 0
+
+        # Write archive files
+        arc_dir = _archive_dir()
+        os.makedirs(arc_dir, exist_ok=True)
+        for date_str, tasks in to_archive.items():
+            arc_path = os.path.join(arc_dir, f"{date_str}.json")
+            existing = []
+            if os.path.exists(arc_path):
+                try:
+                    with open(arc_path, "r", encoding="utf-8") as f:
+                        existing = json.load(f)
+                except Exception:
+                    pass
+            existing.extend(tasks)
+            with open(arc_path, "w", encoding="utf-8") as f:
+                json.dump(existing, f, ensure_ascii=False, indent=2, default=str)
+
+        # Save cleaned pool
+        _save_pool(to_keep)
+
+    logger.info(f"Archived {archived_count} DONE tasks to {len(to_archive)} file(s)")
+    return archived_count
+
+
+def get_archived_tasks(date: str) -> list[PoolTask]:
+    """Load archived tasks for a specific date (YYYY-MM-DD)."""
+    arc_path = os.path.join(_archive_dir(), f"{date}.json")
+    if not os.path.exists(arc_path):
+        return []
+    try:
+        with open(arc_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        return [PoolTask(**t) for t in data]
+    except Exception as e:
+        logger.warning(f"Failed to load archive {date}: {e}")
+        return []
+
+
+def get_archive_stats() -> dict:
+    """Get archive statistics: file count, total tasks, date range."""
+    arc_dir = _archive_dir()
+    if not os.path.isdir(arc_dir):
+        return {"files": 0, "total_tasks": 0, "dates": []}
+
+    files = sorted(glob_mod.glob(os.path.join(arc_dir, "*.json")))
+    total = 0
+    dates = []
+    for fp in files:
+        base = os.path.basename(fp).replace(".json", "")
+        dates.append(base)
+        try:
+            with open(fp, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            total += len(data)
+        except Exception:
+            pass
+
+    return {"files": len(files), "total_tasks": total, "dates": dates}
+
+
+# ──────────────────────────────────────────────────────────
+# Stale task detection (Orphan Patrol)
+# ──────────────────────────────────────────────────────────
+
+def get_stale_tasks(stale_days: int = 3) -> list[PoolTask]:
+    """Get tasks in ASSIGNED/IN_PROGRESS not updated in stale_days days."""
+    cutoff = datetime.now() - timedelta(days=stale_days)
+    active_statuses = {TaskStatus.ASSIGNED, TaskStatus.IN_PROGRESS}
+
+    with _lock:
+        pool = _load_pool()
+
+    stale = []
+    for t in pool:
+        if t.get("status") not in active_statuses:
+            continue
+        # Use updated_at, fall back to assigned_at, then created_at
+        ts_str = t.get("updated_at") or t.get("assigned_at") or t.get("created_at", "")
+        if not ts_str:
+            continue
+        try:
+            ts = datetime.fromisoformat(ts_str)
+            if ts < cutoff:
+                stale.append(PoolTask(**t))
+        except (ValueError, TypeError):
+            continue
+
+    return sorted(stale, key=lambda t: t.priority)
+
+
+def format_stale_report(tasks: list[PoolTask]) -> str:
+    """Format stale tasks for CTO Orphan Patrol alert."""
+    if not tasks:
+        return "🔍 Orphan Task Patrol — все задачи в движении, orphan'ов нет."
+
+    lines = [f"🔍 <b>Orphan Task Patrol — Мартин</b>\n"]
+    lines.append(f"Найдено {len(tasks)} задач без движения:\n")
+
+    for t in tasks[:10]:
+        ts_str = t.updated_at or t.assigned_at or t.created_at
+        try:
+            ts = datetime.fromisoformat(ts_str)
+            days = (datetime.now() - ts).days
+        except (ValueError, TypeError):
+            days = "?"
+        lines.append(
+            f"  • <code>{t.id}</code> «{t.title[:50]}»\n"
+            f"    👤 {t.assignee or '—'} | {t.status.value} | {days}д без движения"
+        )
+
+    if len(tasks) > 10:
+        lines.append(f"\n  ... и ещё {len(tasks) - 10}")
+
     return "\n".join(lines)

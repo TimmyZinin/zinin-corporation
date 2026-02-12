@@ -284,11 +284,55 @@ def setup_ceo_scheduler(bot: Bot, config: CeoTelegramConfig) -> AsyncIOScheduler
             replace_existing=True,
         )
 
+    # 5) Task Pool Archiver — nightly at 01:00
+    async def archive_daily():
+        try:
+            from ..task_pool import archive_done_tasks
+            count = archive_done_tasks(keep_recent_days=1)
+            if count > 0:
+                await bot.send_message(
+                    chat_id, f"📦 Архивировано {count} завершённых задач"
+                )
+                logger.info(f"Task Pool archive: {count} tasks archived")
+            else:
+                logger.info("Task Pool archive: nothing to archive")
+        except Exception as e:
+            logger.error(f"Task Pool archive failed: {e}")
+
+    scheduler.add_job(
+        archive_daily,
+        CronTrigger(hour=1),
+        id="task_pool_archive",
+        replace_existing=True,
+    )
+
+    # 6) CTO Orphan Task Patrol — daily at 10:00
+    async def orphan_patrol():
+        try:
+            from ..task_pool import get_stale_tasks, format_stale_report
+            stale = get_stale_tasks(stale_days=3)
+            if not stale:
+                logger.info("Orphan patrol: no stale tasks found")
+                return
+            report = format_stale_report(stale)
+            await bot.send_message(chat_id, report)
+            logger.info(f"Orphan patrol: {len(stale)} stale tasks reported")
+        except Exception as e:
+            logger.error(f"Orphan patrol failed: {e}")
+
+    scheduler.add_job(
+        orphan_patrol,
+        CronTrigger(hour=10),
+        id="cto_orphan_patrol",
+        replace_existing=True,
+    )
+
     logger.info(
         f"CEO scheduler: briefing=daily {config.morning_briefing_hour}:00, "
         f"full_report={config.weekly_review_day} {config.weekly_review_hour}:00, "
         f"api_health=every 30min, "
-        f"cto_improvement=4x/day (9:30, 13:30, 17:30, 21:30)"
+        f"cto_improvement=4x/day (9:30, 13:30, 17:30, 21:30), "
+        f"archive=daily 01:00, orphan_patrol=daily 10:00"
     )
 
     return scheduler

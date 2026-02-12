@@ -73,6 +73,54 @@ def task_assign_keyboard(task_id: str) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
 
+def escalation_keyboard(task_id: str) -> InlineKeyboardMarkup:
+    """Escalation options when no agent matches the task tags."""
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [
+            InlineKeyboardButton(
+                text="🔧 Расширить промпт",
+                callback_data=f"esc_extend:{task_id}",
+            ),
+            InlineKeyboardButton(
+                text="🤖 Создать агента",
+                callback_data=f"esc_create:{task_id}",
+            ),
+        ],
+        [
+            InlineKeyboardButton(
+                text="✂️ Разделить задачу",
+                callback_data=f"esc_split:{task_id}",
+            ),
+            InlineKeyboardButton(
+                text="👤 Назначить вручную",
+                callback_data=f"esc_manual:{task_id}",
+            ),
+        ],
+    ])
+
+
+def stale_task_keyboard(task_id: str) -> InlineKeyboardMarkup:
+    """Actions for a stale task found by Orphan Patrol."""
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [
+            InlineKeyboardButton(
+                text="👤 Переназначить",
+                callback_data=f"task_assign:{task_id}",
+            ),
+            InlineKeyboardButton(
+                text="🚫 Заблокировать",
+                callback_data=f"task_block:{task_id}",
+            ),
+        ],
+        [
+            InlineKeyboardButton(
+                text="📋 Подробнее",
+                callback_data=f"task_detail:{task_id}",
+            ),
+        ],
+    ])
+
+
 def diagnostic_keyboard(diag_id: str) -> InlineKeyboardMarkup:
     """Action keyboard for CTO API diagnostic reports."""
     return InlineKeyboardMarkup(inline_keyboard=[

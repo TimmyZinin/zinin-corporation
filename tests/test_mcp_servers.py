@@ -1,5 +1,6 @@
 """Tests for MCP servers (CFO + Tribute) and AgentBridge Task Pool integration."""
 
+import os
 import pytest
 from unittest.mock import patch, MagicMock, AsyncMock
 
@@ -258,3 +259,167 @@ class TestMCPInit:
         from src.mcp_servers.tribute_server import mcp as tribute
         assert cfo.name == "cfo-mcp"
         assert tribute.name == "tribute-mcp"
+
+    def test_telegram_mcp_importable(self):
+        from src.mcp_servers.telegram_server import mcp as tg
+        assert tg.name == "telegram-mcp"
+
+    def test_kb_mcp_importable(self):
+        from src.mcp_servers.kb_server import mcp as kb
+        assert kb.name == "kb-mcp"
+
+
+# ──────────────────────────────────────────────────────────
+# Telegram MCP Server tests
+# ──────────────────────────────────────────────────────────
+
+class TestTelegramMCPServer:
+    @pytest.fixture(autouse=True)
+    def _setup(self, tmp_path, monkeypatch):
+        path = str(tmp_path / "pool.json")
+        monkeypatch.setattr("src.task_pool._pool_path", lambda: path)
+
+    def test_telegram_mcp_has_tools(self):
+        from src.mcp_servers.telegram_server import mcp
+        assert len(mcp._tool_manager._tools) == 6
+
+    def test_telegram_tool_names(self):
+        from src.mcp_servers.telegram_server import mcp
+        names = set(mcp._tool_manager._tools.keys())
+        expected = {
+            "telegram_create_task",
+            "telegram_get_tasks",
+            "telegram_get_task",
+            "telegram_assign_task",
+            "telegram_complete_task",
+            "telegram_get_pool_summary",
+        }
+        assert names == expected
+
+    def test_create_task_via_mcp(self):
+        from src.mcp_servers.telegram_server import telegram_create_task
+        result = telegram_create_task("Test MCP task")
+        assert "Test MCP task" in result
+
+    def test_create_task_with_tags(self):
+        from src.mcp_servers.telegram_server import telegram_create_task
+        result = telegram_create_task("Finance task", tags="finance,revenue")
+        assert "finance" in result.lower() or "Finance" in result
+
+    def test_get_tasks_all(self):
+        from src.mcp_servers.telegram_server import telegram_create_task, telegram_get_tasks
+        telegram_create_task("Task A")
+        telegram_create_task("Task B")
+        result = telegram_get_tasks()
+        assert "Task A" in result
+        assert "Task B" in result
+
+    def test_get_tasks_by_status(self):
+        from src.mcp_servers.telegram_server import telegram_create_task, telegram_get_tasks
+        telegram_create_task("Todo task")
+        result = telegram_get_tasks(status="TODO")
+        assert "Todo task" in result
+
+    def test_get_tasks_invalid_status(self):
+        from src.mcp_servers.telegram_server import telegram_get_tasks
+        result = telegram_get_tasks(status="INVALID")
+        assert "Unknown status" in result
+
+    def test_get_task_found(self):
+        from src.mcp_servers.telegram_server import telegram_create_task, telegram_get_task
+        from src.task_pool import get_all_tasks
+        telegram_create_task("Detail task")
+        tasks = get_all_tasks()
+        result = telegram_get_task(tasks[0].id)
+        assert "Detail task" in result
+
+    def test_get_task_not_found(self):
+        from src.mcp_servers.telegram_server import telegram_get_task
+        result = telegram_get_task("nonexist")
+        assert "not found" in result
+
+    def test_assign_task_via_mcp(self):
+        from src.mcp_servers.telegram_server import telegram_create_task, telegram_assign_task
+        from src.task_pool import get_all_tasks
+        telegram_create_task("Assign me")
+        tid = get_all_tasks()[0].id
+        result = telegram_assign_task(tid, "smm")
+        assert "smm" in result
+
+    def test_complete_task_via_mcp(self):
+        from src.mcp_servers.telegram_server import telegram_create_task, telegram_assign_task, telegram_complete_task
+        from src.task_pool import get_all_tasks
+        telegram_create_task("Complete me")
+        tid = get_all_tasks()[0].id
+        telegram_assign_task(tid, "smm")
+        result = telegram_complete_task(tid, "Done!")
+        assert "Completed" in result
+
+    def test_pool_summary_via_mcp(self):
+        from src.mcp_servers.telegram_server import telegram_create_task, telegram_get_pool_summary
+        telegram_create_task("Summary task")
+        result = telegram_get_pool_summary()
+        assert "Task Pool" in result
+
+
+# ──────────────────────────────────────────────────────────
+# KB MCP Server tests
+# ──────────────────────────────────────────────────────────
+
+class TestKBMCPServer:
+    @pytest.fixture(autouse=True)
+    def _setup(self, tmp_path, monkeypatch):
+        kb_dir = str(tmp_path / "knowledge")
+        os.makedirs(kb_dir, exist_ok=True)
+        # Create test knowledge files
+        with open(os.path.join(kb_dir, "company.md"), "w") as f:
+            f.write("# Zinin Corporation\n\nAI multi-agent system for revenue.\n")
+        with open(os.path.join(kb_dir, "team.md"), "w") as f:
+            f.write("# Team\n\nCEO Alexey, CFO Matthias, CTO Martin.\n")
+        monkeypatch.setattr("src.mcp_servers.kb_server._kb_dir", lambda: kb_dir)
+
+    def test_kb_mcp_has_tools(self):
+        from src.mcp_servers.kb_server import mcp
+        assert len(mcp._tool_manager._tools) == 3
+
+    def test_kb_tool_names(self):
+        from src.mcp_servers.kb_server import mcp
+        names = set(mcp._tool_manager._tools.keys())
+        assert names == {"kb_search", "kb_list_topics", "kb_read_topic"}
+
+    def test_kb_search_found(self):
+        from src.mcp_servers.kb_server import kb_search
+        result = kb_search("Zinin")
+        assert "company.md" in result
+        assert "Zinin" in result
+
+    def test_kb_search_not_found(self):
+        from src.mcp_servers.kb_server import kb_search
+        result = kb_search("xyznonexistent")
+        assert "No matches" in result
+
+    def test_kb_search_case_insensitive(self):
+        from src.mcp_servers.kb_server import kb_search
+        result = kb_search("zinin")
+        assert "company.md" in result
+
+    def test_kb_list_topics(self):
+        from src.mcp_servers.kb_server import kb_list_topics
+        result = kb_list_topics()
+        assert "company.md" in result
+        assert "team.md" in result
+
+    def test_kb_read_topic(self):
+        from src.mcp_servers.kb_server import kb_read_topic
+        result = kb_read_topic("company.md")
+        assert "Zinin Corporation" in result
+
+    def test_kb_read_topic_not_found(self):
+        from src.mcp_servers.kb_server import kb_read_topic
+        result = kb_read_topic("nonexistent.md")
+        assert "not found" in result
+
+    def test_kb_read_topic_path_traversal(self):
+        from src.mcp_servers.kb_server import kb_read_topic
+        result = kb_read_topic("../../etc/passwd")
+        assert "not found" in result

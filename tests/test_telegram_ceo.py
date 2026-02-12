@@ -378,7 +378,7 @@ class TestCeoScheduler:
         config = CeoTelegramConfig(allowed_user_ids=[123])
         scheduler = setup_ceo_scheduler(bot, config)
         jobs = scheduler.get_jobs()
-        assert len(jobs) == 7
+        assert len(jobs) == 9
         job_ids = {j.id for j in jobs}
         assert "ceo_morning_briefing" in job_ids
         assert "ceo_weekly_review" in job_ids
@@ -387,6 +387,8 @@ class TestCeoScheduler:
         assert "cto_improvement_13" in job_ids
         assert "cto_improvement_17" in job_ids
         assert "cto_improvement_21" in job_ids
+        assert "task_pool_archive" in job_ids
+        assert "cto_orphan_patrol" in job_ids
 
     def test_morning_briefing_does_not_call_llm(self):
         """Morning briefing should use activity_tracker, not AgentBridge."""
