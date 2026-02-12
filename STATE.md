@@ -1,7 +1,7 @@
 # Zinin Corporation — System State
 
 > Auto-updated by agents. Manual edits welcome.
-> Last updated: 2026-02-13
+> Last updated: 2026-02-14
 
 ---
 
@@ -9,7 +9,7 @@
 
 | Agent | Status | Telegram Bot | Notes |
 |-------|--------|-------------|-------|
-| CEO Алексей | Active | CEO bot running | 11 commands, scheduler, Task Pool, brain dump |
+| CEO Алексей | Active | CEO bot running | 14 commands, NLU routing, scheduler (12 jobs), Task Pool, brain dump, voice |
 | CFO Маттиас | Active | CFO bot running | 20 financial tools, vault encrypted, MCP server |
 | CTO Мартин | Active | — (via CEO) | Proposals 4x/day, API health 30min |
 | SMM Юки | Active | SMM bot running | LinkedIn + Threads (Tim), LinkedIn (Kristina) |
@@ -82,6 +82,21 @@
 - [ ] Kristina Threads — waiting for her Meta App credentials
 - [ ] Hetzner CX33 — needs ordering (Day 4-5)
 
+### Sprint 4: Analytics + Routing + NLU + Voice (Feb 13) — DONE
+
+#### DONE
+- [x] CP-019: Unified Error Handler (`src/error_handler.py`) — ErrorCategory, safe_agent_call, 27 tests
+- [x] CP-006: NLU для русского (`src/telegram_ceo/nlu.py`) — intent detection, 9 commands, 5 agents, 46 tests
+- [x] CP-018: Agent Teams coordination (`src/agent_teams.py`) — MCP config, team readiness, 23 tests
+- [x] CP-001: Analytics Telegram Report (`src/analytics.py`) — token usage, agent activity, cost, quality, 28 tests
+- [x] CP-004: Enhanced Morning + Evening Reports — Task Pool + rate alerts in morning, evening report 21:00
+- [x] CP-005: Weekly Digest — Sunday 20:00, pure data aggregation, no LLM
+- [x] CP-007: faster-whisper integration (`src/tools/voice_tools.py`) — CPU transcription, lazy-load, 16 tests
+- [x] CP-003: CEO Smart Routing — NLU-based agent selection + `/route` command
+- [x] CP-002: Smart Model Routing (`src/model_router.py`) — Groq/Haiku/Sonnet tiers, feature flag, 41 tests
+- [x] CP-008: Brain Dump через голос — F.voice handler, OGG→WAV→text→brain dump/agent
+- [x] 201 new tests (1789 → 1990), 0 failures
+
 ---
 
 ## Token Usage (Estimated)
@@ -96,6 +111,20 @@
 ---
 
 ## Daily Log
+
+### 2026-02-13 (Sprint 4)
+- Unified Error Handler: categorize_error, format_error_for_user, safe_agent_call
+- NLU: Russian intent detection (9 commands) + agent detection (5 agents)
+- Agent Teams: MCP server config, teammate context, readiness validation
+- Analytics: token usage, agent activity, cost estimates, quality reports
+- 3 new scheduler jobs: daily_analytics (22:00), evening_report (21:00), weekly_digest (Sun 20:00)
+- Enhanced morning briefing: Task Pool + rate alerts
+- faster-whisper: CPU-based voice transcription, lazy-loaded model
+- Smart routing: NLU-based agent selection + /route + /analytics commands
+- Smart model routing: Groq (simple) / Haiku (moderate) / Sonnet (complex)
+- Voice brain dump: F.voice → OGG→WAV → transcribe → brain dump or agent
+- `create_llm()` now supports Groq provider
+- 201 new tests (1789 → 1990), all passing
 
 ### 2026-02-13 (Sprint 3)
 - Task Pool Archiver: archive_done_tasks() + get_archived_tasks() + get_archive_stats()

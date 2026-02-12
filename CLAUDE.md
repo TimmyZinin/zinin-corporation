@@ -16,7 +16,7 @@ This is a **production multi-agent system** with 6 specialized AI agents, 3 Tele
 - **Product:** Backlog management, sprint tracking, feature health monitoring
 - **Tasks:** Shared Task Pool with dependency blocking and auto-routing
 
-**Key constraint:** All changes must pass 1800+ existing tests. Never break existing functionality.
+**Key constraint:** All changes must pass 1990+ existing tests. Never break existing functionality.
 
 ---
 
@@ -107,10 +107,13 @@ See [AGENTS.md](AGENTS.md) for full registry with triggers, tools, and handoff r
 ### CEO Алексей (`src/telegram_ceo/`)
 - **Token:** `TELEGRAM_CEO_BOT_TOKEN`
 - **Whitelist:** `TELEGRAM_CEO_ALLOWED_USERS`
-- **Commands:** `/start`, `/help`, `/status`, `/review`, `/report`, `/content <topic>`, `/linkedin`, `/task <title>`, `/tasks`, `/delegate <agent> <task>`, `/test`
+- **Commands:** `/start`, `/help`, `/status`, `/review`, `/report`, `/analytics [hours]`, `/content <topic>`, `/linkedin`, `/route <agent> <task>`, `/task <title>`, `/tasks`, `/delegate <agent> <task>`, `/test`
+- **NLU:** Russian intent detection → auto-redirect to commands (confidence >= 0.7)
+- **Smart Routing:** Auto-detect target agent from message (NLU + tag matching)
 - **Task Pool:** `/task` creates tasks with auto-tag + agent suggestion. Inline keyboards for assign/start/complete/block.
 - **Brain Dump:** Long messages (>300 chars with list markers) auto-parsed into Task Pool.
-- **Scheduler:** Morning briefing, weekly report, API health (30min), CTO proposals (4x/day), archive_daily (01:00), orphan_patrol (10:00)
+- **Scheduler:** Morning briefing (enhanced), weekly report, API health (30min), CTO proposals (4x/day), archive_daily (01:00), orphan_patrol (10:00), daily_analytics (22:00), evening_report (21:00), weekly_digest (Sun 20:00)
+- **Voice:** F.voice → faster-whisper transcription → brain dump or agent
 - **Escalation:** When `suggest_assignee()` confidence < 0.3, shows 4-option keyboard (extend prompt, create agent, split task, manual assign)
 - **Entry:** `run_alexey_bot.py`
 
@@ -188,6 +191,10 @@ ai_corporation/
 │   ├── crew.py            # CrewAI crew orchestration
 │   ├── flows.py           # CrewAI Flows (Pydantic state, reflection)
 │   ├── app.py             # Streamlit web UI
+│   ├── analytics.py       # Analytics reports (token usage, agent activity, costs)
+│   ├── model_router.py    # Smart model routing (Groq/Haiku/Sonnet tiers)
+│   ├── error_handler.py   # Unified error handling (categorize, safe_agent_call)
+│   ├── agent_teams.py     # Agent Teams coordination utilities
 │   ├── task_pool.py       # Shared Task Pool + Dependency Engine (v2.3)
 │   ├── brain_dump.py      # Brain dump → tasks parser
 │   ├── task_extractor.py  # Legacy task extraction from messages
@@ -202,11 +209,12 @@ ai_corporation/
 │   │   ├── smm_tools.py   # Content + publishers (4 accounts)
 │   │   ├── design_tools.py
 │   │   ├── tech_tools.py
+│   │   ├── voice_tools.py # faster-whisper STT (CPU, lazy-loaded)
 │   │   └── cpo_tools.py
 │   ├── telegram/          # CFO Маттиас bot
 │   ├── telegram_ceo/      # CEO Алексей bot
 │   └── telegram_yuki/     # SMM Юки bot
-├── tests/                 # 1800+ tests (45+ files)
+├── tests/                 # 1990+ tests (50+ files)
 ├── run_cfo_mcp.py         # CFO MCP server entry point
 ├── run_tribute_mcp.py     # Tribute MCP server entry point
 ├── run_telegram_mcp.py    # Telegram Task Pool MCP entry point
@@ -286,4 +294,4 @@ See [STATE.md](STATE.md) for live progress tracking.
 
 ---
 
-*Updated: February 13, 2026 — Sprint 3 (Archiver + Escalation + telegram-mcp + kb-mcp)*
+*Updated: February 14, 2026 — Sprint 4 (Analytics + NLU + Smart Routing + Voice + Error Handler)*

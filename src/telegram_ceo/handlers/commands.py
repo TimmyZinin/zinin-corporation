@@ -26,6 +26,7 @@ async def cmd_start(message: Message):
         "/review — Стратегический обзор\n"
         "/report — Полный отчёт корпорации\n"
         "/status — Статус агентов\n"
+        "/analytics — Аналитика API и агентов\n"
         "/task <заголовок> — Создать задачу\n"
         "/tasks — Сводка задач\n"
         "/content <тема> — Юки готовит пост для LinkedIn\n"
@@ -252,6 +253,68 @@ async def cmd_tasks(message: Message):
     await message.answer(text, reply_markup=task_menu_keyboard(), parse_mode="HTML")
 
 
+@router.message(Command("route"))
+async def cmd_route(message: Message):
+    """Explicit agent routing: /route cto check API status."""
+    text = message.text or ""
+    parts = text.split(maxsplit=2)
+
+    if len(parts) < 3:
+        await message.answer(
+            "Формат: /route <агент> <задача>\n"
+            "Агенты: accountant (CFO), automator (CTO), smm, designer, cpo\n\n"
+            "Пример: /route cto Проверь статус API"
+        )
+        return
+
+    agent_alias = parts[1].lower()
+    task_text = parts[2]
+
+    # Resolve alias to agent key
+    alias_map = {
+        "ceo": "manager", "алексей": "manager", "manager": "manager",
+        "cfo": "accountant", "маттиас": "accountant", "accountant": "accountant",
+        "cto": "automator", "мартин": "automator", "automator": "automator",
+        "smm": "smm", "юки": "smm",
+        "designer": "designer", "райан": "designer",
+        "cpo": "cpo", "софи": "cpo",
+    }
+    agent_key = alias_map.get(agent_alias)
+
+    if not agent_key:
+        await message.answer(
+            f"Неизвестный агент: {agent_alias}\n"
+            f"Доступные: ceo, cfo, cto, smm, designer, cpo"
+        )
+        return
+
+    await run_with_typing(
+        message,
+        AgentBridge.send_to_agent(task_text, agent_name=agent_key, bot=message.bot, chat_id=message.chat.id),
+        f"📨 Маршрутизация → {agent_key}... (30–60 сек)",
+    )
+
+
+@router.message(Command("analytics"))
+async def cmd_analytics(message: Message):
+    """Show analytics report — no LLM call, instant data aggregation."""
+    from ...analytics import format_analytics_report
+    text = message.text or ""
+    parts = text.split(maxsplit=1)
+    hours = 24
+    if len(parts) > 1:
+        try:
+            hours = int(parts[1])
+            hours = max(1, min(hours, 168))
+        except ValueError:
+            pass
+
+    report = format_analytics_report(hours)
+    if len(report) > 4000:
+        report = report[:4000] + "..."
+    await message.answer(report)
+
+
 @router.message(Command("help"))
 async def cmd_help(message: Message):
     await message.answer(
@@ -260,7 +323,8 @@ async def cmd_help(message: Message):
         "Стратегия:\n"
         "/review — Стратегический обзор (Маттиас + Мартин → Алексей)\n"
         "/report — Полный отчёт (все агенты включая Юки → синтез)\n"
-        "/status — Статус агентов (мгновенно)\n\n"
+        "/status — Статус агентов (мгновенно)\n"
+        "/analytics [часы] — Аналитика API и агентов (мгновенно)\n\n"
         "Контент (Юки SMM):\n"
         "/content <тема> — Юки генерирует пост для LinkedIn\n"
         "/linkedin — Статус LinkedIn-интеграции\n\n"

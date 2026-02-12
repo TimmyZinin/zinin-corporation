@@ -346,11 +346,11 @@ class TestCeoMessages:
         from src.telegram_ceo.handlers.messages import MAX_CONTEXT
         assert MAX_CONTEXT == 20
 
-    def test_agent_is_manager(self):
-        """CEO messages should route to 'manager' agent."""
+    def test_agent_default_is_manager(self):
+        """CEO messages should default to 'manager' agent."""
         from src.telegram_ceo.handlers import messages
         src = inspect.getsource(messages.handle_text)
-        assert 'agent_name="manager"' in src
+        assert 'agent_name = "manager"' in src
 
 
 # ──────────────────────────────────────────────────────────
@@ -378,7 +378,7 @@ class TestCeoScheduler:
         config = CeoTelegramConfig(allowed_user_ids=[123])
         scheduler = setup_ceo_scheduler(bot, config)
         jobs = scheduler.get_jobs()
-        assert len(jobs) == 9
+        assert len(jobs) == 12
         job_ids = {j.id for j in jobs}
         assert "ceo_morning_briefing" in job_ids
         assert "ceo_weekly_review" in job_ids
@@ -389,6 +389,9 @@ class TestCeoScheduler:
         assert "cto_improvement_21" in job_ids
         assert "task_pool_archive" in job_ids
         assert "cto_orphan_patrol" in job_ids
+        assert "daily_analytics" in job_ids
+        assert "evening_report" in job_ids
+        assert "weekly_digest" in job_ids
 
     def test_morning_briefing_does_not_call_llm(self):
         """Morning briefing should use activity_tracker, not AgentBridge."""
@@ -614,3 +617,134 @@ class TestAPIDiagnostics:
         src = inspect.getsource(scheduler.setup_ceo_scheduler)
         assert "last_analysis" in src
         assert "timedelta(minutes=15)" in src
+
+    def test_scheduler_has_analytics_job(self):
+        from src.telegram_ceo import scheduler
+        src = inspect.getsource(scheduler.setup_ceo_scheduler)
+        assert "daily_analytics" in src
+        assert "format_analytics_report" in src
+
+    def test_scheduler_has_evening_report(self):
+        from src.telegram_ceo import scheduler
+        src = inspect.getsource(scheduler.setup_ceo_scheduler)
+        assert "evening_report" in src
+
+    def test_scheduler_has_weekly_digest(self):
+        from src.telegram_ceo import scheduler
+        src = inspect.getsource(scheduler.setup_ceo_scheduler)
+        assert "weekly_digest" in src
+        assert "format_weekly_digest" in src
+
+
+# ──────────────────────────────────────────────────────────
+# NLU integration in message handler
+# ──────────────────────────────────────────────────────────
+
+class TestCeoNLUIntegration:
+    def test_message_handler_has_nlu(self):
+        from src.telegram_ceo.handlers import messages
+        src = inspect.getsource(messages.handle_text)
+        assert "detect_intent" in src
+        assert "detect_agent" in src
+
+    def test_execute_intent_exists(self):
+        from src.telegram_ceo.handlers.messages import _execute_intent
+        assert asyncio.iscoroutinefunction(_execute_intent)
+
+    def test_agent_labels_all_agents(self):
+        from src.telegram_ceo.handlers.messages import _AGENT_LABELS
+        assert "manager" in _AGENT_LABELS
+        assert "accountant" in _AGENT_LABELS
+        assert "smm" in _AGENT_LABELS
+        assert "automator" in _AGENT_LABELS
+
+    def test_nlu_routing_in_handler(self):
+        """Message handler should route to non-manager agents via NLU."""
+        from src.telegram_ceo.handlers import messages
+        src = inspect.getsource(messages.handle_text)
+        assert "agent_target" in src
+        assert "agent_name" in src
+
+
+# ──────────────────────────────────────────────────────────
+# Voice handler (CP-008)
+# ──────────────────────────────────────────────────────────
+
+class TestCeoVoiceHandler:
+    def test_voice_handler_exists(self):
+        from src.telegram_ceo.handlers.messages import handle_voice
+        assert asyncio.iscoroutinefunction(handle_voice)
+
+    def test_voice_handler_uses_transcribe(self):
+        from src.telegram_ceo.handlers import messages
+        src = inspect.getsource(messages.handle_voice)
+        assert "transcribe_voice" in src
+        assert "convert_ogg_to_wav" in src
+
+    def test_voice_handler_checks_availability(self):
+        from src.telegram_ceo.handlers import messages
+        src = inspect.getsource(messages.handle_voice)
+        assert "is_voice_available" in src
+
+    def test_voice_handler_has_brain_dump_check(self):
+        from src.telegram_ceo.handlers import messages
+        src = inspect.getsource(messages.handle_voice)
+        assert "is_brain_dump" in src
+        assert "parse_brain_dump" in src
+
+    def test_voice_handler_cleans_up_files(self):
+        from src.telegram_ceo.handlers import messages
+        src = inspect.getsource(messages.handle_voice)
+        assert "os.unlink" in src
+
+    def test_voice_handler_forwards_to_agent(self):
+        from src.telegram_ceo.handlers import messages
+        src = inspect.getsource(messages.handle_voice)
+        assert "AgentBridge" in src
+
+    def test_voice_handler_shows_transcription(self):
+        from src.telegram_ceo.handlers import messages
+        src = inspect.getsource(messages.handle_voice)
+        assert "Распознано" in src
+
+
+# ──────────────────────────────────────────────────────────
+# /route command (CP-003)
+# ──────────────────────────────────────────────────────────
+
+class TestRouteCommand:
+    def test_route_handler_exists(self):
+        from src.telegram_ceo.handlers.commands import cmd_route
+        assert asyncio.iscoroutinefunction(cmd_route)
+
+    def test_route_has_alias_map(self):
+        from src.telegram_ceo.handlers import commands
+        src = inspect.getsource(commands.cmd_route)
+        assert "alias_map" in src
+        assert "cfo" in src
+        assert "cto" in src
+
+    def test_route_sends_to_agent(self):
+        from src.telegram_ceo.handlers import commands
+        src = inspect.getsource(commands.cmd_route)
+        assert "AgentBridge" in src
+
+
+# ──────────────────────────────────────────────────────────
+# /analytics command (CP-001)
+# ──────────────────────────────────────────────────────────
+
+class TestAnalyticsCommand:
+    def test_analytics_handler_exists(self):
+        from src.telegram_ceo.handlers.commands import cmd_analytics
+        assert asyncio.iscoroutinefunction(cmd_analytics)
+
+    def test_analytics_uses_report(self):
+        from src.telegram_ceo.handlers import commands
+        src = inspect.getsource(commands.cmd_analytics)
+        assert "format_analytics_report" in src
+
+    def test_analytics_custom_hours(self):
+        from src.telegram_ceo.handlers import commands
+        src = inspect.getsource(commands.cmd_analytics)
+        assert "hours" in src

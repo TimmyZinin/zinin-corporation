@@ -23,7 +23,7 @@ def setup_ceo_scheduler(bot: Bot, config: CeoTelegramConfig) -> AsyncIOScheduler
 
     chat_id = config.allowed_user_ids[0]
 
-    # 1) Daily morning briefing (no LLM — instant)
+    # 1) Daily morning briefing (no LLM — instant) — enhanced with Task Pool + alerts
     async def morning_briefing():
         try:
             statuses = get_all_statuses()
@@ -39,6 +39,26 @@ def setup_ceo_scheduler(bot: Bot, config: CeoTelegramConfig) -> AsyncIOScheduler
                 s = statuses.get(key, {})
                 status = s.get("status", "idle")
                 lines.append(f"  {label} — {status}, задач за 24ч: {tasks}")
+
+            # Task Pool summary
+            try:
+                from ..task_pool import get_all_tasks, TaskStatus
+                all_tasks = get_all_tasks()
+                todo = sum(1 for t in all_tasks if t.status == TaskStatus.TODO)
+                in_prog = sum(1 for t in all_tasks if t.status == TaskStatus.IN_PROGRESS)
+                blocked = sum(1 for t in all_tasks if t.status == TaskStatus.BLOCKED)
+                lines.append(f"\n📋 Task Pool: TODO={todo}, In Progress={in_prog}, Blocked={blocked}")
+            except Exception:
+                pass
+
+            # Rate limit alerts overnight
+            try:
+                from ..rate_monitor import get_rate_alerts
+                alerts = get_rate_alerts(hours=12)
+                if alerts:
+                    lines.append(f"\n⚠️ Rate алертов за ночь: {len(alerts)}")
+            except Exception:
+                pass
 
             await bot.send_message(chat_id, "\n".join(lines))
         except Exception as e:
@@ -327,12 +347,87 @@ def setup_ceo_scheduler(bot: Bot, config: CeoTelegramConfig) -> AsyncIOScheduler
         replace_existing=True,
     )
 
+    # 7) Daily analytics report at 22:00
+    async def daily_analytics():
+        try:
+            from ..analytics import format_analytics_report
+            report = format_analytics_report(hours=24)
+            await bot.send_message(chat_id, report)
+            logger.info("Daily analytics report sent")
+        except Exception as e:
+            logger.error(f"Daily analytics failed: {e}")
+
+    scheduler.add_job(
+        daily_analytics,
+        CronTrigger(hour=22),
+        id="daily_analytics",
+        replace_existing=True,
+    )
+
+    # 8) Evening report at 21:00
+    async def evening_report():
+        try:
+            from ..analytics import get_agent_activity_report, get_cost_estimates
+            from ...task_pool import get_all_tasks, TaskStatus
+
+            lines = ["Добрый вечер, Тим. Итоги дня:\n"]
+
+            # Agent activity
+            lines.append(get_agent_activity_report(hours=12))
+
+            # Task Pool summary
+            try:
+                all_tasks = get_all_tasks()
+                active = [t for t in all_tasks if t.status != TaskStatus.DONE]
+                done_today = sum(
+                    1 for t in all_tasks if t.status == TaskStatus.DONE
+                )
+                lines.append(f"\n📋 Task Pool: {len(active)} активных, {done_today} выполненных")
+            except Exception:
+                pass
+
+            # Cost
+            lines.append(f"\n{get_cost_estimates(hours=12)}")
+
+            await bot.send_message(chat_id, "\n".join(lines))
+            logger.info("Evening report sent")
+        except Exception as e:
+            logger.error(f"Evening report failed: {e}")
+
+    scheduler.add_job(
+        evening_report,
+        CronTrigger(hour=21),
+        id="evening_report",
+        replace_existing=True,
+    )
+
+    # 9) Weekly digest — Sunday 20:00
+    async def weekly_digest():
+        try:
+            from ..analytics import format_weekly_digest
+            digest = format_weekly_digest()
+            await bot.send_message(chat_id, digest)
+            logger.info("Weekly digest sent")
+        except Exception as e:
+            logger.error(f"Weekly digest failed: {e}")
+
+    scheduler.add_job(
+        weekly_digest,
+        CronTrigger(day_of_week="sun", hour=20),
+        id="weekly_digest",
+        replace_existing=True,
+    )
+
+    # 10) Enhanced morning briefing: add Task Pool + rate alerts
+    # (enhancement is inside the existing morning_briefing function above)
+
     logger.info(
         f"CEO scheduler: briefing=daily {config.morning_briefing_hour}:00, "
         f"full_report={config.weekly_review_day} {config.weekly_review_hour}:00, "
         f"api_health=every 30min, "
         f"cto_improvement=4x/day (9:30, 13:30, 17:30, 21:30), "
-        f"archive=daily 01:00, orphan_patrol=daily 10:00"
+        f"archive=daily 01:00, orphan_patrol=daily 10:00, "
+        f"analytics=daily 22:00, evening=daily 21:00, digest=Sun 20:00"
     )
 
     return scheduler

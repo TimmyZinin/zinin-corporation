@@ -21,6 +21,52 @@ router = Router()
 _chat_contexts: dict[int, list[dict]] = {}
 MAX_CONTEXT = 20
 
+_AGENT_LABELS = {
+    "manager": "Алексей",
+    "accountant": "Маттиас",
+    "automator": "Мартин",
+    "smm": "Юки",
+    "designer": "Райан",
+    "cpo": "Софи",
+}
+
+# Intent → command handler mapping
+_INTENT_HANDLERS = {
+    "/balance": "cmd_status",      # balance info via status
+    "/tasks": "cmd_tasks",
+    "/status": "cmd_status",
+    "/review": "cmd_review",
+    "/report": "cmd_report",
+    "/analytics": "cmd_analytics",
+    "/help": "cmd_help",
+    "/content": "cmd_content",
+    "/linkedin": "cmd_linkedin",
+}
+
+
+async def _execute_intent(message: Message, intent):
+    """Execute a detected intent by calling the corresponding command handler."""
+    from .commands import (
+        cmd_status, cmd_tasks, cmd_review, cmd_report,
+        cmd_help, cmd_content, cmd_linkedin, cmd_analytics,
+    )
+    handlers = {
+        "/balance": cmd_status,
+        "/tasks": cmd_tasks,
+        "/status": cmd_status,
+        "/review": cmd_review,
+        "/report": cmd_report,
+        "/analytics": cmd_analytics,
+        "/help": cmd_help,
+        "/content": cmd_content,
+        "/linkedin": cmd_linkedin,
+    }
+    handler = handlers.get(intent.command)
+    if handler:
+        await handler(message)
+    else:
+        logger.warning(f"No handler for intent: {intent.command}")
+
 
 def _get_context(user_id: int) -> list[dict]:
     """Get per-user chat context (isolated between users)."""
@@ -112,6 +158,14 @@ async def handle_text(message: Message):
                 await message.answer("Предложение не найдено.")
             return
 
+    # NLU intent detection — redirect to commands if confident
+    from ..nlu import detect_intent, detect_agent
+    intent = detect_intent(user_text)
+    if intent and intent.confidence >= 0.7:
+        logger.info(f"NLU: intent={intent.command} conf={intent.confidence:.2f}")
+        await _execute_intent(message, intent)
+        return
+
     # Brain dump detection — long structured messages → Task Pool
     from ...brain_dump import is_brain_dump, parse_brain_dump, format_brain_dump_result
     if is_brain_dump(user_text):
@@ -124,10 +178,18 @@ async def handle_text(message: Message):
             await message.answer(result_text, reply_markup=task_menu_keyboard(), parse_mode="HTML")
             return
 
+    # Smart agent routing — detect target agent from text
+    agent_target = detect_agent(user_text)
+    agent_name = "manager"  # default fallback
+    if agent_target and agent_target[1] >= 0.7:
+        agent_name = agent_target[0]
+        logger.info(f"NLU routing: {agent_name} (conf={agent_target[1]:.2f})")
+
     user_ctx = _get_context(message.from_user.id)
     user_ctx.append({"role": "user", "text": user_text})
 
-    status = await message.answer("💬 Алексей думает...")
+    agent_label = _AGENT_LABELS.get(agent_name, "Алексей")
+    status = await message.answer(f"💬 {agent_label} думает...")
 
     stop = asyncio.Event()
     typing_task = asyncio.create_task(keep_typing(message, stop))
@@ -136,10 +198,10 @@ async def handle_text(message: Message):
 
     try:
         print(f"[CEO] msg from {message.from_user.id}: {user_text[:80]}", flush=True)
-        print("[CEO] Calling AgentBridge.send_to_agent(manager)...", flush=True)
+        print(f"[CEO] Calling AgentBridge.send_to_agent({agent_name})...", flush=True)
         response = await AgentBridge.send_to_agent(
             message=user_text,
-            agent_name="manager",
+            agent_name=agent_name,
             chat_context=context_str,
             bot=message.bot,
             chat_id=message.chat.id,
@@ -156,6 +218,105 @@ async def handle_text(message: Message):
     finally:
         stop.set()
         await typing_task
+        try:
+            await status.delete()
+        except Exception:
+            pass
+
+
+@router.message(F.voice)
+async def handle_voice(message: Message):
+    """Voice message handler — transcribe → brain dump or agent."""
+    import os
+    import tempfile
+
+    from ...tools.voice_tools import transcribe_voice, convert_ogg_to_wav, is_voice_available
+
+    if not is_voice_available():
+        await message.answer(
+            "🎙️ Голосовые сообщения пока не поддерживаются "
+            "(faster-whisper не установлен)."
+        )
+        return
+
+    status = await message.answer("🎙️ Распознаю голос...")
+
+    ogg_path = None
+    wav_path = None
+    try:
+        # Download voice file
+        file = await message.bot.get_file(message.voice.file_id)
+        with tempfile.NamedTemporaryFile(suffix=".ogg", delete=False) as tmp:
+            ogg_path = tmp.name
+        await message.bot.download_file(file.file_path, ogg_path)
+
+        # Convert OGG → WAV
+        wav_path = convert_ogg_to_wav(ogg_path)
+        if not wav_path:
+            await message.answer("Не удалось конвертировать аудио.")
+            return
+
+        # Transcribe
+        text = transcribe_voice(wav_path)
+        if not text:
+            await message.answer("Не удалось распознать речь.")
+            return
+
+        # Show transcription
+        await message.answer(f"📝 Распознано:\n{text[:2000]}")
+
+        # Check if it's a brain dump
+        from ...brain_dump import is_brain_dump, parse_brain_dump, format_brain_dump_result
+        if is_brain_dump(text):
+            tasks = parse_brain_dump(text, source="voice_brain_dump")
+            if tasks:
+                from ..keyboards import task_menu_keyboard
+                result_text = format_brain_dump_result(tasks)
+                if len(result_text) > 4000:
+                    result_text = result_text[:4000] + "..."
+                await message.answer(
+                    result_text, reply_markup=task_menu_keyboard(), parse_mode="HTML",
+                )
+                return
+
+        # Otherwise treat as regular text — forward to agent
+        # Create a synthetic text message behavior
+        user_ctx = _get_context(message.from_user.id)
+        user_ctx.append({"role": "user", "text": f"[голос] {text}"})
+
+        stop = asyncio.Event()
+        typing_task = asyncio.create_task(keep_typing(message, stop))
+        context_str = _format_context(user_ctx[-MAX_CONTEXT:])
+
+        try:
+            response = await AgentBridge.send_to_agent(
+                message=text,
+                agent_name="manager",
+                chat_context=context_str,
+                bot=message.bot,
+                chat_id=message.chat.id,
+            )
+            user_ctx.append({"role": "assistant", "text": response})
+            for chunk in format_for_telegram(response):
+                await message.answer(chunk)
+        except Exception as e:
+            logger.error(f"Voice → agent error: {e}", exc_info=True)
+            await message.answer(f"Ошибка: {type(e).__name__}: {str(e)[:200]}")
+        finally:
+            stop.set()
+            await typing_task
+
+    except Exception as e:
+        logger.error(f"Voice handler error: {e}", exc_info=True)
+        await message.answer(f"Ошибка обработки голоса: {str(e)[:200]}")
+    finally:
+        # Cleanup temp files
+        for path in [ogg_path, wav_path]:
+            if path and os.path.exists(path):
+                try:
+                    os.unlink(path)
+                except Exception:
+                    pass
         try:
             await status.delete()
         except Exception:

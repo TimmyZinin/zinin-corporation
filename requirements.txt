@@ -52,6 +52,9 @@ edge-tts>=6.1.0
 # Design tools — Telegram rich content
 telegraph>=2.2.0
 
+# Voice transcription (faster-whisper, optional)
+faster-whisper>=1.0.0
+
 # Podcast generation
 pydub>=0.25.1
 mutagen>=1.47.0

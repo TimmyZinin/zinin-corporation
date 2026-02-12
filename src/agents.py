@@ -25,7 +25,15 @@ def load_agent_config(agent_name: str) -> dict:
 
 
 def create_llm(model: str) -> LLM:
-    """Create LLM instance for OpenRouter"""
+    """Create LLM instance — supports OpenRouter and Groq providers."""
+    if model.startswith("groq/"):
+        api_key = os.getenv("GROQ_API_KEY", "")
+        return LLM(
+            model=model,
+            api_key=api_key,
+            base_url="https://api.groq.com/openai/v1",
+        )
+    # Default: OpenRouter
     api_key = os.getenv("OPENROUTER_API_KEY", "")
     return LLM(
         model=model,
