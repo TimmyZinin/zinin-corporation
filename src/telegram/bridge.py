@@ -81,7 +81,7 @@ class AgentBridge:
             print(f"[Bridge] _sync: agent={agent_name}, msg={message[:60]}", flush=True)
             corp = cls._get_corp()
             print(f"[Bridge] _sync: corp ready, calling execute_task...", flush=True)
-            result = corp.execute_task(task_desc, agent_name, use_memory=False)
+            result = corp.execute_task(task_desc, agent_name, use_memory=True)
             print(f"[Bridge] _sync: done, {len(result)} chars", flush=True)
             return result
 

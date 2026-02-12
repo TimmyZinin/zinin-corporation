@@ -1,5 +1,5 @@
 #!/bin/bash
-# Start Telegram bots and Streamlit web interface
+# Start Telegram bots (Streamlit disabled to save RAM)
 
 # Start Маттиас (CFO) Telegram bot in background
 if [ -n "$TELEGRAM_BOT_TOKEN" ]; then
@@ -31,11 +31,13 @@ else
     echo "TELEGRAM_YUKI_BOT_TOKEN not set — Юки bot skipped"
 fi
 
-# Start Streamlit in foreground
-echo "Starting Streamlit..."
-streamlit run app.py --server.port=$PORT --server.address=0.0.0.0 --server.headless=true
+echo "All bots started. Waiting..."
 
-# If Streamlit exits, clean up
+# Keep container alive — wait for any background process to exit
+wait -n
+
+echo "A process exited. Shutting down..."
+# Clean up remaining processes
 if [ -n "$TELEGRAM_PID" ]; then
     kill $TELEGRAM_PID 2>/dev/null
 fi

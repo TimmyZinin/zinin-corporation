@@ -1,6 +1,7 @@
 """Telegram command handlers (/start, /help, /report, /chart, etc.)."""
 
 import asyncio
+import html as html_mod
 import logging
 
 from aiogram import Router
@@ -45,7 +46,7 @@ async def run_with_typing(message: Message, coro, wait_msg: str):
             await message.answer(chunk, parse_mode=ParseMode.HTML)
     except Exception as e:
         logger.error(f"Command error: {e}", exc_info=True)
-        await message.answer(f"Ошибка: {str(e)[:300]}")
+        await message.answer(f"Ошибка: {html_mod.escape(str(e)[:300])}")
     finally:
         stop.set()
         await typing_task
@@ -112,7 +113,7 @@ async def cmd_report(message: Message):
 
     except Exception as e:
         logger.error(f"Report error: {e}", exc_info=True)
-        await message.answer(f"Ошибка: {str(e)[:300]}")
+        await message.answer(f"Ошибка: {html_mod.escape(str(e)[:300])}")
     finally:
         stop.set()
         await typing_task
@@ -155,7 +156,7 @@ async def cmd_portfolio(message: Message):
 
     except Exception as e:
         logger.error(f"Portfolio error: {e}", exc_info=True)
-        await message.answer(f"Ошибка: {str(e)[:300]}")
+        await message.answer(f"Ошибка: {html_mod.escape(str(e)[:300])}")
     finally:
         stop.set()
         await typing_task
@@ -287,7 +288,7 @@ async def cmd_chart(message: Message):
         await message.answer("Таймаут: сбор данных занял больше 90 секунд.")
     except Exception as e:
         logger.error(f"Chart error: {e}", exc_info=True)
-        await message.answer(f"Ошибка графика: {str(e)[:300]}")
+        await message.answer(f"Ошибка графика: {html_mod.escape(str(e)[:300])}")
     finally:
         stop.set()
         try:
@@ -298,6 +299,9 @@ async def cmd_chart(message: Message):
             await status.delete()
         except Exception:
             pass
+
+
+CAPTION_MAX = 1024
 
 
 def _build_chart_caption(data: dict) -> str:
@@ -315,21 +319,29 @@ def _build_chart_caption(data: dict) -> str:
         all_sources.append((name, info["usd"], info.get("original", "")))
 
     all_sources.sort(key=lambda x: -x[1])
-    top = all_sources[:6]
 
     lines = [section_header(f"Портфель — ${total:,.0f}", "🏦")]
-    for name, val, orig in top:
+
+    # Add sources one by one, stop before exceeding 1024
+    for name, val, orig in all_sources:
         pct = val / total * 100 if total > 0 else 0
         val_str = f"${val:,.0f}"
         if orig:
             val_str += f" ({orig})"
-        lines.append(key_value(name, f"{val_str}  {pct:.0f}%"))
+        line = key_value(name, f"{val_str}  {pct:.0f}%")
+        candidate = "\n".join(lines + [line])
+        if len(candidate) > CAPTION_MAX - 60:
+            remaining = len(all_sources) - len(lines) + 1
+            if remaining > 0:
+                rest = sum(v for n, v, _ in all_sources if not any(n == l_name for l_name, _, _ in all_sources[:len(lines) - 1]))
+                lines.append(f"  <i>...и ещё {remaining} ист.</i>")
+            break
+        lines.append(line)
 
-    if len(all_sources) > 6:
-        rest = sum(v for _, v, _ in all_sources[6:])
-        lines.append(f"  <i>...и ещё {len(all_sources) - 6} ист. (${rest:,.0f})</i>")
-
-    return "\n".join(lines)
+    caption = "\n".join(lines)
+    if len(caption) > CAPTION_MAX:
+        caption = caption[:CAPTION_MAX - 3] + "..."
+    return caption
 
 
 def _build_chart_text(data: dict) -> str:

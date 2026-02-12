@@ -5,6 +5,7 @@ markdown→HTML conversion, structured section builders.
 All output uses Telegram HTML parse_mode (<pre>, <b>, <code>).
 """
 
+import html
 import re
 
 MAX_LENGTH = 4096
@@ -52,8 +53,12 @@ def markdown_to_telegram_html(text: str) -> str:
     # 8. Blockquotes: > text → <blockquote>text</blockquote>
     def _blockquote(m):
         lines = m.group(0).split("\n")
-        content = "\n".join(line.lstrip("&gt; ").lstrip("&gt;") for line in lines)
-        return f"<blockquote>{content.strip()}</blockquote>"
+        cleaned = []
+        for line in lines:
+            # Remove leading "&gt; " or "&gt;" prefix properly (not char-by-char)
+            line = re.sub(r"^&gt;\s?", "", line)
+            cleaned.append(line)
+        return f"<blockquote>{chr(10).join(cleaned).strip()}</blockquote>"
     text = re.sub(r"(?:^&gt;\s?.+\n?)+", _blockquote, text, flags=re.MULTILINE)
 
     # 9. Bullets: - item or * item → ▸ item
@@ -76,7 +81,7 @@ def section_header(title: str, emoji: str = "") -> str:
     Returns: '{emoji} <b>{title}</b>\n━━━━━━━━━━━━━━━━━━'
     """
     prefix = f"{emoji} " if emoji else ""
-    return f"{prefix}<b>{title}</b>\n━━━━━━━━━━━━━━━━━━"
+    return f"{prefix}<b>{html.escape(title)}</b>\n━━━━━━━━━━━━━━━━━━"
 
 
 def key_value(label: str, value: str, width: int = 20) -> str:
@@ -84,9 +89,11 @@ def key_value(label: str, value: str, width: int = 20) -> str:
 
     Returns: 'Label ········· <code>Value</code>'
     """
+    safe_label = html.escape(label)
+    safe_value = html.escape(value)
     dots_count = max(2, width - len(label))
     dots = "·" * dots_count
-    return f"▸ {label} {dots} <code>{value}</code>"
+    return f"▸ {safe_label} {dots} <code>{safe_value}</code>"
 
 
 def separator(style: str = "thick") -> str:
@@ -156,25 +163,28 @@ def mono_table(headers: list[str], rows: list[list], align: list[str] | None = N
     if align is None:
         align = ["l"] + ["r"] * (ncols - 1)
 
+    # Escape all values for HTML safety
+    safe_headers = [html.escape(str(h)) for h in headers]
+    safe_rows = [[html.escape(str(cell)) for cell in row] for row in rows]
+
     # Calculate column widths
-    widths = [len(str(h)) for h in headers]
-    for row in rows:
+    widths = [len(h) for h in safe_headers]
+    for row in safe_rows:
         for i, cell in enumerate(row):
-            widths[i] = max(widths[i], len(str(cell)))
+            widths[i] = max(widths[i], len(cell))
 
     def fmt_cell(val, width, a):
-        s = str(val)
         if a == "r":
-            return s.rjust(width)
+            return val.rjust(width)
         elif a == "c":
-            return s.center(width)
-        return s.ljust(width)
+            return val.center(width)
+        return val.ljust(width)
 
-    header_line = " ".join(fmt_cell(h, w, a) for h, w, a in zip(headers, widths, align))
-    separator = "─" * len(header_line)
+    header_line = " ".join(fmt_cell(h, w, a) for h, w, a in zip(safe_headers, widths, align))
+    sep = "─" * len(header_line)
 
-    lines = [header_line, separator]
-    for row in rows:
+    lines = [header_line, sep]
+    for row in safe_rows:
         lines.append(" ".join(fmt_cell(v, w, a) for v, w, a in zip(row, widths, align)))
 
     return "<pre>" + "\n".join(lines) + "</pre>"
@@ -185,21 +195,25 @@ def box_table(headers: list[str], rows: list[list]) -> str:
     if not rows:
         return "<pre>(нет данных)</pre>"
 
-    ncols = len(headers)
-    widths = [len(str(h)) + 2 for h in headers]
-    for row in rows:
+    # Escape all values for HTML safety
+    safe_headers = [html.escape(str(h)) for h in headers]
+    safe_rows = [[html.escape(str(cell)) for cell in row] for row in rows]
+
+    ncols = len(safe_headers)
+    widths = [len(h) + 2 for h in safe_headers]
+    for row in safe_rows:
         for i, cell in enumerate(row):
-            widths[i] = max(widths[i], len(str(cell)) + 2)
+            widths[i] = max(widths[i], len(cell) + 2)
 
     def make_row(cells):
-        return "│" + "│".join(str(c).center(w) for c, w in zip(cells, widths)) + "│"
+        return "│" + "│".join(c.center(w) for c, w in zip(cells, widths)) + "│"
 
     top = "┌" + "┬".join("─" * w for w in widths) + "┐"
     mid = "├" + "┼".join("─" * w for w in widths) + "┤"
     bottom = "└" + "┴".join("─" * w for w in widths) + "┘"
 
-    lines = [top, make_row(headers), mid]
-    for row in rows:
+    lines = [top, make_row(safe_headers), mid]
+    for row in safe_rows:
         lines.append(make_row(row))
     lines.append(bottom)
 
@@ -216,11 +230,29 @@ def format_balance_summary(sources: dict[str, float]) -> str:
     return mono_table(["Источник", "Баланс"], rows)
 
 
+def _close_open_tags(chunk: str) -> str:
+    """Close any HTML tags left open in a chunk to avoid malformed HTML."""
+    # Track open tags
+    open_tags = []
+    for m in re.finditer(r"<(/?)(\w+)[^>]*>", chunk):
+        is_close = m.group(1) == "/"
+        tag = m.group(2)
+        if is_close:
+            if open_tags and open_tags[-1] == tag:
+                open_tags.pop()
+        else:
+            open_tags.append(tag)
+    # Close remaining open tags in reverse order
+    for tag in reversed(open_tags):
+        chunk += f"</{tag}>"
+    return chunk
+
+
 def format_for_telegram(text: str, max_length: int = MAX_LENGTH) -> list[str]:
     """Split a long response into Telegram-safe chunks.
 
     Splits on paragraph boundaries (\\n\\n), then on line boundaries (\\n).
-    Each chunk is <= max_length characters.
+    Each chunk is <= max_length characters. Ensures HTML tags are closed properly.
     """
     if not text or not text.strip():
         return ["(пустой ответ)"]
@@ -255,4 +287,7 @@ def format_for_telegram(text: str, max_length: int = MAX_LENGTH) -> list[str]:
     if current:
         chunks.append(current)
 
-    return chunks or [text[:max_length]]
+    # Close any open HTML tags in each chunk
+    chunks = [_close_open_tags(c) for c in chunks] if chunks else [text[:max_length]]
+
+    return chunks

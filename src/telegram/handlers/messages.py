@@ -1,6 +1,7 @@
 """Text message handler — forwards to Маттиас via AgentBridge."""
 
 import asyncio
+import html
 import logging
 
 from aiogram import Router, F
@@ -60,7 +61,8 @@ async def handle_text(message: Message):
 
     except Exception as e:
         logger.error(f"Message handler error: {e}", exc_info=True)
-        await message.answer(f"Ошибка: {type(e).__name__}: {str(e)[:200]}")
+        err_msg = html.escape(f"{type(e).__name__}: {str(e)[:200]}")
+        await message.answer(f"Ошибка: {err_msg}")
     finally:
         stop.set()
         await typing_task
