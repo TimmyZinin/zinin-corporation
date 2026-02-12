@@ -1,4 +1,4 @@
-"""Callback handlers for CTO improvement proposals and API diagnostics in CEO bot."""
+"""Callback handlers for CTO proposals, API diagnostics, and Task Pool in CEO bot."""
 
 import asyncio
 import json
@@ -15,6 +15,285 @@ router = Router()
 
 # State for "conditions" mode — user types conditions text after pressing button
 _conditions_state: dict[int, str] = {}  # user_id -> proposal_id
+
+# State for "new task" mode — user types task title after pressing button
+_new_task_state: set[int] = set()  # user_ids waiting for task title
+
+
+def is_in_new_task_mode(user_id: int) -> bool:
+    """Check if user is currently entering a new task title."""
+    return user_id in _new_task_state
+
+
+def consume_new_task_mode(user_id: int) -> bool:
+    """Clear new-task mode and return True if was active."""
+    return _new_task_state.discard(user_id) is None and user_id not in _new_task_state
+
+
+# ═══════════════════════════════════════════════════════════════
+# Task Pool callbacks
+# ═══════════════════════════════════════════════════════════════
+
+@router.callback_query(F.data == "task_new")
+async def on_task_new(callback: CallbackQuery):
+    """Enter new task mode — user types title next."""
+    _new_task_state.add(callback.from_user.id)
+    await callback.message.edit_text("📝 Напишите заголовок задачи:")
+    await callback.answer()
+
+
+@router.callback_query(F.data == "task_all")
+async def on_task_all(callback: CallbackQuery):
+    """Show all active tasks."""
+    from ...task_pool import get_all_tasks, format_task_summary, format_pool_summary, TaskStatus
+    from ..keyboards import task_menu_keyboard
+
+    tasks = get_all_tasks()
+    if not tasks:
+        await callback.message.edit_text(
+            "📋 Task Pool пуст",
+            reply_markup=task_menu_keyboard(),
+        )
+        await callback.answer()
+        return
+
+    active = [t for t in tasks if t.status != TaskStatus.DONE]
+    done_count = sum(1 for t in tasks if t.status == TaskStatus.DONE)
+
+    lines = [format_pool_summary(), ""]
+    for t in sorted(active, key=lambda x: x.priority):
+        lines.append(format_task_summary(t))
+        lines.append("")
+    if done_count:
+        lines.append(f"✅ Завершённых: {done_count}")
+
+    text = "\n".join(lines)
+    if len(text) > 4000:
+        text = text[:4000] + "..."
+
+    try:
+        await callback.message.edit_text(text, reply_markup=task_menu_keyboard(), parse_mode="HTML")
+    except Exception:
+        await callback.message.answer(text, reply_markup=task_menu_keyboard(), parse_mode="HTML")
+    await callback.answer()
+
+
+@router.callback_query(F.data.startswith("task_filter:"))
+async def on_task_filter(callback: CallbackQuery):
+    """Filter tasks by status."""
+    from ...task_pool import get_tasks_by_status, TaskStatus, format_task_summary
+    from ..keyboards import task_menu_keyboard
+
+    status_str = callback.data.split(":")[1]
+    try:
+        status = TaskStatus(status_str)
+    except ValueError:
+        await callback.answer("Неизвестный статус", show_alert=True)
+        return
+
+    tasks = get_tasks_by_status(status)
+    if not tasks:
+        await callback.message.edit_text(
+            f"Нет задач со статусом {status_str}",
+            reply_markup=task_menu_keyboard(),
+        )
+        await callback.answer()
+        return
+
+    lines = [f"📋 Задачи — {status_str} ({len(tasks)})\n"]
+    for t in sorted(tasks, key=lambda x: x.priority):
+        lines.append(format_task_summary(t))
+        lines.append("")
+
+    text = "\n".join(lines)
+    if len(text) > 4000:
+        text = text[:4000] + "..."
+
+    try:
+        await callback.message.edit_text(text, reply_markup=task_menu_keyboard(), parse_mode="HTML")
+    except Exception:
+        await callback.message.answer(text, reply_markup=task_menu_keyboard(), parse_mode="HTML")
+    await callback.answer()
+
+
+@router.callback_query(F.data.startswith("task_detail:"))
+async def on_task_detail(callback: CallbackQuery):
+    """Show task detail with action buttons."""
+    from ...task_pool import get_task, format_task_summary
+    from ..keyboards import task_detail_keyboard
+
+    task_id = callback.data.split(":")[1]
+    task = get_task(task_id)
+    if not task:
+        await callback.answer("Задача не найдена", show_alert=True)
+        return
+
+    text = format_task_summary(task)
+    if task.result:
+        text += f"\n\n📝 Результат: {task.result[:500]}"
+
+    try:
+        await callback.message.edit_text(
+            text,
+            reply_markup=task_detail_keyboard(task_id, task.status.value),
+            parse_mode="HTML",
+        )
+    except Exception:
+        await callback.message.answer(
+            text,
+            reply_markup=task_detail_keyboard(task_id, task.status.value),
+            parse_mode="HTML",
+        )
+    await callback.answer()
+
+
+@router.callback_query(F.data.startswith("task_assign:"))
+async def on_task_assign(callback: CallbackQuery):
+    """Show agent selection keyboard."""
+    from ...task_pool import get_task, suggest_assignee
+    from ..keyboards import task_assign_keyboard
+
+    task_id = callback.data.split(":")[1]
+    task = get_task(task_id)
+    if not task:
+        await callback.answer("Задача не найдена", show_alert=True)
+        return
+
+    suggestion = suggest_assignee(task.tags)
+    text = f"👤 Назначить: <b>{task.title}</b>\n"
+    if suggestion:
+        rec = ", ".join(f"{a} ({c:.0%})" for a, c in suggestion[:3])
+        text += f"💡 Рекомендация: {rec}"
+
+    try:
+        await callback.message.edit_text(
+            text, reply_markup=task_assign_keyboard(task_id), parse_mode="HTML"
+        )
+    except Exception:
+        await callback.message.answer(
+            text, reply_markup=task_assign_keyboard(task_id), parse_mode="HTML"
+        )
+    await callback.answer()
+
+
+@router.callback_query(F.data.startswith("task_do_assign:"))
+async def on_task_do_assign(callback: CallbackQuery):
+    """Actually assign task to selected agent."""
+    from ...task_pool import assign_task, format_task_summary
+    from ..keyboards import task_detail_keyboard
+
+    parts = callback.data.split(":")
+    task_id = parts[1]
+    agent_key = parts[2]
+
+    task = assign_task(task_id, assignee=agent_key, assigned_by="ceo-alexey")
+    if not task:
+        await callback.answer("Не удалось назначить", show_alert=True)
+        return
+
+    text = f"✅ Назначено → {agent_key}\n\n{format_task_summary(task)}"
+    try:
+        await callback.message.edit_text(
+            text,
+            reply_markup=task_detail_keyboard(task_id, task.status.value),
+            parse_mode="HTML",
+        )
+    except Exception:
+        await callback.message.answer(
+            text,
+            reply_markup=task_detail_keyboard(task_id, task.status.value),
+            parse_mode="HTML",
+        )
+    await callback.answer(f"Назначено: {agent_key}")
+
+
+@router.callback_query(F.data.startswith("task_start:"))
+async def on_task_start(callback: CallbackQuery):
+    """Start a task: ASSIGNED → IN_PROGRESS."""
+    from ...task_pool import start_task, format_task_summary
+    from ..keyboards import task_detail_keyboard
+
+    task_id = callback.data.split(":")[1]
+    task = start_task(task_id)
+    if not task:
+        await callback.answer("Не удалось начать задачу", show_alert=True)
+        return
+
+    text = f"▶️ В работе!\n\n{format_task_summary(task)}"
+    try:
+        await callback.message.edit_text(
+            text,
+            reply_markup=task_detail_keyboard(task_id, task.status.value),
+            parse_mode="HTML",
+        )
+    except Exception:
+        pass
+    await callback.answer("В работе")
+
+
+@router.callback_query(F.data.startswith("task_done:"))
+async def on_task_done(callback: CallbackQuery):
+    """Complete a task: IN_PROGRESS → DONE."""
+    from ...task_pool import complete_task, format_task_summary
+
+    task_id = callback.data.split(":")[1]
+    task = complete_task(task_id)
+    if not task:
+        await callback.answer("Не удалось завершить", show_alert=True)
+        return
+
+    text = f"✅ Завершено!\n\n{format_task_summary(task)}"
+    try:
+        await callback.message.edit_text(text, parse_mode="HTML")
+    except Exception:
+        pass
+    await callback.answer("Завершено")
+
+
+@router.callback_query(F.data.startswith("task_block:"))
+async def on_task_block(callback: CallbackQuery):
+    """Block a task."""
+    from ...task_pool import block_task, format_task_summary
+    from ..keyboards import task_detail_keyboard
+
+    task_id = callback.data.split(":")[1]
+    task = block_task(task_id)
+    if not task:
+        await callback.answer("Не удалось заблокировать", show_alert=True)
+        return
+
+    text = f"🚫 Заблокировано\n\n{format_task_summary(task)}"
+    try:
+        await callback.message.edit_text(
+            text,
+            reply_markup=task_detail_keyboard(task_id, task.status.value),
+            parse_mode="HTML",
+        )
+    except Exception:
+        pass
+    await callback.answer("Заблокировано")
+
+
+@router.callback_query(F.data.startswith("task_delete:"))
+async def on_task_delete(callback: CallbackQuery):
+    """Delete a task from the pool."""
+    from ...task_pool import delete_task
+    from ..keyboards import task_menu_keyboard
+
+    task_id = callback.data.split(":")[1]
+    ok = delete_task(task_id)
+    if not ok:
+        await callback.answer("Задача не найдена", show_alert=True)
+        return
+
+    try:
+        await callback.message.edit_text(
+            f"🗑 Задача {task_id} удалена",
+            reply_markup=task_menu_keyboard(),
+        )
+    except Exception:
+        pass
+    await callback.answer("Удалено")
 
 
 def is_in_conditions_mode(user_id: int) -> bool:

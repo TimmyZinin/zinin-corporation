@@ -66,7 +66,10 @@ class AgentBridge:
         bot=None,
         chat_id: int = None,
     ) -> str:
-        """Send a message to a CrewAI agent (runs in thread)."""
+        """Send a message to a CrewAI agent (runs in thread).
+
+        Also tracks delegation as a task in the Shared Task Pool.
+        """
         task_desc = message
         if chat_context:
             task_desc = (
@@ -77,6 +80,9 @@ class AgentBridge:
         if bot and chat_id:
             cls._setup_progress(bot, chat_id)
 
+        # Track in Task Pool
+        pool_task = cls._track_delegation(message, agent_name)
+
         def _sync():
             print(f"[Bridge] _sync: agent={agent_name}, msg={message[:60]}", flush=True)
             corp = cls._get_corp()
@@ -86,9 +92,43 @@ class AgentBridge:
             return result
 
         try:
-            return await asyncio.to_thread(_sync)
+            result = await asyncio.to_thread(_sync)
+            cls._complete_delegation(pool_task, result)
+            return result
+        except Exception as e:
+            cls._complete_delegation(pool_task, f"ERROR: {e}")
+            raise
         finally:
             cls._clear_progress()
+
+    @classmethod
+    def _track_delegation(cls, message: str, agent_name: str):
+        """Create a task in the Task Pool for this delegation."""
+        try:
+            from ..task_pool import create_task
+            title = message[:100] + ("..." if len(message) > 100 else "")
+            return create_task(
+                title=title,
+                assignee=agent_name,
+                assigned_by="ceo-alexey",
+                source="delegation",
+            )
+        except Exception as e:
+            logger.debug(f"Task pool tracking skipped: {e}")
+            return None
+
+    @classmethod
+    def _complete_delegation(cls, pool_task, result: str):
+        """Mark delegation task as complete in the Task Pool."""
+        if pool_task is None:
+            return
+        try:
+            from ..task_pool import start_task, complete_task
+            start_task(pool_task.id)
+            result_preview = result[:500] if result else ""
+            complete_task(pool_task.id, result=result_preview)
+        except Exception as e:
+            logger.debug(f"Task pool completion skipped: {e}")
 
     @classmethod
     async def run_financial_report(cls) -> str:

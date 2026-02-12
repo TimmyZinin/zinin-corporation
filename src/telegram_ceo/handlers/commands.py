@@ -26,6 +26,8 @@ async def cmd_start(message: Message):
         "/review — Стратегический обзор\n"
         "/report — Полный отчёт корпорации\n"
         "/status — Статус агентов\n"
+        "/task <заголовок> — Создать задачу\n"
+        "/tasks — Сводка задач\n"
         "/content <тема> — Юки готовит пост для LinkedIn\n"
         "/linkedin — Статус LinkedIn от Юки\n"
         "/delegate <агент> <задача> — Делегировать задачу\n"
@@ -180,6 +182,66 @@ async def cmd_test(message: Message):
     await message.answer("\n".join(lines))
 
 
+@router.message(Command("task"))
+async def cmd_task(message: Message):
+    """Create a task or show task menu: /task <title> or /task."""
+    text = message.text or ""
+    parts = text.split(maxsplit=1)
+    title = parts[1] if len(parts) > 1 else ""
+
+    if not title:
+        from ..keyboards import task_menu_keyboard
+        from ...task_pool import format_pool_summary
+        summary = format_pool_summary()
+        await message.answer(summary, reply_markup=task_menu_keyboard(), parse_mode="HTML")
+        return
+
+    from ...task_pool import create_task, suggest_assignee, format_task_summary
+    task = create_task(title, source="telegram", assigned_by="tim")
+
+    suggestion = suggest_assignee(task.tags)
+    text_parts = [format_task_summary(task)]
+    if suggestion:
+        best_agent, confidence = suggestion[0]
+        text_parts.append(f"\n💡 Рекомендация: <b>{best_agent}</b> ({confidence:.0%})")
+
+    from ..keyboards import task_detail_keyboard
+    await message.answer(
+        "\n".join(text_parts),
+        reply_markup=task_detail_keyboard(task.id, task.status.value),
+        parse_mode="HTML",
+    )
+
+
+@router.message(Command("tasks"))
+async def cmd_tasks(message: Message):
+    """Show task pool summary with all active tasks."""
+    from ...task_pool import get_all_tasks, format_task_summary, format_pool_summary, TaskStatus
+
+    tasks = get_all_tasks()
+    if not tasks:
+        await message.answer("📋 Task Pool пуст. Создайте задачу: /task <заголовок>")
+        return
+
+    active = [t for t in tasks if t.status != TaskStatus.DONE]
+    done_count = sum(1 for t in tasks if t.status == TaskStatus.DONE)
+
+    lines = [format_pool_summary(), ""]
+    for t in sorted(active, key=lambda x: x.priority):
+        lines.append(format_task_summary(t))
+        lines.append("")
+
+    if done_count:
+        lines.append(f"✅ Завершённых: {done_count}")
+
+    text = "\n".join(lines)
+    if len(text) > 4000:
+        text = text[:4000] + "..."
+
+    from ..keyboards import task_menu_keyboard
+    await message.answer(text, reply_markup=task_menu_keyboard(), parse_mode="HTML")
+
+
 @router.message(Command("help"))
 async def cmd_help(message: Message):
     await message.answer(
@@ -192,6 +254,10 @@ async def cmd_help(message: Message):
         "Контент (Юки SMM):\n"
         "/content <тема> — Юки генерирует пост для LinkedIn\n"
         "/linkedin — Статус LinkedIn-интеграции\n\n"
+        "Задачи (Task Pool v2.3):\n"
+        "/task <заголовок> — Создать задачу (auto-tag + suggest)\n"
+        "/task — Меню Task Pool\n"
+        "/tasks — Сводка всех задач\n\n"
         "Делегация:\n"
         "/delegate <агент> <задача> — Прямая делегация\n"
         "/help — Эта справка\n\n"

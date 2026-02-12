@@ -3,6 +3,7 @@
 > **Mission:** Autonomous AI team managing communities, content, and finances to reach $2,500 MRR by March 2, 2026.
 > **Owner:** Tim Zinin (@TimmyZinin)
 > **Repo:** https://github.com/TimmyZinin/zinin-corporation
+> **Strategy:** v2.3 — CEO as sole navigator + Shared Task Pool + Dependency Engine
 
 ---
 
@@ -13,54 +14,27 @@ This is a **production multi-agent system** with 6 specialized AI agents, 3 Tele
 - **Content:** LinkedIn + Threads publishing for Tim Zinin and Kristina Zhukova
 - **Finance:** 20+ financial integrations (crypto, forex, banking, API billing)
 - **Product:** Backlog management, sprint tracking, feature health monitoring
+- **Tasks:** Shared Task Pool with dependency blocking and auto-routing
 
-**Key constraint:** All changes must pass 1528+ existing tests. Never break existing functionality.
+**Key constraint:** All changes must pass 1700+ existing tests. Never break existing functionality.
 
 ---
 
-## Architecture
-
-### Current State (CrewAI + Telegram Bots)
-
-```
-                    TIM (Human-in-the-Loop)
-                         │
-          ┌──────────────┼──────────────┐
-          │              │              │
-    ┌─────▼─────┐ ┌─────▼─────┐ ┌─────▼─────┐
-    │ CEO Bot   │ │ CFO Bot   │ │ SMM Bot   │
-    │ Алексей   │ │ Маттиас   │ │ Юки       │
-    │ (TG)      │ │ (TG)      │ │ (TG)      │
-    └─────┬─────┘ └─────┬─────┘ └─────┬─────┘
-          │              │              │
-          └──────────────┼──────────────┘
-                         │
-              ┌──────────▼──────────┐
-              │  AgentBridge        │
-              │  (src/telegram/     │
-              │   bridge.py)        │
-              └──────────┬──────────┘
-                         │
-              ┌──────────▼──────────┐
-              │  CrewAI Corporation  │
-              │  (src/crew.py)      │
-              │  (src/flows.py)     │
-              └──────────┬──────────┘
-                         │
-    ┌────────┬───────┬───┴───┬────────┬────────┐
-    │        │       │       │        │        │
-  CEO     CFO     CTO     SMM    Designer   CPO
- Алексей Маттиас Мартин  Юки    Райан      Софи
-```
-
-### Target State (Hybrid: CrewAI + Agent Teams + MCP)
+## Architecture (Hybrid: CrewAI + Agent Teams + MCP)
 
 ```
     TIM ──→ CEO Bot Алексей (Telegram)
                     │
          Claude Code Agent Teams (Lead)
-          CLAUDE.md context │ qmd KB │ Shared Tasks
+          CLAUDE.md context │ qmd KB
                     │
+         ┌──────────▼──────────┐
+         │   SHARED TASK POOL  │
+         │  CEO assigns all    │
+         │  Dependency Engine  │
+         │  Auto-tag + Route   │
+         └──────────┬──────────┘
+                    │ CEO assigns
     ┌───────┬───────┼───────┬────────┐
     │       │       │       │        │
   CTO   Analytic  SMM   Product  Designer
@@ -69,12 +43,46 @@ This is a **production multi-agent system** with 6 specialized AI agents, 3 Tele
             │ MCP Connections│        │
     ┌───────▼───────────────▼────────▼───┐
     │           MCP Servers               │
-    │  telegram-mcp │ cfo-mcp │ qmd      │
-    │  crypto-mcp   │ tribute-mcp        │
+    │  cfo-mcp (Active) │ tribute-mcp    │
+    │  telegram-mcp     │ qmd (Planned)  │
     └────────────────────────────────────┘
 ```
 
 **Migration strategy:** Gradual. CrewAI code stays as fallback. New Agent Teams layer built on top.
+
+---
+
+## Shared Task Pool (v2.3)
+
+**File:** `src/task_pool.py` — Core coordination mechanism.
+
+### Task Lifecycle
+```
+Tim/System creates task → CEO Алексей assigns → Agent executes → DONE
+                                                    ↓
+                              Dependency Engine unblocks dependents
+```
+
+### Statuses
+`TODO` → `ASSIGNED` → `IN_PROGRESS` → `DONE` (or `BLOCKED`)
+
+### Key Concepts
+- **CEO = sole navigator:** Only CEO Алексей assigns tasks. Agents don't self-assign.
+- **Dependency blocking:** `blocked_by` / `blocks` fields. Task stays BLOCKED until all dependencies are DONE.
+- **Auto-tag:** Extracts competency tags from task title (keyword matching).
+- **Agent Router:** `suggest_assignee()` matches task tags to agent competencies.
+- **Brain Dump:** Long structured messages (>300 chars) auto-parsed into tasks.
+- **Delegation tracking:** AgentBridge auto-creates tasks for `/delegate` commands.
+
+### Agent Competency Tags
+| Agent | Tags |
+|-------|------|
+| manager | strategy, delegation, coordination, review, report, planning |
+| accountant | finance, budget, revenue, portfolio, crypto, banking, tribute |
+| automator | architecture, infrastructure, mcp, code, api, health, deployment |
+| smm | content, linkedin, threads, post, podcast, social, copywriting |
+| designer | design, visual, image, infographic, chart, video, branding |
+| cpo | product, backlog, sprint, feature, roadmap, metrics, analytics |
 
 ---
 
@@ -84,7 +92,7 @@ See [AGENTS.md](AGENTS.md) for full registry with triggers, tools, and handoff r
 
 | Agent | Role | Model | Status |
 |-------|------|-------|--------|
-| CEO Алексей | Orchestrator, delegation | Claude Sonnet 4 | Active |
+| CEO Алексей | Orchestrator, task navigator | Claude Sonnet 4 | Active |
 | CFO Маттиас | Finance, P&L, portfolio | Claude Sonnet 4 | Active |
 | CTO Мартин | Architecture, health, code audit | Claude Sonnet 4 | Active |
 | SMM Юки | Content, LinkedIn, Threads | Claude 3.5 Haiku | Active |
@@ -99,7 +107,9 @@ See [AGENTS.md](AGENTS.md) for full registry with triggers, tools, and handoff r
 ### CEO Алексей (`src/telegram_ceo/`)
 - **Token:** `TELEGRAM_CEO_BOT_TOKEN`
 - **Whitelist:** `TELEGRAM_CEO_ALLOWED_USERS`
-- **Commands:** `/start`, `/help`, `/status`, `/review`, `/report`, `/content <topic>`, `/linkedin`, `/delegate <agent> <task>`, `/test`
+- **Commands:** `/start`, `/help`, `/status`, `/review`, `/report`, `/content <topic>`, `/linkedin`, `/task <title>`, `/tasks`, `/delegate <agent> <task>`, `/test`
+- **Task Pool:** `/task` creates tasks with auto-tag + agent suggestion. Inline keyboards for assign/start/complete/block.
+- **Brain Dump:** Long messages (>300 chars with list markers) auto-parsed into Task Pool.
 - **Scheduler:** Morning briefing, weekly report, API health (30min), CTO proposals (4x/day)
 - **Entry:** `run_alexey_bot.py`
 
@@ -136,6 +146,20 @@ Banking: `TBankBalance`, `TBankStatement` | Crypto: `EVMPortfolio`, `SolanaPortf
 
 ---
 
+## MCP Servers
+
+| Server | Purpose | Tools | Status |
+|--------|---------|-------|--------|
+| `cfo-mcp` | Financial data (Маттиас tools) | 8 tools: balance, portfolio, crypto, tribute, forex, API costs | **Active** |
+| `tribute-mcp` | Revenue/subscriber data | 4 tools: products, revenue, subscriptions, stats | **Active** |
+| `telegram-mcp` | CEO Алексей <-> Agent Teams | Planned | Planned |
+| `crypto-mcp` | Crypto bot notifications | Planned | Planned |
+| `qmd` | Knowledge base search | Planned | Planned |
+
+**Run:** `python run_cfo_mcp.py` / `python run_tribute_mcp.py`
+
+---
+
 ## Security
 
 - **Vault:** AES-256 encryption for all financial data (`src/telegram/vault.py`)
@@ -163,9 +187,15 @@ ai_corporation/
 │   ├── crew.py            # CrewAI crew orchestration
 │   ├── flows.py           # CrewAI Flows (Pydantic state, reflection)
 │   ├── app.py             # Streamlit web UI
+│   ├── task_pool.py       # Shared Task Pool + Dependency Engine (v2.3)
+│   ├── brain_dump.py      # Brain dump → tasks parser
+│   ├── task_extractor.py  # Legacy task extraction from messages
 │   ├── models/            # Pydantic models (CorporationState, outputs)
+│   ├── mcp_servers/        # MCP servers for Agent Teams
+│   │   ├── cfo_server.py  # CFO financial tools (8 MCP tools)
+│   │   └── tribute_server.py  # Tribute revenue tools (4 MCP tools)
 │   ├── tools/             # Agent tools
-│   │   ├── financial/     # 17 financial API tools
+│   │   ├── financial/     # 20+ financial API tools
 │   │   ├── smm_tools.py   # Content + publishers (4 accounts)
 │   │   ├── design_tools.py
 │   │   ├── tech_tools.py
@@ -173,7 +203,9 @@ ai_corporation/
 │   ├── telegram/          # CFO Маттиас bot
 │   ├── telegram_ceo/      # CEO Алексей bot
 │   └── telegram_yuki/     # SMM Юки bot
-├── tests/                 # 1528+ tests (39 files)
+├── tests/                 # 1700+ tests (45+ files)
+├── run_cfo_mcp.py         # CFO MCP server entry point
+├── run_tribute_mcp.py     # Tribute MCP server entry point
 ├── data/                  # Persistent storage (not in git)
 ├── Dockerfile
 ├── start.sh               # Launches 3 bots
@@ -182,42 +214,17 @@ ai_corporation/
 
 ---
 
-## Knowledge Base
-
-- `knowledge/company.md` — Company info, mission
-- `knowledge/team.md` — Team bios, roles
-- `knowledge/content_guidelines.md` — Content rules, brand voice
-
-**Planned:** qmd (tobi/qmd) for local BM25 + vector search, saving ~96% tokens.
-
----
-
-## MCP Servers (Planned)
-
-| Server | Purpose | Status |
-|--------|---------|--------|
-| `telegram-mcp` | CEO Алексей <-> Agent Teams | Planned |
-| `cfo-mcp` | Financial data from CFO bot | Planned |
-| `tribute-mcp` | Revenue/subscriber data | Planned |
-| `crypto-mcp` | Crypto bot notifications | Planned |
-| `sborka-mcp` | Sborka bot members/content | Planned |
-| `qmd` | Knowledge base search | Planned |
-| `github-mcp` | PR/issue management | Planned |
-
----
-
 ## Agent Teams
 
-**Status:** Experimental, enabled in project settings.
+**Status:** Enabled in project settings.
 
 Enable: `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` in `.claude/settings.json`
 
 **How it works:**
 - One session = team lead (coordinator)
 - Teammates = separate Claude Code instances with own context
-- Communication: mailbox (direct messages) + shared task list
-- CLAUDE.md auto-loaded by all teammates
-- Teams stored: `~/.claude/teams/{team-name}/`
+- Communication: shared task list + CLAUDE.md context
+- MCP servers provide tool access to financial and revenue data
 
 **Best practices:**
 - Each teammate owns separate files (no conflicts)
@@ -238,7 +245,7 @@ pip install -r requirements.txt
 
 ### Tests
 ```bash
-pytest tests/ -v              # All 1528+ tests
+pytest tests/ -v              # All 1700+ tests
 pytest tests/test_X.py -v     # Single file
 ```
 
@@ -274,4 +281,4 @@ See [STATE.md](STATE.md) for live progress tracking.
 
 ---
 
-*Updated: February 12, 2026 — Sprint 1 (Architecture Foundation)*
+*Updated: February 12, 2026 — Sprint 2 (Task Pool + MCP Servers)*

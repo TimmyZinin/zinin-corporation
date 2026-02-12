@@ -9,7 +9,7 @@ from aiogram.types import Message
 from ...telegram.bridge import AgentBridge
 from ...telegram.formatters import format_for_telegram
 from ...telegram.handlers.commands import keep_typing
-from .callbacks import is_in_conditions_mode, get_conditions_proposal_id
+from .callbacks import is_in_conditions_mode, get_conditions_proposal_id, is_in_new_task_mode, _new_task_state
 
 logger = logging.getLogger(__name__)
 router = Router()
@@ -31,6 +31,24 @@ async def handle_text(message: Message):
     if not user_text:
         return
 
+    # Task Pool "new task" mode — intercept text input as task title
+    if is_in_new_task_mode(message.from_user.id):
+        _new_task_state.discard(message.from_user.id)
+        from ...task_pool import create_task, suggest_assignee, format_task_summary
+        from ..keyboards import task_detail_keyboard
+        task = create_task(user_text, source="telegram", assigned_by="tim")
+        suggestion = suggest_assignee(task.tags)
+        text_parts = [format_task_summary(task)]
+        if suggestion:
+            best_agent, confidence = suggestion[0]
+            text_parts.append(f"\n💡 Рекомендация: <b>{best_agent}</b> ({confidence:.0%})")
+        await message.answer(
+            "\n".join(text_parts),
+            reply_markup=task_detail_keyboard(task.id, task.status.value),
+            parse_mode="HTML",
+        )
+        return
+
     # CTO proposal conditions mode — intercept text input
     if is_in_conditions_mode(message.from_user.id):
         proposal_id = get_conditions_proposal_id(message.from_user.id)
@@ -47,6 +65,18 @@ async def handle_text(message: Message):
                 )
             else:
                 await message.answer("Предложение не найдено.")
+            return
+
+    # Brain dump detection — long structured messages → Task Pool
+    from ...brain_dump import is_brain_dump, parse_brain_dump, format_brain_dump_result
+    if is_brain_dump(user_text):
+        tasks = parse_brain_dump(user_text, source="brain_dump")
+        if tasks:
+            from ..keyboards import task_menu_keyboard
+            result_text = format_brain_dump_result(tasks)
+            if len(result_text) > 4000:
+                result_text = result_text[:4000] + "..."
+            await message.answer(result_text, reply_markup=task_menu_keyboard(), parse_mode="HTML")
             return
 
     user_ctx = _get_context(message.from_user.id)

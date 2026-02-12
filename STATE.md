@@ -9,13 +9,13 @@
 
 | Agent | Status | Telegram Bot | Notes |
 |-------|--------|-------------|-------|
-| CEO Алексей | Active | CEO bot running | 9 commands, scheduler active |
-| CFO Маттиас | Active | CFO bot running | 20 financial tools, vault encrypted |
+| CEO Алексей | Active | CEO bot running | 11 commands, scheduler, Task Pool, brain dump |
+| CFO Маттиас | Active | CFO bot running | 20 financial tools, vault encrypted, MCP server |
 | CTO Мартин | Active | — (via CEO) | Proposals 4x/day, API health 30min |
 | SMM Юки | Active | SMM bot running | LinkedIn + Threads (Tim), LinkedIn (Kristina) |
 | Designer Райан | Active | — (via CEO) | Gemini image gen |
 | CPO Софи | Active | — (via CEO) | Backlog tracking |
-| Analytic | Planned | — | Sprint 2+ |
+| Analytic | Planned | — | Sprint 3+ |
 
 ---
 
@@ -35,31 +35,41 @@
 
 ## Sprint Kanban
 
-### Phase 1: Foundation (Feb 12-16)
+### Sprint 1: Foundation (Feb 12) — DONE
 
-#### DONE
 - [x] Audit CrewAI codebase — 6 agents, 1528 tests, 3 bots
 - [x] Review CEO bot (Алексей) — 9 commands, scheduler, proposal workflow
 - [x] Review SMM bot (Юки) — approve flow, publishers, podcasts
 - [x] CLAUDE.md v2 — full architecture doc
 - [x] AGENTS.md v2 — agent registry
-- [x] STATE.md — this file
+- [x] STATE.md — dynamic Kanban
 - [x] Enable Agent Teams in settings
 - [x] Fix per-user chat context (CEO + Yuki bots)
 - [x] Fix Threads publisher stub in Yuki bot
 
-#### IN_PROGRESS
-- [ ] Agent Teams validation — test spawn teammates
+### Sprint 2: Task Pool + MCP (Feb 12) — DONE
 
-#### TODO (Day 2+)
-- [ ] CEO bot: text commands `/task`, `/status`, `/delegate` improvements
-- [ ] CEO bot: inline keyboard for HITL decisions
-- [ ] STATE.md Kanban format in dynamic state
-- [ ] MCP wrapper: CFO bot (`cfo_get_transactions`, `cfo_get_balance`)
-- [ ] MCP wrapper: Tribute webhook (`tribute_get_subscribers`, `tribute_get_revenue`)
-- [ ] CEO → Agent Teams integration
-- [ ] Brain dump processing (long text → parsed tasks → delegation)
+#### DONE
+- [x] Shared Task Pool (`src/task_pool.py`) — Dependency Engine, auto-tag, agent routing
+- [x] CEO bot: `/task` and `/tasks` commands with inline keyboards
+- [x] CEO bot: task assign/start/done/block callbacks
+- [x] CFO MCP Server (`src/mcp_servers/cfo_server.py`) — 8 tools (Active)
+- [x] Tribute MCP Server (`src/mcp_servers/tribute_server.py`) — 4 tools (Active)
+- [x] AgentBridge → Task Pool integration (delegation tracking)
+- [x] Brain Dump processor (`src/brain_dump.py`) — auto-parse long messages
+- [x] CLAUDE.md v2.3 — Task Pool, MCP, agent tags, file structure
+- [x] AGENTS.md v2.3 — competency tags, escalation rules
+- [x] 176 new tests (Task Pool: 115, MCP: 29, Brain Dump: 32)
+
+### Sprint 3: TODO (Planned)
+
+#### TODO
+- [ ] Agent Teams validation — test spawn teammates
+- [ ] telegram-mcp — CEO bot ↔ Agent Teams bridge
 - [ ] qmd installation and KB indexing
+- [ ] CTO Orphan Task Patrol — daily scan for stale tasks
+- [ ] Escalation inline keyboards (4 options when no agent matches)
+- [ ] Task Pool archiver — move DONE tasks to daily JSON
 
 #### BLOCKED
 - [ ] Kristina Threads — waiting for her Meta App credentials
@@ -80,14 +90,20 @@
 
 ## Daily Log
 
-### 2026-02-12 (Sprint 1)
+### 2026-02-12 (Sprint 1 + Sprint 2)
+**Sprint 1:**
 - Audited entire codebase: 6 agents, 50+ tools, 3 TG bots, 1528 tests
-- Created CLAUDE.md v2 with full architecture
-- Created AGENTS.md v2 agent registry
-- Created STATE.md (this file)
-- Enabled Agent Teams experimental feature
-- Fixed per-user chat context isolation (CEO + Yuki bots)
-- Fixed Threads publisher stub in Yuki → real ThreadsTimPublisher
+- Created CLAUDE.md v2, AGENTS.md v2, STATE.md
+- Enabled Agent Teams, fixed per-user chat context, fixed Threads publisher
+
+**Sprint 2:**
+- Created Shared Task Pool with Dependency Engine (`src/task_pool.py`)
+- Added `/task` and `/tasks` to CEO bot with full inline keyboard workflow
+- Created CFO MCP Server (8 tools) + Tribute MCP Server (4 tools)
+- Integrated Task Pool into AgentBridge (delegation → auto-track)
+- Created Brain Dump processor (long messages → parsed tasks)
+- Updated CLAUDE.md and AGENTS.md to v2.3 (tags, routing, escalation)
+- Total: 1735 tests (1559 old + 176 new), all passing
 
 ---
 
