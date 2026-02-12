@@ -12,7 +12,7 @@ from typing import Optional
 logger = logging.getLogger(__name__)
 
 _model = None
-_MODEL_SIZE = os.getenv("WHISPER_MODEL_SIZE", "small")  # small = 244MB
+_MODEL_SIZE = os.getenv("WHISPER_MODEL_SIZE", "tiny")  # tiny = 39MB (safe for Railway)
 
 
 def _get_model():

@@ -3,6 +3,7 @@ FROM python:3.11-slim
 WORKDIR /app
 
 ENV CREWAI_STORAGE_DIR=ai_corporation
+ENV WHISPER_MODEL_SIZE=tiny
 
 RUN apt-get update && apt-get install -y curl git ffmpeg chromium fonts-liberation libcairo2 && rm -rf /var/lib/apt/lists/*
 
@@ -19,8 +20,9 @@ COPY agents/ /app/agents/
 COPY crews/ /app/crews/
 COPY src/ /app/src/
 COPY data/ /app/data/
-COPY CLAUDE.md README.md /app/
+COPY CLAUDE.md AGENTS.md STATE.md README.md /app/
 COPY app.py run_telegram.py run_alexey_bot.py run_yuki_bot.py start.sh /app/
+COPY run_cfo_mcp.py run_tribute_mcp.py run_telegram_mcp.py run_kb_mcp.py /app/
 
 # Config: copy example, actual config comes via env vars or mounted volume
 RUN mkdir -p /app/config
