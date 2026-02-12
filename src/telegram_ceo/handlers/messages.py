@@ -14,8 +14,15 @@ from .callbacks import is_in_conditions_mode, get_conditions_proposal_id
 logger = logging.getLogger(__name__)
 router = Router()
 
-_chat_context: list[dict] = []
+_chat_contexts: dict[int, list[dict]] = {}
 MAX_CONTEXT = 20
+
+
+def _get_context(user_id: int) -> list[dict]:
+    """Get per-user chat context (isolated between users)."""
+    if user_id not in _chat_contexts:
+        _chat_contexts[user_id] = []
+    return _chat_contexts[user_id]
 
 
 @router.message(F.text)
@@ -42,14 +49,15 @@ async def handle_text(message: Message):
                 await message.answer("Предложение не найдено.")
             return
 
-    _chat_context.append({"role": "user", "text": user_text})
+    user_ctx = _get_context(message.from_user.id)
+    user_ctx.append({"role": "user", "text": user_text})
 
     status = await message.answer("💬 Алексей думает...")
 
     stop = asyncio.Event()
     typing_task = asyncio.create_task(keep_typing(message, stop))
 
-    context_str = _format_context(_chat_context[-MAX_CONTEXT:])
+    context_str = _format_context(user_ctx[-MAX_CONTEXT:])
 
     try:
         print(f"[CEO] msg from {message.from_user.id}: {user_text[:80]}", flush=True)
@@ -62,7 +70,7 @@ async def handle_text(message: Message):
             chat_id=message.chat.id,
         )
         print(f"[CEO] AgentBridge returned {len(response)} chars", flush=True)
-        _chat_context.append({"role": "assistant", "text": response})
+        user_ctx.append({"role": "assistant", "text": response})
 
         for chunk in format_for_telegram(response):
             await message.answer(chunk)

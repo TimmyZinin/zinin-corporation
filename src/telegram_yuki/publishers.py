@@ -91,25 +91,34 @@ class TelegramChannelPublisher(BasePublisher):
 
 
 class ThreadsPublisher(BasePublisher):
-    """Threads publisher — stub, awaiting API access."""
+    """Threads publisher — delegates to real ThreadsTimPublisher from smm_tools."""
 
     name = "threads"
     label = "Threads"
     emoji = "🧵"
 
     async def publish(self, text: str, image_path: str = "") -> str:
-        # Threads API requires Instagram Business account + Meta app review
-        return "Threads: публикация пока не настроена (ожидается доступ к API)"
+        import asyncio
+        from ..tools.smm_tools import ThreadsTimPublisher
+
+        tool = ThreadsTimPublisher()
+        if image_path and os.path.exists(image_path):
+            # Image posts need a publicly accessible URL; local path won't work
+            logger.warning("Threads image publish needs a public URL, falling back to text-only")
+        result = await asyncio.to_thread(tool._run, action="publish_text", text=text)
+        return result
 
     async def check_status(self) -> str:
-        token = os.getenv("THREADS_ACCESS_TOKEN", "")
-        if not token:
-            return "Threads: THREADS_ACCESS_TOKEN не настроен"
-        return "Threads: токен настроен (API в разработке)"
+        import asyncio
+        from ..tools.smm_tools import ThreadsTimPublisher
+
+        tool = ThreadsTimPublisher()
+        result = await asyncio.to_thread(tool._run, action="check_token")
+        return result
 
     @property
     def is_configured(self) -> bool:
-        return bool(os.getenv("THREADS_ACCESS_TOKEN"))
+        return bool(os.getenv("THREADS_ACCESS_TOKEN") and os.getenv("THREADS_USER_ID"))
 
 
 # ── Publisher Registry ──────────────────────────────────────────────────────

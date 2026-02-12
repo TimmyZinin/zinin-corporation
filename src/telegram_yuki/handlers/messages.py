@@ -20,8 +20,15 @@ from .commands import _parse_author_topic
 logger = logging.getLogger(__name__)
 router = Router()
 
-_chat_context: list[dict] = []
+_chat_contexts: dict[int, list[dict]] = {}
 MAX_CONTEXT = 20
+
+
+def _get_context(user_id: int) -> list[dict]:
+    """Get per-user chat context (isolated between users)."""
+    if user_id not in _chat_contexts:
+        _chat_contexts[user_id] = []
+    return _chat_contexts[user_id]
 
 # Patterns that trigger post generation
 POST_TRIGGERS = re.compile(
@@ -81,13 +88,14 @@ async def handle_text(message: Message):
         return
 
     # Default: send to Yuki agent as free conversation
-    _chat_context.append({"role": "user", "text": user_text})
+    user_ctx = _get_context(user_id)
+    user_ctx.append({"role": "user", "text": user_text})
 
     status = await message.answer("📱 Юки думает...")
     stop = asyncio.Event()
     typing_task = asyncio.create_task(keep_typing(message, stop))
 
-    context_str = _format_context(_chat_context[-MAX_CONTEXT:])
+    context_str = _format_context(user_ctx[-MAX_CONTEXT:])
 
     try:
         response = await AgentBridge.send_to_agent(
@@ -97,7 +105,7 @@ async def handle_text(message: Message):
             bot=message.bot,
             chat_id=message.chat.id,
         )
-        _chat_context.append({"role": "assistant", "text": response})
+        user_ctx.append({"role": "assistant", "text": response})
 
         for chunk in format_for_telegram(response):
             await message.answer(chunk)
