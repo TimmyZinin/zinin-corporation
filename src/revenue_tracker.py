@@ -29,13 +29,13 @@ DEFAULT_CHANNELS = {
 }
 
 
+_DATA_DIR = os.path.join(os.path.dirname(__file__), "..", "data")
+_REVENUE_PATH = os.path.join(_DATA_DIR, "revenue.json")
+
+
 def _revenue_path() -> str:
-    """Get path for revenue JSON file."""
-    for p in ["/app/data/revenue.json", "data/revenue.json"]:
-        parent = os.path.dirname(p)
-        if os.path.isdir(parent):
-            return p
-    return "data/revenue.json"
+    """Get path for revenue JSON file. Uses _REVENUE_PATH module variable (patchable in tests)."""
+    return _REVENUE_PATH
 
 
 def _load_revenue() -> dict:

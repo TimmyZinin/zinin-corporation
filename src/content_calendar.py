@@ -21,13 +21,13 @@ def _short_id() -> str:
     return uuid4().hex[:8]
 
 
+_DATA_DIR = os.path.join(os.path.dirname(__file__), "..", "data")
+_CALENDAR_PATH = os.path.join(_DATA_DIR, "content_calendar.json")
+
+
 def _calendar_path() -> str:
-    """Get path for content calendar JSON file."""
-    for p in ["/app/data/content_calendar.json", "data/content_calendar.json"]:
-        parent = os.path.dirname(p)
-        if os.path.isdir(parent):
-            return p
-    return "data/content_calendar.json"
+    """Get path for content calendar JSON file. Uses _CALENDAR_PATH module variable (patchable in tests)."""
+    return _CALENDAR_PATH
 
 
 def _load_calendar() -> dict:
