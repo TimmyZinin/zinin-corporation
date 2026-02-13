@@ -1,7 +1,8 @@
 # Zinin Corporation — System State
 
 > Auto-updated by agents. Manual edits welcome.
-> Last updated: 2026-02-14
+> Last updated: 2026-02-13
+> Strategy: v3.1 — Proactive System + Revenue-First + 3 Touchpoints
 
 ---
 
@@ -21,15 +22,16 @@
 
 ## Revenue Tracker
 
-**Goal: $2,500 MRR by March 2, 2026**
+**Goal: $2,500 MRR by March 2, 2026 (17 days left)**
 
-| Source | Current MRR | Target MRR | Progress |
-|--------|-------------|------------|----------|
-| Crypto Marketologists | ~$350 | $800-1,000 | 35-44% |
-| Sborka (Kristina) | $0 | $600-800 | 0% |
-| Personal brand (Tim) | $0 | $500-700 | 0% |
-| Sponsor placements | $0 | $200-400 | 0% |
-| **TOTAL** | **~$350** | **$2,500** | **14%** |
+| Source | Current MRR | Target MRR | Members | Progress |
+|--------|-------------|------------|---------|----------|
+| Crypto Marketologists | ~$350 | $800-1,000 | 215 | 35-44% |
+| Sborka (Kristina) | $0 | $600-800 | 0 → 20+ trial | 0% |
+| Botanica (botanicaschool.com) | ~$165 | $400-600 | 222 free + 3 paid | 28-41% |
+| Personal brand (Tim) | $0 | $300-500 | — | 0% |
+| Sponsor placements | $0 | $200-400 | — | 0% |
+| **TOTAL** | **~$515** | **$2,500** | | **21%** |
 
 ---
 
@@ -80,7 +82,7 @@
 
 #### BLOCKED
 - [ ] Kristina Threads — waiting for her Meta App credentials
-- [ ] Hetzner CX33 — needs ordering (Day 4-5)
+- [ ] Hetzner CX33 — Tim needs to register account
 
 ### Sprint 4: Analytics + Routing + NLU + Voice (Feb 13) — DONE
 
@@ -97,6 +99,41 @@
 - [x] CP-008: Brain Dump через голос — F.voice handler, OGG→WAV→text→brain dump/agent
 - [x] 201 new tests (1789 → 1990), 0 failures
 
+### Hotfix: Railway OOM + Health Check (Feb 13) — DONE
+
+- [x] Fix Railway OOM: faster-whisper removed from requirements.txt (ctranslate2 ~500MB too heavy)
+- [x] Whisper model default: tiny (39MB) instead of small (244MB)
+- [x] release_model() — free whisper RAM after transcription before CrewAI agent runs
+- [x] Remove Railway self-ping from API health check (502 because Streamlit disabled)
+- [x] Rule-based CTO analysis fallback (replaces "Автоматический анализ недоступен")
+- [x] Fix yuki.yaml — add missing anti-fabrication block
+- [x] Dockerfile: add MCP entry points + AGENTS.md + STATE.md
+- [x] Voice on Railway: gracefully disabled (is_voice_available() returns False)
+- Commits: `55f2ba7`, `d45000b`, `5b43a29`
+
+### Sprint 5: Revenue Sprint (Feb 13–18) — IN PROGRESS
+
+**Strategy:** v3.1 — Proactive System + Revenue-First + 3 Touchpoints
+
+#### P0 — Immediate (blocks revenue)
+- [ ] PRO-001: Proactive Daily Planner (`src/proactive_planner.py`) — action plan + inline keyboards
+- [ ] PRO-002: Revenue Tracker (`data/revenue.json`) — MRR per channel, gap, daily tracking
+- [ ] PRO-003: 3 Touchpoints scheduler: morning (9:00) + midday (14:00) + evening (20:00)
+- [ ] PRO-004: Agent auto-launch on [Запустить] button → AgentBridge → result
+- [ ] CS-002: SMM Юки image optimization (post without image = 3K views!)
+
+#### P1 — Today/Tomorrow (direct MRR impact)
+- [ ] RV-SBR-001: Sborka content plan: 5 posts over 5 days to Feb 18 launch
+- [ ] RV-SBR-002: Sborka landing/invite flow — Tribute link + CTA + trial messaging
+- [ ] RV-KRM-001: КРМКТЛ upsell strategy — premium tier for 215 members
+- [ ] CS-001: SMM Юки separate text + image generation
+- [ ] CS-003: SMM Юки image regeneration with refined prompt
+- [ ] CS-004: SMM Юки new approve flow (feedback → adjust → retry → publish)
+
+#### BLOCKED
+- [ ] Kristina Threads — waiting for her Meta App credentials
+- [ ] Hetzner migration — Tim needs to register Hetzner account (infra last)
+
 ---
 
 ## Token Usage (Estimated)
@@ -111,6 +148,28 @@
 ---
 
 ## Daily Log
+
+### 2026-02-13 (Strategy v3.0 — Paradigm Shift)
+- Strategy v3.0: Reactive → Proactive paradigm shift
+- Revenue update: actual MRR $515 (added Botanica $165/mo, 3 paid × 5500₽)
+- 5 revenue channels instead of 4 (КРМКТЛ, Sborka, Botanica, Personal, Sponsors)
+- Proactive Daily Planner designed: 3 touchpoints (09:00, 14:00, 20:00) with inline keyboards
+- Revenue Tracker: `data/revenue.json` — MRR per channel, gap tracking
+- Agent auto-launch: button press → AgentBridge → result → next step
+- Sborka soft launch plan: 5 posts Feb 14-18, 5 trial users, goal 20+
+- Botanica relaunch plan: async course + club, self-sustaining model
+- Unified backlog: 44 prioritized tasks (P0-P4), code first, infra last
+- Updated: strategy_v3_0.md, CLAUDE.md v3.0, STATE.md
+
+### 2026-02-13 (Hotfix — post-Sprint 4)
+- Railway OOM fix: faster-whisper removed from requirements (ctranslate2 too heavy for ~512MB RAM)
+- Whisper default: tiny (39MB), release_model() frees RAM after use
+- Railway self-ping removed from _API_REGISTRY (13 APIs instead of 14)
+- Rule-based CTO analysis: specific hints per API (rate limit, auth, timeout, missing keys)
+- yuki.yaml: added anti-fabrication block (was missing, test was failing)
+- Dockerfile updated: MCP entry points, AGENTS.md, STATE.md, WHISPER_MODEL_SIZE=tiny
+- Voice on Railway: gracefully disabled, works locally with `pip install faster-whisper`
+- 1990 tests still passing, 3 commits deployed
 
 ### 2026-02-13 (Sprint 4)
 - Unified Error Handler: categorize_error, format_error_for_user, safe_agent_call

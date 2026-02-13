@@ -3,7 +3,8 @@
 > **Mission:** Autonomous AI team managing communities, content, and finances to reach $2,500 MRR by March 2, 2026.
 > **Owner:** Tim Zinin (@TimmyZinin)
 > **Repo:** https://github.com/TimmyZinin/zinin-corporation
-> **Strategy:** v2.3 — CEO as sole navigator + Shared Task Pool + Dependency Engine
+> **Strategy:** v3.1 — Proactive System + Revenue-First + 3 Touchpoints
+> **Strategy doc:** [Google Drive — strategy_v3_1.md](Claude shared - разработка и скаченные/strategy_v3_1.md)
 
 ---
 
@@ -282,16 +283,44 @@ See `.env.example` for full list. Key vars:
 ## Revenue Target
 
 **Goal:** $2,500 MRR by March 2, 2026
+**Actual MRR:** ~$515 (КРМКТЛ $350 + Ботаника $165)
 
-| Source | Current | Target |
-|--------|---------|--------|
-| Crypto Marketologists (215 members) | ~$350 | $800-1,000 |
-| Sborka (with Kristina) | $0 | $600-800 |
-| Personal brand (Tim) | $0 | $500-700 |
-| Sponsor placements | $0 | $200-400 |
+| Source | Current | Target | Members | Deadline |
+|--------|---------|--------|---------|----------|
+| Crypto Marketologists | ~$350 | $800-1,000 | 215 | Ongoing |
+| Sborka (with Kristina) | $0 | $600-800 | 0 → 20+ trial | 18 Feb launch |
+| Botanica (botanicaschool.com) | ~$165 | $400-600 | 222 free + 3 paid | Mar relaunch |
+| Personal brand (Tim) | $0 | $300-500 | — | Ongoing |
+| Sponsor placements | $0 | $200-400 | — | 25 Feb |
 
 See [STATE.md](STATE.md) for live progress tracking.
 
 ---
 
-*Updated: February 14, 2026 — Sprint 4 (Analytics + NLU + Smart Routing + Voice + Error Handler)*
+## Proactive System (v3.1)
+
+**Paradigm:** System proposes → Tim decides → Agents execute → System proposes next step.
+
+### Modules
+- `src/proactive_planner.py` — Daily action plan generation, revenue gap tracking
+- `data/revenue.json` — MRR per channel, target, gap, daily history
+
+### 3 Touchpoints (replace 12 scattered jobs)
+| Time | What | Format |
+|------|------|--------|
+| 09:00 | Morning plan: revenue gap + 3-5 actions | Inline keyboards per action |
+| 14:00 | Mid-day check: progress + 1 quick decision | Inline keyboard |
+| 20:00 | Evening review: results + tomorrow plan | [Approve] [Adjust] |
+
+### Action Flow
+```
+Touchpoint → sends action items with [Launch] [Skip] buttons
+Tim presses [Launch] → AgentBridge runs appropriate agent
+Agent completes → result sent to Tim → next action suggested
+```
+
+Existing 12 scheduler jobs continue silently. Problems escalate into touchpoints.
+
+---
+
+*Updated: February 13, 2026 — Sprint 4 + Hotfix (OOM fix, health check, rule-based analysis)*
