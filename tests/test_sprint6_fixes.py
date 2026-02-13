@@ -1,8 +1,12 @@
-"""Tests for Sprint 6: scheduler import fixes + CEO image sender."""
+"""Tests for Sprint 6: scheduler import fixes + CEO image sender + CEO bot refactor."""
 
 import os
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
+
+from src.telegram_ceo.handlers.commands import VALID_AGENTS
+from src.telegram_ceo.handlers.messages import _AGENT_LABELS, AGENT_TIMEOUT_SEC
+from src.error_handler import format_error_for_user
 
 
 # ── Scheduler Import Fixes ────────────────────────────────────
@@ -244,3 +248,75 @@ class TestCEOHandlersImportImageSender:
     def test_image_sender_importable_from_handlers(self):
         from src.telegram_ceo.image_sender import send_images_from_response
         assert callable(send_images_from_response)
+
+
+# ── Sprint 6 Refactor: CEO Bot ──────────────────────────────────
+
+
+class TestValidAgentsRefactor:
+    """VALID_AGENTS must include all 6 agents."""
+
+    def test_includes_all_six(self):
+        expected = {"manager", "accountant", "automator", "smm", "designer", "cpo"}
+        assert VALID_AGENTS == expected
+
+    def test_designer_present(self):
+        assert "designer" in VALID_AGENTS
+
+    def test_cpo_present(self):
+        assert "cpo" in VALID_AGENTS
+
+
+class TestAgentLabelsRefactor:
+    """Agent labels dict must have all 6 agents."""
+
+    def test_six_labels(self):
+        assert len(_AGENT_LABELS) == 6
+
+    def test_designer_is_ryan(self):
+        assert "Райан" in _AGENT_LABELS["designer"]
+
+    def test_cpo_is_sophie(self):
+        assert "Софи" in _AGENT_LABELS["cpo"]
+
+
+class TestErrorSanitizationRefactor:
+    """Verify format_error_for_user works correctly."""
+
+    def test_html_escaped(self):
+        error = ValueError("<b>xss</b>")
+        result = format_error_for_user(error)
+        assert "<b>" not in result
+
+    def test_max_length(self):
+        error = ValueError("x" * 500)
+        result = format_error_for_user(error)
+        assert len(result) <= 220
+
+    def test_type_included(self):
+        error = RuntimeError("msg")
+        result = format_error_for_user(error)
+        assert "RuntimeError" in result
+
+
+class TestTimeoutConfig:
+    """Verify timeout constant."""
+
+    def test_timeout_120(self):
+        assert AGENT_TIMEOUT_SEC == 120
+
+
+class TestFastRouterModule:
+    """Verify fast_router.py module."""
+
+    def test_importable(self):
+        from src.telegram_ceo.fast_router import route_message, RouteResult
+        assert callable(route_message)
+
+    def test_route_returns_dataclass(self):
+        from src.telegram_ceo.fast_router import route_message
+        result = route_message("тест")
+        assert hasattr(result, "route_type")
+        assert hasattr(result, "agent_name")
+        assert hasattr(result, "confidence")
+        assert hasattr(result, "intent_command")

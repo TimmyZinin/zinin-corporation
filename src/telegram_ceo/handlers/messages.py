@@ -9,6 +9,7 @@ from aiogram.types import Message
 from ...telegram.bridge import AgentBridge
 from ...telegram.formatters import format_for_telegram
 from ...telegram.handlers.commands import keep_typing
+from ...error_handler import format_error_for_user
 from .callbacks import (
     is_in_conditions_mode, get_conditions_proposal_id,
     is_in_new_task_mode, _new_task_state,
@@ -18,6 +19,8 @@ from .callbacks import (
 
 logger = logging.getLogger(__name__)
 router = Router()
+
+AGENT_TIMEOUT_SEC = 120
 
 _chat_contexts: dict[int, list[dict]] = {}
 MAX_CONTEXT = 20
@@ -67,6 +70,21 @@ async def _execute_intent(message: Message, intent):
         await handler(message)
     else:
         logger.warning(f"No handler for intent: {intent.command}")
+
+
+async def _progress_updater(status_msg, agent_label: str, stop_event: asyncio.Event, interval: int = 30):
+    """Update status message every `interval` seconds with elapsed time."""
+    elapsed = 0
+    while not stop_event.is_set():
+        try:
+            await asyncio.wait_for(asyncio.shield(stop_event.wait()), timeout=interval)
+            break  # stop_event was set
+        except asyncio.TimeoutError:
+            elapsed += interval
+            try:
+                await status_msg.edit_text(f"💬 {agent_label} работает... ({elapsed} сек)")
+            except Exception:
+                pass  # message already deleted or can't edit
 
 
 def _get_context(user_id: int) -> list[dict]:
@@ -169,13 +187,17 @@ async def handle_text(message: Message):
                 await message.answer("Предложение не найдено.")
             return
 
-    # NLU intent detection — redirect to commands if confident
-    from ..nlu import detect_intent, detect_agent
-    intent = detect_intent(user_text)
-    if intent and intent.confidence >= 0.7:
-        logger.info(f"NLU: intent={intent.command} conf={intent.confidence:.2f}")
-        await _execute_intent(message, intent)
-        return
+    # Fast Router: intent → agent → fallback (0 LLM for routing)
+    from ..fast_router import route_message
+    route = route_message(user_text)
+
+    # Intent route → redirect to command handler
+    if route.route_type == "intent":
+        from ..nlu import detect_intent
+        intent = detect_intent(user_text)
+        if intent:
+            await _execute_intent(message, intent)
+            return
 
     # Brain dump detection — long structured messages → Task Pool
     from ...brain_dump import is_brain_dump, parse_brain_dump, format_brain_dump_result
@@ -189,12 +211,8 @@ async def handle_text(message: Message):
             await message.answer(result_text, reply_markup=task_menu_keyboard(), parse_mode="HTML")
             return
 
-    # Smart agent routing — detect target agent from text
-    agent_target = detect_agent(user_text)
-    agent_name = "manager"  # default fallback
-    if agent_target and agent_target[1] >= 0.7:
-        agent_name = agent_target[0]
-        logger.info(f"NLU routing: {agent_name} (conf={agent_target[1]:.2f})")
+    # Agent route from fast_router (agent detection or fallback)
+    agent_name = route.agent_name or "manager"
 
     user_ctx = _get_context(message.from_user.id)
     user_ctx.append({"role": "user", "text": user_text})
@@ -204,18 +222,22 @@ async def handle_text(message: Message):
 
     stop = asyncio.Event()
     typing_task = asyncio.create_task(keep_typing(message, stop))
+    progress_task = asyncio.create_task(_progress_updater(status, agent_label, stop))
 
     context_str = _format_context(user_ctx[-MAX_CONTEXT:])
 
     try:
         print(f"[CEO] msg from {message.from_user.id}: {user_text[:80]}", flush=True)
         print(f"[CEO] Calling AgentBridge.send_to_agent({agent_name})...", flush=True)
-        response = await AgentBridge.send_to_agent(
-            message=user_text,
-            agent_name=agent_name,
-            chat_context=context_str,
-            bot=message.bot,
-            chat_id=message.chat.id,
+        response = await asyncio.wait_for(
+            AgentBridge.send_to_agent(
+                message=user_text,
+                agent_name=agent_name,
+                chat_context=context_str,
+                bot=message.bot,
+                chat_id=message.chat.id,
+            ),
+            timeout=AGENT_TIMEOUT_SEC,
         )
         print(f"[CEO] AgentBridge returned {len(response)} chars", flush=True)
         user_ctx.append({"role": "assistant", "text": response})
@@ -227,12 +249,19 @@ async def handle_text(message: Message):
         for chunk in format_for_telegram(response):
             await message.answer(chunk)
 
+    except asyncio.TimeoutError:
+        logger.warning(f"Agent {agent_name} timed out after {AGENT_TIMEOUT_SEC}s")
+        await message.answer(
+            f"⏱ {agent_label} не ответил за {AGENT_TIMEOUT_SEC} сек.\n"
+            f"Попробуйте /route {agent_name} <задача> для прямого вызова."
+        )
     except Exception as e:
         logger.error(f"CEO message handler error: {e}", exc_info=True)
-        await message.answer(f"Ошибка: {type(e).__name__}: {str(e)[:200]}")
+        await message.answer(f"Ошибка: {format_error_for_user(e)}")
     finally:
         stop.set()
         await typing_task
+        await progress_task
         try:
             await status.delete()
         except Exception:
@@ -249,8 +278,8 @@ async def handle_voice(message: Message):
 
     if not is_voice_available():
         await message.answer(
-            "🎙️ Голосовые сообщения пока не поддерживаются "
-            "(faster-whisper не установлен)."
+            "🎙️ Voice отключён на сервере (экономия RAM).\n"
+            "Отправьте текстом — я обработаю так же."
         )
         return
 
@@ -306,28 +335,36 @@ async def handle_voice(message: Message):
         context_str = _format_context(user_ctx[-MAX_CONTEXT:])
 
         try:
-            response = await AgentBridge.send_to_agent(
-                message=text,
-                agent_name="manager",
-                chat_context=context_str,
-                bot=message.bot,
-                chat_id=message.chat.id,
+            response = await asyncio.wait_for(
+                AgentBridge.send_to_agent(
+                    message=text,
+                    agent_name="manager",
+                    chat_context=context_str,
+                    bot=message.bot,
+                    chat_id=message.chat.id,
+                ),
+                timeout=AGENT_TIMEOUT_SEC,
             )
             user_ctx.append({"role": "assistant", "text": response})
             from ..image_sender import send_images_from_response
             response = await send_images_from_response(message.bot, message.chat.id, response)
             for chunk in format_for_telegram(response):
                 await message.answer(chunk)
+        except asyncio.TimeoutError:
+            logger.warning(f"Voice agent timed out after {AGENT_TIMEOUT_SEC}s")
+            await message.answer(
+                f"⏱ Агент не ответил за {AGENT_TIMEOUT_SEC} сек. Отправьте текстом ещё раз."
+            )
         except Exception as e:
             logger.error(f"Voice → agent error: {e}", exc_info=True)
-            await message.answer(f"Ошибка: {type(e).__name__}: {str(e)[:200]}")
+            await message.answer(f"Ошибка: {format_error_for_user(e)}")
         finally:
             stop.set()
             await typing_task
 
     except Exception as e:
         logger.error(f"Voice handler error: {e}", exc_info=True)
-        await message.answer(f"Ошибка обработки голоса: {str(e)[:200]}")
+        await message.answer(f"Ошибка обработки голоса: {format_error_for_user(e)}")
     finally:
         # Cleanup temp files
         for path in [ogg_path, wav_path]:

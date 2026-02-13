@@ -9,6 +9,8 @@ from datetime import datetime, timedelta
 from aiogram import Router, F
 from aiogram.types import CallbackQuery
 
+from ...error_handler import format_error_for_user
+
 logger = logging.getLogger(__name__)
 
 router = Router()
@@ -914,17 +916,23 @@ async def on_action_launch(callback: CallbackQuery):
 
         try:
             if method_name == "send_to_agent":
-                result = await AgentBridge.send_to_agent(
-                    message=kwargs.get("message", action.title),
-                    agent_name=action.target_agent,
+                result = await asyncio.wait_for(
+                    AgentBridge.send_to_agent(
+                        message=kwargs.get("message", action.title),
+                        agent_name=action.target_agent,
+                    ),
+                    timeout=120,
                 )
             elif hasattr(AgentBridge, method_name):
                 method = getattr(AgentBridge, method_name)
-                result = await method(**kwargs)
+                result = await asyncio.wait_for(method(**kwargs), timeout=120)
             else:
-                result = await AgentBridge.send_to_agent(
-                    message=action.title,
-                    agent_name=action.target_agent,
+                result = await asyncio.wait_for(
+                    AgentBridge.send_to_agent(
+                        message=action.title,
+                        agent_name=action.target_agent,
+                    ),
+                    timeout=120,
                 )
 
             set_action_status(action_id, "completed")
@@ -950,14 +958,20 @@ async def on_action_launch(callback: CallbackQuery):
             else:
                 await callback.message.answer("✅ Все действия выполнены!")
 
+        except asyncio.TimeoutError:
+            logger.warning(f"Action {action_id} timed out after 120s")
+            set_action_status(action_id, "pending")
+            await callback.message.answer(
+                f"⏱ Действие не выполнено за 120 сек. Попробуйте снова."
+            )
         except Exception as e:
             logger.error(f"Action launch error: {e}", exc_info=True)
             set_action_status(action_id, "pending")  # Return to pending on failure
-            await callback.message.answer(f"❌ Ошибка: {str(e)[:200]}")
+            await callback.message.answer(f"❌ Ошибка: {format_error_for_user(e)}")
 
     except Exception as e:
         logger.error(f"Action launch handler error: {e}", exc_info=True)
-        await callback.answer(f"Ошибка: {str(e)[:100]}", show_alert=True)
+        await callback.answer(f"Ошибка: {format_error_for_user(e)[:100]}", show_alert=True)
 
 
 @router.callback_query(F.data.startswith("action_skip:"))
@@ -990,7 +1004,7 @@ async def on_action_skip(callback: CallbackQuery):
 
     except Exception as e:
         logger.error(f"Action skip error: {e}", exc_info=True)
-        await callback.answer(f"Ошибка: {str(e)[:100]}", show_alert=True)
+        await callback.answer(f"Ошибка: {format_error_for_user(e)[:100]}", show_alert=True)
 
 
 @router.callback_query(F.data == "evening_approve")

@@ -14,7 +14,7 @@ from ...activity_tracker import get_all_statuses, get_agent_task_count, AGENT_NA
 logger = logging.getLogger(__name__)
 router = Router()
 
-VALID_AGENTS = {"accountant", "automator", "smm", "manager"}
+VALID_AGENTS = {"accountant", "automator", "smm", "manager", "designer", "cpo"}
 
 
 @router.message(CommandStart())
@@ -65,6 +65,8 @@ async def cmd_status(message: Message):
         "accountant": "Маттиас (CFO)",
         "automator": "Мартин (CTO)",
         "smm": "Юки (SMM)",
+        "designer": "Райан (Designer)",
+        "cpo": "Софи (CPO)",
     }
 
     lines = ["Статус агентов Zinin Corp:\n"]
@@ -126,7 +128,7 @@ async def cmd_delegate(message: Message):
     if len(parts) < 3:
         await message.answer(
             "Формат: /delegate <агент> <задача>\n"
-            "Агенты: accountant, automator, smm\n\n"
+            "Агенты: accountant, automator, smm, designer, cpo\n\n"
             "Пример: /delegate accountant Подготовь бюджет на Q1"
         )
         return
@@ -358,6 +360,7 @@ async def cmd_help(message: Message):
         "/tasks — Сводка всех задач\n\n"
         "Делегация:\n"
         "/delegate <агент> <задача> — Прямая делегация\n"
+        "/route <агент> <задача> — Маршрутизация к агенту (алиасы: ceo, cfo, cto, smm, designer, cpo)\n"
         "/help — Эта справка\n\n"
-        "Агенты: accountant (Маттиас), automator (Мартин), smm (Юки)"
+        "Агенты: accountant (Маттиас), automator (Мартин), smm (Юки), designer (Райан), cpo (Софи)"
     )

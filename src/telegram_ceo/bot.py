@@ -47,11 +47,13 @@ async def main():
 
     # Scheduler for proactive messages
     scheduler = None
+    job_count = 0
     try:
         from .scheduler import setup_ceo_scheduler
         scheduler = setup_ceo_scheduler(bot, config)
         scheduler.start()
-        logger.info("CEO scheduler started")
+        job_count = len(scheduler.get_jobs())
+        logger.info(f"CEO scheduler started with {job_count} jobs")
     except ImportError:
         logger.warning("APScheduler not available — CEO proactive messages disabled")
 
@@ -62,6 +64,18 @@ async def main():
         logger.info("Corporation pre-initialized and ready")
     except Exception as e:
         logger.error(f"Corporation pre-init failed: {e} — will retry on first message")
+
+    # Startup notification
+    if config.allowed_user_ids:
+        try:
+            await bot.send_message(
+                config.allowed_user_ids[0],
+                f"CEO Bot запущен.\n"
+                f"Scheduler: {job_count} jobs active.\n"
+                f"Touchpoints: 09:00, 14:00, 20:00 MSK.",
+            )
+        except Exception as e:
+            logger.warning(f"Startup notification failed: {e}")
 
     logger.info("Алексей CEO Telegram bot starting...")
 

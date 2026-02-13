@@ -9,9 +9,21 @@ from apscheduler.triggers.cron import CronTrigger
 from ..telegram.bridge import AgentBridge
 from ..telegram.formatters import format_for_telegram
 from ..activity_tracker import get_all_statuses, get_agent_task_count
+from ..error_handler import format_error_for_user
 from .config import CeoTelegramConfig
 
 logger = logging.getLogger(__name__)
+
+
+async def _notify_job_error(bot: Bot, chat_id: int, job_name: str, error: Exception):
+    """Forward scheduler job error to Tim's chat."""
+    try:
+        await bot.send_message(
+            chat_id,
+            f"⚠️ Scheduler job '{job_name}' failed:\n{format_error_for_user(error)}",
+        )
+    except Exception:
+        logger.error(f"Failed to send job error notification for {job_name}")
 
 
 def setup_ceo_scheduler(bot: Bot, config: CeoTelegramConfig) -> AsyncIOScheduler:
@@ -63,6 +75,7 @@ def setup_ceo_scheduler(bot: Bot, config: CeoTelegramConfig) -> AsyncIOScheduler
             await bot.send_message(chat_id, "\n".join(lines))
         except Exception as e:
             logger.error(f"Morning briefing failed: {e}")
+            await _notify_job_error(bot, chat_id, "morning_briefing", e)
 
     scheduler.add_job(
         morning_briefing,
@@ -81,7 +94,7 @@ def setup_ceo_scheduler(bot: Bot, config: CeoTelegramConfig) -> AsyncIOScheduler
             logger.error(f"Weekly corporation report failed: {e}")
             await bot.send_message(
                 chat_id,
-                f"Алексей: Не удалось подготовить еженедельный отчёт. Ошибка: {str(e)[:200]}",
+                f"Алексей: Не удалось подготовить еженедельный отчёт. Ошибка: {format_error_for_user(e)}",
             )
 
     scheduler.add_job(
@@ -432,6 +445,7 @@ def setup_ceo_scheduler(bot: Bot, config: CeoTelegramConfig) -> AsyncIOScheduler
             logger.info("Evening report sent")
         except Exception as e:
             logger.error(f"Evening report failed: {e}")
+            await _notify_job_error(bot, chat_id, "evening_report", e)
 
     scheduler.add_job(
         evening_report,
@@ -478,6 +492,7 @@ def setup_ceo_scheduler(bot: Bot, config: CeoTelegramConfig) -> AsyncIOScheduler
             logger.info(f"Proactive morning: {len(actions)} actions sent")
         except Exception as e:
             logger.error(f"Proactive morning failed: {e}")
+            await _notify_job_error(bot, chat_id, "proactive_morning", e)
 
     scheduler.add_job(
         proactive_morning,
@@ -505,6 +520,7 @@ def setup_ceo_scheduler(bot: Bot, config: CeoTelegramConfig) -> AsyncIOScheduler
             logger.info(f"Proactive midday: {len(actions)} actions sent")
         except Exception as e:
             logger.error(f"Proactive midday failed: {e}")
+            await _notify_job_error(bot, chat_id, "proactive_midday", e)
 
     scheduler.add_job(
         proactive_midday,
@@ -529,6 +545,7 @@ def setup_ceo_scheduler(bot: Bot, config: CeoTelegramConfig) -> AsyncIOScheduler
             logger.info("Proactive evening review sent")
         except Exception as e:
             logger.error(f"Proactive evening failed: {e}")
+            await _notify_job_error(bot, chat_id, "proactive_evening", e)
 
     scheduler.add_job(
         proactive_evening,

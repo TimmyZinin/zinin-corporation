@@ -350,7 +350,7 @@ class TestCeoMessages:
         """CEO messages should default to 'manager' agent via fast_router."""
         from src.telegram_ceo.handlers import messages
         src = inspect.getsource(messages.handle_text)
-        assert 'route.agent_name or "manager"' in src
+        assert 'agent_name = route.agent_name or "manager"' in src
 
 
 # ──────────────────────────────────────────────────────────
