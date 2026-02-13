@@ -87,12 +87,26 @@ async def handle_text(message: Message):
 
     # Check for natural language post triggers
     if POST_TRIGGERS.search(user_text):
-        author, brand, topic = _parse_author_topic(user_text)
+        author, brand, topic, platform = _parse_author_topic(user_text)
         if not topic:
             topic = POST_TRIGGERS.sub("", user_text).strip()
         if not topic:
             topic = user_text
-        await _generate_post_flow(message, topic, author, brand)
+
+        if platform:
+            # Platform detected from text → generate directly
+            await _generate_post_flow(message, topic, author, brand, platform=platform)
+        else:
+            # No platform detected → show pre-select keyboard
+            from .callbacks import _preselect_state
+            from ..keyboards import preselect_keyboard
+            _preselect_state[message.from_user.id] = {
+                "topic": topic, "author": author, "brand": brand,
+            }
+            await message.answer(
+                f"📝 Пост: {topic}\n\nВыберите автора и платформу:",
+                reply_markup=preselect_keyboard(author, brand),
+            )
         return
 
     # Default: send to Yuki agent as free conversation
@@ -288,14 +302,27 @@ async def _handle_edit_feedback(message: Message, post_id: str, feedback: str):
             pass
 
 
-async def _generate_post_flow(message: Message, topic: str, author: str = "kristina", brand: str = "sborka"):
+async def _generate_post_flow(
+    message: Message,
+    topic: str,
+    author: str = "kristina",
+    brand: str = "sborka",
+    platform: str = "linkedin",
+):
     """Generate a post from natural language trigger. CS-001: text first, image deferred."""
     if circuit_breaker.is_open:
         await message.answer("Circuit breaker активен. Подожди или /health.")
         return
 
+    platform_labels = {
+        "linkedin": "💼 LinkedIn", "threads": "🧵 Threads",
+        "telegram": "📱 Telegram", "all": "📢 Все",
+    }
     author_label = AUTHORS.get(author, {}).get("label", author)
-    status_msg = await message.answer(f"📱 Готовлю пост от {author_label}: {topic[:40]}...")
+    plat_label = platform_labels.get(platform, platform)
+    status_msg = await message.answer(
+        f"📱 Готовлю пост от {author_label} для {plat_label}: {topic[:40]}..."
+    )
     stop = asyncio.Event()
     typing_task = asyncio.create_task(keep_typing(message, stop))
 
@@ -303,9 +330,16 @@ async def _generate_post_flow(message: Message, topic: str, author: str = "krist
         post_text = await AgentBridge.run_generate_post(topic=topic, author=author)
         circuit_breaker.record_success()
 
+        # Set platforms from pre-selection
+        if platform == "all":
+            platforms = ["linkedin", "threads", "telegram"]
+        else:
+            platforms = [platform]
+
         # CS-001: Text first, image deferred (no auto-generation)
         post_id = DraftManager.create_draft(
             topic=topic, text=post_text, author=author, brand=brand,
+            platforms=platforms,
             image_path="",
         )
 
@@ -315,7 +349,7 @@ async def _generate_post_flow(message: Message, topic: str, author: str = "krist
         # CS-002: Use post_ready_keyboard with image choice
         await message.answer(
             f"Пост готов (ID: {post_id})\n"
-            f"Автор: {author_label} | Бренд: {brand}\n"
+            f"Автор: {author_label} | Платформа: {plat_label}\n"
             f"Что делаем?",
             reply_markup=post_ready_keyboard(post_id),
         )

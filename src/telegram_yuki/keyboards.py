@@ -164,3 +164,67 @@ def feedback_keyboard(post_id: str) -> InlineKeyboardMarkup:
             ),
         ],
     ])
+
+
+def preselect_keyboard(
+    current_author: str = "", current_platform: str = "",
+) -> InlineKeyboardMarkup:
+    """Account + platform pre-selection before post generation.
+
+    Highlights current author/platform with checkmarks.
+    """
+    def _mark(label: str, key: str, current: str) -> str:
+        return f"✓ {label}" if key == current else label
+
+    buttons = [
+        # Author row
+        [
+            InlineKeyboardButton(
+                text=_mark("👩 Кристина", "kristina", current_author),
+                callback_data="pre_author:kristina",
+            ),
+            InlineKeyboardButton(
+                text=_mark("👤 Тим", "tim", current_author),
+                callback_data="pre_author:tim",
+            ),
+        ],
+        # Platform row
+        [
+            InlineKeyboardButton(
+                text=_mark("💼 LinkedIn", "linkedin", current_platform),
+                callback_data="pre_platform:linkedin",
+            ),
+            InlineKeyboardButton(
+                text=_mark("🧵 Threads", "threads", current_platform),
+                callback_data="pre_platform:threads",
+            ),
+            InlineKeyboardButton(
+                text=_mark("📱 Telegram", "telegram", current_platform),
+                callback_data="pre_platform:telegram",
+            ),
+        ],
+        # All platforms
+        [
+            InlineKeyboardButton(
+                text=_mark("📢 Все платформы", "all", current_platform),
+                callback_data="pre_platform:all",
+            ),
+        ],
+    ]
+    return InlineKeyboardMarkup(inline_keyboard=buttons)
+
+
+def preselect_confirm_keyboard() -> InlineKeyboardMarkup:
+    """Confirm pre-selection and start generation."""
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [
+            InlineKeyboardButton(
+                text="✅ Генерировать",
+                callback_data="pre_go",
+            ),
+            InlineKeyboardButton(
+                text="🔄 Изменить",
+                callback_data="pre_change",
+            ),
+        ],
+    ])

@@ -28,15 +28,34 @@ _AUTHOR_RE = re.compile(
 _BRAND_RE = re.compile(
     r"\b(для личного бренда|личный бренд|personal)\b", re.IGNORECASE
 )
+_PLATFORM_RE = re.compile(
+    r"\b(для\s+)?(линкедин|linkedin|тредс|threads|телеграм|telegram|все платформы|all)\b",
+    re.IGNORECASE,
+)
+PLATFORM_MAP = {
+    "линкедин": "linkedin", "linkedin": "linkedin",
+    "тредс": "threads", "threads": "threads",
+    "телеграм": "telegram", "telegram": "telegram",
+    "все платформы": "all", "all": "all",
+}
 
 
-def _parse_author_topic(text: str) -> tuple[str, str, str]:
-    """Parse author, brand, and topic from command text.
+def _parse_author_topic(text: str) -> tuple[str, str, str, str | None]:
+    """Parse author, brand, topic, and platform from command text.
 
-    Returns (author, brand, topic).
+    Returns (author, brand, topic, platform).
+    Platform is None if not detected from text.
     """
     author = "kristina"
     brand = "sborka"
+    platform: str | None = None
+
+    # Check for platform
+    pm = _PLATFORM_RE.search(text)
+    if pm:
+        raw = pm.group(2).lower()
+        platform = PLATFORM_MAP.get(raw)
+        text = _PLATFORM_RE.sub("", text)
 
     # Check for brand override first
     if _BRAND_RE.search(text):
@@ -64,7 +83,7 @@ def _parse_author_topic(text: str) -> tuple[str, str, str]:
         parts = topic.split(maxsplit=1)
         topic = parts[1] if len(parts) > 1 else ""
 
-    return author, brand, topic.strip()
+    return author, brand, topic.strip(), platform
 
 
 @router.message(CommandStart())
@@ -123,7 +142,7 @@ async def cmd_help(message: Message):
 async def cmd_post(message: Message):
     """Generate a post: /пост от Тима AI-агенты в бизнесе."""
     text = message.text or ""
-    author, brand, topic = _parse_author_topic(text)
+    author, brand, topic, platform = _parse_author_topic(text)
 
     if not topic:
         await message.answer(
@@ -131,6 +150,7 @@ async def cmd_post(message: Message):
             "Примеры:\n"
             "• /пост AI-агенты в бизнесе\n"
             "• /пост от Тима карьерный рост\n"
+            "• /пост для тредс AI-тренды\n"
             "• /пост для личного бренда AI в 2026\n"
             "• /post future of remote work"
         )
@@ -144,56 +164,23 @@ async def cmd_post(message: Message):
         )
         return
 
-    author_label = AUTHORS.get(author, {}).get("label", author)
-    status_msg = await message.answer(
-        f"📱 Юки готовит пост от {author_label}: {topic[:40]}... (30–60 сек)"
+    # If platform detected from text → generate directly
+    if platform:
+        from ..handlers.messages import _generate_post_flow
+        await _generate_post_flow(message, topic, author, brand, platform=platform)
+        return
+
+    # No platform detected → show pre-select keyboard
+    from .callbacks import _preselect_state
+    from ..keyboards import preselect_keyboard
+    _preselect_state[message.from_user.id] = {
+        "topic": topic, "author": author, "brand": brand,
+    }
+    await message.answer(
+        f"📝 Пост: {topic}\n\n"
+        f"Выберите автора и платформу:",
+        reply_markup=preselect_keyboard(author, brand),
     )
-
-    stop = asyncio.Event()
-    from ...telegram.handlers.commands import keep_typing
-    typing_task = asyncio.create_task(keep_typing(message, stop))
-
-    try:
-        post_text = await AgentBridge.run_generate_post(
-            topic=topic, author=author
-        )
-
-        # Record success for circuit breaker
-        circuit_breaker.record_success()
-
-        # CS-001: Text first, image deferred (no auto-generation)
-        post_id = DraftManager.create_draft(
-            topic=topic,
-            text=post_text,
-            author=author,
-            brand=brand,
-            image_path="",
-        )
-
-        # Send post text
-        for chunk in format_for_telegram(post_text):
-            await message.answer(chunk)
-
-        # CS-002: Use post_ready_keyboard with image choice
-        from ..keyboards import post_ready_keyboard
-        await message.answer(
-            f"Пост готов (ID: {post_id})\n"
-            f"Автор: {author_label} | Бренд: {brand}\n"
-            f"Что делаем?",
-            reply_markup=post_ready_keyboard(post_id),
-        )
-
-    except Exception as e:
-        circuit_breaker.record_failure()
-        logger.error(f"Post generation error: {e}", exc_info=True)
-        await message.answer(f"Ошибка генерации: {type(e).__name__}: {str(e)[:200]}")
-    finally:
-        stop.set()
-        await typing_task
-        try:
-            await status_msg.delete()
-        except Exception:
-            pass
 
 
 @router.message(Command(commands=["подкаст", "podcast"]))

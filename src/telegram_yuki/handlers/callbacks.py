@@ -15,6 +15,7 @@ from ..keyboards import (
     approval_keyboard, reject_reasons_keyboard, platform_keyboard,
     time_keyboard, author_keyboard, feedback_keyboard,
     approval_with_image_keyboard, post_ready_keyboard,
+    preselect_keyboard, preselect_confirm_keyboard,
 )
 from ..drafts import DraftManager
 from ..image_gen import generate_image, generate_image_with_refinement
@@ -25,12 +26,135 @@ from ..safety import circuit_breaker
 logger = logging.getLogger(__name__)
 router = Router()
 
+# Pre-selection state: user_id → {"topic": str, "author": str, "brand": str, "platform": str}
+_preselect_state: dict[int, dict] = {}
+
+
+# ── Pre-selection flow ─────────────────────────────────────────────────────
+
+@router.callback_query(F.data.startswith("pre_author:"))
+async def on_pre_author(callback: CallbackQuery):
+    """User selected author in pre-select keyboard."""
+    user_id = callback.from_user.id
+    author = callback.data.split(":")[1]
+    state = _preselect_state.get(user_id)
+    if not state:
+        await callback.answer("Сессия истекла. Отправь запрос заново.")
+        return
+
+    state["author"] = author
+    # Update brand: personal only for tim
+    if author == "tim" and state.get("brand") == "sborka":
+        pass  # Keep sborka as default for tim
+    elif author == "kristina":
+        state["brand"] = "sborka"
+
+    # If both author and platform selected → show confirm
+    if "platform" in state:
+        await _show_preselect_summary(callback, state)
+    else:
+        from ..keyboards import preselect_keyboard
+        await callback.message.edit_text(
+            f"📝 Пост: {state.get('topic', '?')}\n\n"
+            f"Выберите автора и платформу:",
+            reply_markup=preselect_keyboard(
+                current_author=author,
+                current_platform=state.get("platform", ""),
+            ),
+        )
+        await callback.answer(f"Автор: {author}")
+
+
+@router.callback_query(F.data.startswith("pre_platform:"))
+async def on_pre_platform(callback: CallbackQuery):
+    """User selected platform in pre-select keyboard."""
+    user_id = callback.from_user.id
+    platform = callback.data.split(":")[1]
+    state = _preselect_state.get(user_id)
+    if not state:
+        await callback.answer("Сессия истекла. Отправь запрос заново.")
+        return
+
+    state["platform"] = platform
+
+    # If author already set (always is from parser default) → show confirm
+    await _show_preselect_summary(callback, state)
+
+
+@router.callback_query(F.data == "pre_go")
+async def on_pre_go(callback: CallbackQuery):
+    """User confirmed pre-selection. Start generation."""
+    user_id = callback.from_user.id
+    state = _preselect_state.pop(user_id, None)
+    if not state:
+        await callback.answer("Сессия истекла. Отправь запрос заново.")
+        return
+
+    topic = state.get("topic", "")
+    author = state.get("author", "kristina")
+    brand = state.get("brand", "sborka")
+    platform = state.get("platform", "linkedin")
+
+    await callback.answer("Генерирую...")
+    await callback.message.edit_text(
+        f"📱 Генерирую пост: {topic[:40]}...\n"
+        f"Автор: {author} | Платформа: {platform}"
+    )
+
+    # Run generation with platform
+    from .messages import _generate_post_flow
+    await _generate_post_flow(
+        callback.message, topic, author, brand, platform=platform
+    )
+
+
+@router.callback_query(F.data == "pre_change")
+async def on_pre_change(callback: CallbackQuery):
+    """Reset pre-selection — show keyboard again."""
+    user_id = callback.from_user.id
+    state = _preselect_state.get(user_id, {})
+    # Clear platform to reset selection
+    state.pop("platform", None)
+    topic = state.get("topic", "")
+
+    from ..keyboards import preselect_keyboard
+    await callback.message.edit_text(
+        f"📝 Пост: {topic}\n\nВыберите автора и платформу:",
+        reply_markup=preselect_keyboard(
+            current_author=state.get("author", ""),
+        ),
+    )
+    await callback.answer()
+
+
+async def _show_preselect_summary(callback: CallbackQuery, state: dict):
+    """Show summary of pre-selection and confirm button."""
+    topic = state.get("topic", "?")
+    author = state.get("author", "kristina")
+    platform = state.get("platform", "linkedin")
+
+    author_labels = {"kristina": "👩 Кристина", "tim": "👤 Тим"}
+    platform_labels = {
+        "linkedin": "💼 LinkedIn", "threads": "🧵 Threads",
+        "telegram": "📱 Telegram", "all": "📢 Все платформы",
+    }
+
+    from ..keyboards import preselect_confirm_keyboard
+    await callback.message.edit_text(
+        f"📝 Пост: {topic}\n\n"
+        f"Автор: {author_labels.get(author, author)}\n"
+        f"Платформа: {platform_labels.get(platform, platform)}\n\n"
+        f"Всё верно?",
+        reply_markup=preselect_confirm_keyboard(),
+    )
+    await callback.answer()
+
 
 # ── Approval → Platform selection ───────────────────────────────────────────
 
 @router.callback_query(F.data.startswith("approve:"))
 async def on_approve(callback: CallbackQuery):
-    """Approve post → show platform selection."""
+    """Approve post → show platform selection (or skip if pre-selected)."""
     post_id = callback.data.split(":")[1]
     draft = DraftManager.get_draft(post_id)
     if not draft:
@@ -38,10 +162,25 @@ async def on_approve(callback: CallbackQuery):
         return
 
     DraftManager.update_draft(post_id, status="approved")
-    await callback.message.edit_text(
-        f"Пост одобрен (ID: {post_id})\nГде публикуем?",
-        reply_markup=platform_keyboard(post_id),
-    )
+
+    # If platforms were pre-selected → skip platform keyboard, go to time
+    platforms = draft.get("platforms", [])
+    if platforms and platforms != ["linkedin"]:
+        platform_labels = []
+        for p in platforms:
+            pub = get_publisher(p)
+            platform_labels.append(f"{pub.emoji} {pub.label}" if pub else p)
+        await callback.message.edit_text(
+            f"Пост одобрен (ID: {post_id})\n"
+            f"Платформы: {', '.join(platform_labels)}\n"
+            f"Когда публикуем?",
+            reply_markup=time_keyboard(post_id),
+        )
+    else:
+        await callback.message.edit_text(
+            f"Пост одобрен (ID: {post_id})\nГде публикуем?",
+            reply_markup=platform_keyboard(post_id),
+        )
     await callback.answer()
 
 
