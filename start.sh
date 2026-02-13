@@ -34,6 +34,12 @@ else
     echo "TELEGRAM_YUKI_BOT_TOKEN not set — Юки bot skipped"
 fi
 
+# Start monitoring dashboard in background
+echo "Starting monitoring dashboard on port ${MONITOR_PORT:-8585}..."
+python run_monitor.py &
+MONITOR_PID=$!
+echo "Monitor started (PID: $MONITOR_PID)"
+
 echo "All bots started. Waiting..."
 
 # Keep container alive — wait for any background process to exit
@@ -49,4 +55,7 @@ if [ -n "$CEO_BOT_PID" ]; then
 fi
 if [ -n "$YUKI_BOT_PID" ]; then
     kill $YUKI_BOT_PID 2>/dev/null
+fi
+if [ -n "$MONITOR_PID" ]; then
+    kill $MONITOR_PID 2>/dev/null
 fi

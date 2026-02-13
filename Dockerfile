@@ -21,7 +21,7 @@ COPY crews/ /app/crews/
 COPY src/ /app/src/
 COPY data/ /app/data/
 COPY CLAUDE.md AGENTS.md STATE.md README.md /app/
-COPY app.py run_telegram.py run_alexey_bot.py run_yuki_bot.py start.sh /app/
+COPY app.py run_telegram.py run_alexey_bot.py run_yuki_bot.py run_monitor.py start.sh /app/
 COPY run_cfo_mcp.py run_tribute_mcp.py run_telegram_mcp.py run_kb_mcp.py /app/
 
 # Config: copy example, actual config comes via env vars or mounted volume
