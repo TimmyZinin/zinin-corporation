@@ -96,6 +96,8 @@ async def cmd_start(message: Message):
         "/пост от Тима <тема> — Пост от Тима\n"
         "/пост для личного бренда <тема> — Личный бренд\n"
         "/подкаст <тема> — Сгенерировать подкаст\n"
+        "/calendar — Контент-план на сегодня/неделю\n"
+        "/plan — Запланировать новый пост\n"
         "/status — Статус системы\n"
         "/health — Диагностика\n"
         "/linkedin — Статус LinkedIn\n"
@@ -127,6 +129,9 @@ async def cmd_help(message: Message):
         "После одобрения выбираешь когда публиковать:\n"
         "⚡ Сейчас, 🕐 Через 1ч, 🕒 Через 3ч, 🌅 Завтра\n"
         "/schedule — Посмотреть очередь\n\n"
+        "Контент-план:\n"
+        "/calendar — План на сегодня + неделю с кнопками\n"
+        "/план — Запланировать новый пост\n\n"
         "Система:\n"
         "/status — Статус, /health — Диагностика\n"
         "/level — Автономность (manual/auto)\n"
@@ -457,3 +462,71 @@ async def cmd_reflexion(message: Message):
         ),
         "🔍 Анализирую фидбек... (30–60 сек)",
     )
+
+
+# ── Content Calendar & Planning ──────────────────────────────────────────
+
+
+@router.message(Command(commands=["calendar", "календарь"]))
+async def cmd_calendar(message: Message):
+    """Show content calendar: today's plan with action buttons + week overview."""
+    from ...content_calendar import (
+        format_today_plan, format_week_plan, get_today, get_overdue,
+    )
+    from ..keyboards import calendar_entry_keyboard
+
+    # 1. Text overview of today
+    today_text = format_today_plan()
+    await message.answer(today_text)
+
+    # 2. Inline buttons for each actionable entry (today + overdue)
+    today_entries = get_today()
+    overdue_entries = get_overdue()
+    actionable = [
+        e for e in overdue_entries + today_entries
+        if e.get("status") not in ("done", "skipped")
+    ]
+
+    if actionable:
+        for entry in actionable[:5]:
+            is_overdue = entry in overdue_entries
+            prefix = "⚠️ ПРОСРОЧЕНО" if is_overdue else "📝"
+            platform = entry.get("platform", "?")
+            author = entry.get("author", "?")
+            await message.answer(
+                f"{prefix}: {entry['topic']}\n"
+                f"Автор: {author} | Платформа: {platform}\n"
+                f"{'Дата: ' + entry.get('date', '') if is_overdue else ''}",
+                reply_markup=calendar_entry_keyboard(entry["id"]),
+            )
+
+    # 3. Week overview
+    week_text = format_week_plan()
+    await message.answer(week_text)
+
+
+@router.message(Command(commands=["plan", "план"]))
+async def cmd_plan(message: Message):
+    """Start content planning workflow: pick from calendar or create custom."""
+    from ...content_calendar import get_today, get_overdue
+    from ..keyboards import plan_source_keyboard
+
+    today = get_today()
+    overdue = get_overdue()
+    undone = [
+        e for e in today + overdue
+        if e.get("status") not in ("done", "skipped")
+    ]
+
+    if undone:
+        await message.answer(
+            f"📋 У тебя {len(undone)} запланированных тем.\n"
+            "Выбери источник для нового поста:",
+            reply_markup=plan_source_keyboard(has_entries=True),
+        )
+    else:
+        await message.answer(
+            "📋 Календарь на сегодня пуст.\n"
+            "Напиши тему или загляни в /calendar для обзора.",
+            reply_markup=plan_source_keyboard(has_entries=False),
+        )

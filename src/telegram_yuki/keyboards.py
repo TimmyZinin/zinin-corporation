@@ -214,6 +214,67 @@ def preselect_keyboard(
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
 
+# ── Calendar & Planning keyboards ────────────────────────────────────────
+
+
+def calendar_entry_keyboard(entry_id: str) -> InlineKeyboardMarkup:
+    """Inline buttons for a single calendar entry: generate, skip, edit topic."""
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [
+            InlineKeyboardButton(
+                text="🚀 Сгенерировать пост",
+                callback_data=f"cal_gen:{entry_id}",
+            ),
+        ],
+        [
+            InlineKeyboardButton(
+                text="⏭ Пропустить",
+                callback_data=f"cal_skip:{entry_id}",
+            ),
+            InlineKeyboardButton(
+                text="✏️ Изменить тему",
+                callback_data=f"cal_edit:{entry_id}",
+            ),
+        ],
+    ])
+
+
+def plan_source_keyboard(has_entries: bool = True) -> InlineKeyboardMarkup:
+    """Choose source for new post: from calendar or custom topic."""
+    rows = []
+    if has_entries:
+        rows.append([
+            InlineKeyboardButton(
+                text="📅 Из календаря",
+                callback_data="plan_cal",
+            ),
+        ])
+    rows.append([
+        InlineKeyboardButton(
+            text="✍️ Своя тема",
+            callback_data="plan_new",
+        ),
+    ])
+    return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+def calendar_pick_keyboard(entries: list[dict]) -> InlineKeyboardMarkup:
+    """List of calendar entries as pick-buttons (max 5)."""
+    rows = []
+    for e in entries[:5]:
+        label = e.get("topic", "?")
+        if len(label) > 40:
+            label = label[:37] + "..."
+        author = e.get("author", "?")
+        rows.append([
+            InlineKeyboardButton(
+                text=f"📝 {label} ({author})",
+                callback_data=f"plan_pick:{e['id']}",
+            ),
+        ])
+    return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
 def preselect_confirm_keyboard() -> InlineKeyboardMarkup:
     """Confirm pre-selection and start generation."""
     return InlineKeyboardMarkup(inline_keyboard=[

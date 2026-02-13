@@ -51,6 +51,48 @@ async def handle_text(message: Message):
 
     user_id = message.from_user.id
 
+    # Calendar edit mode: user is editing a calendar entry's topic
+    from .callbacks import _calendar_edit_state, _plan_custom_state
+    if user_id in _calendar_edit_state:
+        entry_id = _calendar_edit_state.pop(user_id)
+        from ...content_calendar import update_entry, get_entry_by_id
+        update_entry(entry_id, topic=user_text)
+        entry = get_entry_by_id(entry_id)
+        from ..keyboards import calendar_entry_keyboard
+        await message.answer(
+            f"✅ Тема обновлена: {user_text[:60]}\n"
+            f"Автор: {entry.get('author', '?')} | Платформа: {entry.get('platform', '?')}",
+            reply_markup=calendar_entry_keyboard(entry_id),
+        )
+        return
+
+    # Plan custom topic mode: user is entering a custom topic for /plan
+    if user_id in _plan_custom_state:
+        _plan_custom_state.discard(user_id)
+        from ...content_calendar import add_entry
+        from datetime import date
+        entry = add_entry(
+            entry_date=date.today().isoformat(),
+            topic=user_text,
+            author="kristina",
+            platform="linkedin",
+            brand="sborka",
+        )
+        from .callbacks import _preselect_state
+        from ..keyboards import preselect_keyboard
+        _preselect_state[user_id] = {
+            "topic": user_text,
+            "author": "kristina",
+            "brand": "sborka",
+            "calendar_entry_id": entry["id"],
+        }
+        await message.answer(
+            f"📝 Тема добавлена в календарь: {user_text[:60]}\n\n"
+            f"Выбери автора и платформу:",
+            reply_markup=preselect_keyboard("kristina"),
+        )
+        return
+
     # CS-003: Check if user is in image regeneration mode
     from .callbacks import is_in_image_regen_mode, consume_image_regen_mode
     if is_in_image_regen_mode(user_id):
@@ -308,6 +350,7 @@ async def _generate_post_flow(
     author: str = "kristina",
     brand: str = "sborka",
     platform: str = "linkedin",
+    calendar_entry_id: str = "",
 ):
     """Generate a post from natural language trigger. CS-001: text first, image deferred."""
     if circuit_breaker.is_open:
@@ -342,6 +385,9 @@ async def _generate_post_flow(
             platforms=platforms,
             image_path="",
         )
+        # Link to calendar entry if created from calendar
+        if calendar_entry_id:
+            DraftManager.update_draft(post_id, calendar_entry_id=calendar_entry_id)
 
         for chunk in format_for_telegram(post_text):
             await message.answer(chunk)

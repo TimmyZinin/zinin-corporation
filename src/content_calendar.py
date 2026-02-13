@@ -129,6 +129,31 @@ def get_all_entries() -> list[dict]:
     return data.get("entries", [])
 
 
+def get_entry_by_id(entry_id: str) -> dict | None:
+    """Get a single calendar entry by its ID."""
+    with _lock:
+        data = _load_calendar()
+    for e in data.get("entries", []):
+        if e.get("id") == entry_id:
+            return e
+    return None
+
+
+def update_entry(entry_id: str, **kwargs) -> bool:
+    """Update a calendar entry's fields (topic, author, platform, cta, date, brand, status)."""
+    allowed = {"topic", "author", "platform", "cta", "date", "brand", "status"}
+    with _lock:
+        data = _load_calendar()
+        for entry in data.get("entries", []):
+            if entry.get("id") == entry_id:
+                for key, val in kwargs.items():
+                    if key in allowed:
+                        entry[key] = val
+                data["updated_at"] = datetime.now().isoformat()
+                return _save_calendar(data)
+    return False
+
+
 def mark_done(entry_id: str, post_id: str = "") -> bool:
     """Mark a calendar entry as done, optionally linking to the published post."""
     with _lock:
@@ -250,6 +275,60 @@ def seed_sborka_launch() -> list[dict]:
             "author": "both",
             "platform": "linkedin+threads",
             "cta": "Tribute подписка",
+            "brand": "sborka",
+        },
+    ]
+    created = []
+    for item in plan:
+        entry = add_entry(**item)
+        created.append(entry)
+    return created
+
+
+def seed_sborka_launch_v2() -> list[dict]:
+    """Seed 5 Sborka webinar launch posts for Feb 13-17, 2026.
+
+    Focus: drive registrations for the webinar on Feb 17 at 15:00 MSK.
+    """
+    plan = [
+        {
+            "entry_date": "2026-02-13",
+            "topic": "Проблема: почему поиск работы не работает как система",
+            "author": "kristina",
+            "platform": "linkedin",
+            "cta": "Записывайся на вебинар 17 фев → @sborka_career_bot",
+            "brand": "sborka",
+        },
+        {
+            "entry_date": "2026-02-14",
+            "topic": "Как мы строим клуб карьерной дисциплины с AI",
+            "author": "tim",
+            "platform": "linkedin",
+            "cta": "Первая неделя бесплатно → @sborka_career_bot",
+            "brand": "sborka",
+        },
+        {
+            "entry_date": "2026-02-15",
+            "topic": "5 вещей, которые ломают поиск работы — и как СБОРКА их чинит",
+            "author": "kristina",
+            "platform": "linkedin+threads",
+            "cta": "Регистрация на вебинар → @sborka_career_bot",
+            "brand": "sborka",
+        },
+        {
+            "entry_date": "2026-02-16",
+            "topic": "Завтра вебинар: покажем всю систему СБОРКИ live",
+            "author": "tim",
+            "platform": "linkedin+threads",
+            "cta": "Последний день записаться → @sborka_career_bot",
+            "brand": "sborka",
+        },
+        {
+            "entry_date": "2026-02-17",
+            "topic": "СБОРКА LIVE: вебинар сегодня в 15:00 — AI для карьерной дисциплины",
+            "author": "both",
+            "platform": "linkedin+threads+telegram",
+            "cta": "Присоединяйся сейчас → @sborka_career_bot",
             "brand": "sborka",
         },
     ]

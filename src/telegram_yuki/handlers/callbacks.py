@@ -16,6 +16,7 @@ from ..keyboards import (
     time_keyboard, author_keyboard, feedback_keyboard,
     approval_with_image_keyboard, post_ready_keyboard,
     preselect_keyboard, preselect_confirm_keyboard,
+    calendar_entry_keyboard, plan_source_keyboard, calendar_pick_keyboard,
 )
 from ..drafts import DraftManager
 from ..image_gen import generate_image, generate_image_with_refinement
@@ -26,8 +27,12 @@ from ..safety import circuit_breaker
 logger = logging.getLogger(__name__)
 router = Router()
 
-# Pre-selection state: user_id → {"topic": str, "author": str, "brand": str, "platform": str}
+# Pre-selection state: user_id → {"topic": str, "author": str, "brand": str, "platform": str, "calendar_entry_id": str?}
 _preselect_state: dict[int, dict] = {}
+
+# Calendar / plan state
+_calendar_edit_state: dict[int, str] = {}  # user_id → entry_id being edited
+_plan_custom_state: set[int] = set()       # user_ids in custom topic input mode
 
 
 # ── Pre-selection flow ─────────────────────────────────────────────────────
@@ -94,6 +99,7 @@ async def on_pre_go(callback: CallbackQuery):
     author = state.get("author", "kristina")
     brand = state.get("brand", "sborka")
     platform = state.get("platform", "linkedin")
+    calendar_entry_id = state.get("calendar_entry_id", "")
 
     await callback.answer("Генерирую...")
     await callback.message.edit_text(
@@ -104,7 +110,8 @@ async def on_pre_go(callback: CallbackQuery):
     # Run generation with platform
     from .messages import _generate_post_flow
     await _generate_post_flow(
-        callback.message, topic, author, brand, platform=platform
+        callback.message, topic, author, brand, platform=platform,
+        calendar_entry_id=calendar_entry_id,
     )
 
 
@@ -302,6 +309,14 @@ async def _do_publish(callback: CallbackQuery, post_id: str, draft: dict, platfo
             logger.error(f"Publish to {platform_name} failed: {e}", exc_info=True)
 
     DraftManager.update_draft(post_id, status="published")
+
+    # Auto mark_done in content calendar
+    if draft.get("calendar_entry_id"):
+        try:
+            from ...content_calendar import mark_done
+            mark_done(draft["calendar_entry_id"], post_id=post_id)
+        except Exception as e:
+            logger.warning(f"Failed to mark calendar entry done: {e}")
 
     await callback.message.edit_text(
         "Результаты публикации:\n\n" + "\n".join(results)
@@ -601,3 +616,132 @@ async def on_regen_image(callback: CallbackQuery):
         "• «Используй сцену с лестницей»"
     )
     await callback.answer()
+
+
+# ── Calendar & Plan callbacks ──────────────────────────────────────────────
+
+
+@router.callback_query(F.data.startswith("cal_gen:"))
+async def on_cal_gen(callback: CallbackQuery):
+    """Generate post from a calendar entry — populate preselect state and go."""
+    entry_id = callback.data.split(":")[1]
+    from ...content_calendar import get_entry_by_id
+    entry = get_entry_by_id(entry_id)
+    if not entry:
+        await callback.answer("Запись не найдена", show_alert=True)
+        return
+
+    user_id = callback.from_user.id
+    author = entry.get("author", "kristina")
+    if author == "both":
+        author = "kristina"  # Default to Kristina for "both"
+
+    # Parse platform: "linkedin+threads" → first one for preselect
+    raw_platform = entry.get("platform", "linkedin")
+    platform = raw_platform.split("+")[0] if "+" in raw_platform else raw_platform
+    if "+" in raw_platform:
+        platform = "all"  # Multiple platforms → use all
+
+    _preselect_state[user_id] = {
+        "topic": entry.get("topic", ""),
+        "author": author,
+        "brand": entry.get("brand", "sborka"),
+        "platform": platform,
+        "calendar_entry_id": entry_id,
+    }
+
+    await _show_preselect_summary(callback, _preselect_state[user_id])
+
+
+@router.callback_query(F.data.startswith("cal_skip:"))
+async def on_cal_skip(callback: CallbackQuery):
+    """Skip a calendar entry."""
+    entry_id = callback.data.split(":")[1]
+    from ...content_calendar import mark_skipped, get_entry_by_id
+    entry = get_entry_by_id(entry_id)
+    topic = entry.get("topic", "?")[:30] if entry else "?"
+
+    mark_skipped(entry_id)
+    await callback.message.edit_text(f"⏭ Пропущено: {topic}")
+    await callback.answer("Пропущено")
+
+
+@router.callback_query(F.data.startswith("cal_edit:"))
+async def on_cal_edit(callback: CallbackQuery):
+    """Enter calendar entry edit mode — next text message updates the topic."""
+    entry_id = callback.data.split(":")[1]
+    from ...content_calendar import get_entry_by_id
+    entry = get_entry_by_id(entry_id)
+    if not entry:
+        await callback.answer("Запись не найдена", show_alert=True)
+        return
+
+    _calendar_edit_state[callback.from_user.id] = entry_id
+    await callback.message.edit_text(
+        f"✏️ Редактирование записи\n\n"
+        f"Текущая тема: {entry.get('topic', '?')}\n\n"
+        "Напиши новую тему:"
+    )
+    await callback.answer()
+
+
+@router.callback_query(F.data == "plan_cal")
+async def on_plan_cal(callback: CallbackQuery):
+    """Show undone calendar entries for picking."""
+    from ...content_calendar import get_today, get_overdue
+    today = get_today()
+    overdue = get_overdue()
+    undone = [
+        e for e in overdue + today
+        if e.get("status") not in ("done", "skipped")
+    ]
+
+    if not undone:
+        await callback.message.edit_text("📅 Нет активных записей в календаре.")
+        await callback.answer()
+        return
+
+    await callback.message.edit_text(
+        "📅 Выбери тему из календаря:",
+        reply_markup=calendar_pick_keyboard(undone),
+    )
+    await callback.answer()
+
+
+@router.callback_query(F.data == "plan_new")
+async def on_plan_new(callback: CallbackQuery):
+    """Start custom topic input mode."""
+    _plan_custom_state.add(callback.from_user.id)
+    await callback.message.edit_text(
+        "✍️ Напиши тему для нового поста:"
+    )
+    await callback.answer()
+
+
+@router.callback_query(F.data.startswith("plan_pick:"))
+async def on_plan_pick(callback: CallbackQuery):
+    """User picked a calendar entry — populate preselect and show summary."""
+    entry_id = callback.data.split(":")[1]
+    from ...content_calendar import get_entry_by_id
+    entry = get_entry_by_id(entry_id)
+    if not entry:
+        await callback.answer("Запись не найдена", show_alert=True)
+        return
+
+    user_id = callback.from_user.id
+    author = entry.get("author", "kristina")
+    if author == "both":
+        author = "kristina"
+
+    raw_platform = entry.get("platform", "linkedin")
+    platform = "all" if "+" in raw_platform else raw_platform
+
+    _preselect_state[user_id] = {
+        "topic": entry.get("topic", ""),
+        "author": author,
+        "brand": entry.get("brand", "sborka"),
+        "platform": platform,
+        "calendar_entry_id": entry_id,
+    }
+
+    await _show_preselect_summary(callback, _preselect_state[user_id])

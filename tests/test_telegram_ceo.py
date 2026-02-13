@@ -347,10 +347,10 @@ class TestCeoMessages:
         assert MAX_CONTEXT == 20
 
     def test_agent_default_is_manager(self):
-        """CEO messages should default to 'manager' agent."""
+        """CEO messages should default to 'manager' agent via fast_router."""
         from src.telegram_ceo.handlers import messages
         src = inspect.getsource(messages.handle_text)
-        assert 'agent_name = "manager"' in src
+        assert 'route.agent_name or "manager"' in src
 
 
 # ──────────────────────────────────────────────────────────
@@ -645,7 +645,7 @@ class TestCeoNLUIntegration:
         from src.telegram_ceo.handlers import messages
         src = inspect.getsource(messages.handle_text)
         assert "detect_intent" in src
-        assert "detect_agent" in src
+        assert "route_message" in src
 
     def test_execute_intent_exists(self):
         from src.telegram_ceo.handlers.messages import _execute_intent
@@ -659,10 +659,10 @@ class TestCeoNLUIntegration:
         assert "automator" in _AGENT_LABELS
 
     def test_nlu_routing_in_handler(self):
-        """Message handler should route to non-manager agents via NLU."""
+        """Message handler should route to non-manager agents via fast_router."""
         from src.telegram_ceo.handlers import messages
         src = inspect.getsource(messages.handle_text)
-        assert "agent_target" in src
+        assert "route.agent_name" in src
         assert "agent_name" in src
 
 

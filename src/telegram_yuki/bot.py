@@ -61,6 +61,14 @@ async def _scheduler_loop(bot: Bot):
                 PostScheduler.mark_published(post_id)
                 DraftManager.update_draft(post_id, status="published")
 
+                # Auto mark_done in content calendar
+                if draft.get("calendar_entry_id"):
+                    try:
+                        from ..content_calendar import mark_done
+                        mark_done(draft["calendar_entry_id"], post_id=post_id)
+                    except Exception as cal_err:
+                        logger.warning(f"Failed to mark calendar done: {cal_err}")
+
                 # Notify user about scheduled publish
                 config = YukiTelegramConfig.from_env()
                 for uid in config.allowed_user_ids:
