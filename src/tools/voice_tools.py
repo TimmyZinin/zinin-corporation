@@ -108,6 +108,14 @@ def convert_ogg_to_wav(ogg_path: str, wav_path: Optional[str] = None) -> Optiona
         return None
 
 
+def release_model():
+    """Release the whisper model to free memory (important on low-RAM servers)."""
+    global _model
+    if _model is not None:
+        logger.info("Releasing faster-whisper model to free memory")
+        _model = None
+
+
 def is_voice_available() -> bool:
     """Check if voice transcription is available."""
     try:

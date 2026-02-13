@@ -230,7 +230,7 @@ async def handle_voice(message: Message):
     import os
     import tempfile
 
-    from ...tools.voice_tools import transcribe_voice, convert_ogg_to_wav, is_voice_available
+    from ...tools.voice_tools import transcribe_voice, convert_ogg_to_wav, is_voice_available, release_model
 
     if not is_voice_available():
         await message.answer(
@@ -258,6 +258,8 @@ async def handle_voice(message: Message):
 
         # Transcribe
         text = transcribe_voice(wav_path)
+        # Free whisper model immediately to save RAM for CrewAI agents
+        release_model()
         if not text:
             await message.answer("Не удалось распознать речь.")
             return
