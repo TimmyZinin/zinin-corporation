@@ -407,7 +407,7 @@ def setup_ceo_scheduler(bot: Bot, config: CeoTelegramConfig) -> AsyncIOScheduler
     async def evening_report():
         try:
             from ..analytics import get_agent_activity_report, get_cost_estimates
-            from ...task_pool import get_all_tasks, TaskStatus
+            from ..task_pool import get_all_tasks, TaskStatus
 
             lines = ["Добрый вечер, Тим. Итоги дня:\n"]
 
@@ -462,7 +462,7 @@ def setup_ceo_scheduler(bot: Bot, config: CeoTelegramConfig) -> AsyncIOScheduler
         try:
             from ..revenue_tracker import add_daily_snapshot, format_revenue_summary
             from ..proactive_planner import generate_morning_plan, format_morning_message
-            from ..keyboards import action_keyboard
+            from .keyboards import action_keyboard
 
             add_daily_snapshot()
             actions = generate_morning_plan()
@@ -490,7 +490,7 @@ def setup_ceo_scheduler(bot: Bot, config: CeoTelegramConfig) -> AsyncIOScheduler
     async def proactive_midday():
         try:
             from ..proactive_planner import generate_midday_check, format_midday_message
-            from ..keyboards import action_keyboard
+            from .keyboards import action_keyboard
 
             actions = generate_midday_check()
             msg = format_midday_message(actions)
@@ -517,7 +517,7 @@ def setup_ceo_scheduler(bot: Bot, config: CeoTelegramConfig) -> AsyncIOScheduler
     async def proactive_evening():
         try:
             from ..proactive_planner import generate_evening_review, format_evening_message
-            from ..keyboards import evening_review_keyboard
+            from .keyboards import evening_review_keyboard
 
             summary, tomorrow = generate_evening_review()
             msg = format_evening_message(summary, tomorrow)

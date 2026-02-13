@@ -929,8 +929,12 @@ async def on_action_launch(callback: CallbackQuery):
 
             set_action_status(action_id, "completed")
 
-            # Send result
-            for chunk in format_for_telegram(str(result)):
+            # Send any images found in result, then text
+            from ..image_sender import send_images_from_response
+            result_text = await send_images_from_response(
+                callback.message.bot, callback.message.chat.id, str(result)
+            )
+            for chunk in format_for_telegram(result_text):
                 await callback.message.answer(chunk)
 
             # Suggest next action

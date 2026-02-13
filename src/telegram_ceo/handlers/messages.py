@@ -220,6 +220,10 @@ async def handle_text(message: Message):
         print(f"[CEO] AgentBridge returned {len(response)} chars", flush=True)
         user_ctx.append({"role": "assistant", "text": response})
 
+        # Send any images found in agent response
+        from ..image_sender import send_images_from_response
+        response = await send_images_from_response(message.bot, message.chat.id, response)
+
         for chunk in format_for_telegram(response):
             await message.answer(chunk)
 
@@ -310,6 +314,8 @@ async def handle_voice(message: Message):
                 chat_id=message.chat.id,
             )
             user_ctx.append({"role": "assistant", "text": response})
+            from ..image_sender import send_images_from_response
+            response = await send_images_from_response(message.bot, message.chat.id, response)
             for chunk in format_for_telegram(response):
                 await message.answer(chunk)
         except Exception as e:
