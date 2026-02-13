@@ -865,3 +865,148 @@ async def on_api_ack(callback: CallbackQuery):
     )
     await callback.answer("Принято")
     logger.info(f"API diagnostic {diag_id} acknowledged")
+
+
+# ── Proactive System callbacks ───────────────────────────────────────────────
+
+# State for evening adjust mode
+_evening_adjust_state: set[int] = set()
+
+
+def is_in_evening_adjust_mode(user_id: int) -> bool:
+    """Check if user is in evening adjustment text input mode."""
+    return user_id in _evening_adjust_state
+
+
+def consume_evening_adjust_mode(user_id: int) -> bool:
+    """Clear evening adjust mode, return True if was active."""
+    if user_id in _evening_adjust_state:
+        _evening_adjust_state.discard(user_id)
+        return True
+    return False
+
+
+@router.callback_query(F.data.startswith("action_launch:"))
+async def on_action_launch(callback: CallbackQuery):
+    """Launch an action from the proactive planner."""
+    action_id = callback.data.split(":")[1]
+
+    try:
+        from ...proactive_planner import get_action, set_action_status, get_next_pending_action, AGENT_METHOD_MAP
+        from ...telegram.bridge import AgentBridge
+        from ...telegram.formatters import format_for_telegram
+        from ..keyboards import action_keyboard
+
+        action = get_action(action_id)
+        if not action:
+            await callback.answer("Действие не найдено или истекло", show_alert=True)
+            return
+
+        set_action_status(action_id, "launched")
+        await callback.message.edit_text(
+            f"🚀 Запускаю: {action.title}\n⏳ Работаю..."
+        )
+        await callback.answer("Запуск...")
+
+        # Route to appropriate AgentBridge method
+        method_name = AGENT_METHOD_MAP.get(action.agent_method, "send_to_agent")
+        kwargs = action.method_kwargs or {}
+
+        try:
+            if method_name == "send_to_agent":
+                result = await AgentBridge.send_to_agent(
+                    message=kwargs.get("message", action.title),
+                    agent_name=action.target_agent,
+                )
+            elif hasattr(AgentBridge, method_name):
+                method = getattr(AgentBridge, method_name)
+                result = await method(**kwargs)
+            else:
+                result = await AgentBridge.send_to_agent(
+                    message=action.title,
+                    agent_name=action.target_agent,
+                )
+
+            set_action_status(action_id, "completed")
+
+            # Send result
+            for chunk in format_for_telegram(str(result)):
+                await callback.message.answer(chunk)
+
+            # Suggest next action
+            next_action = get_next_pending_action()
+            if next_action:
+                await callback.message.answer(
+                    f"📋 Следующее действие:",
+                )
+                await callback.message.answer(
+                    f"{'🔴' if next_action.priority <= 1 else '🟡' if next_action.priority == 2 else '🟢'} {next_action.title}",
+                    reply_markup=action_keyboard(next_action.id),
+                )
+            else:
+                await callback.message.answer("✅ Все действия выполнены!")
+
+        except Exception as e:
+            logger.error(f"Action launch error: {e}", exc_info=True)
+            set_action_status(action_id, "pending")  # Return to pending on failure
+            await callback.message.answer(f"❌ Ошибка: {str(e)[:200]}")
+
+    except Exception as e:
+        logger.error(f"Action launch handler error: {e}", exc_info=True)
+        await callback.answer(f"Ошибка: {str(e)[:100]}", show_alert=True)
+
+
+@router.callback_query(F.data.startswith("action_skip:"))
+async def on_action_skip(callback: CallbackQuery):
+    """Skip an action from the proactive planner."""
+    action_id = callback.data.split(":")[1]
+
+    try:
+        from ...proactive_planner import get_action, set_action_status, get_next_pending_action
+        from ..keyboards import action_keyboard
+
+        action = get_action(action_id)
+        if not action:
+            await callback.answer("Действие не найдено", show_alert=True)
+            return
+
+        set_action_status(action_id, "skipped")
+        await callback.message.edit_text(
+            f"⏭ Пропущено: {action.title}"
+        )
+        await callback.answer("Пропущено")
+
+        # Suggest next action
+        next_action = get_next_pending_action()
+        if next_action:
+            await callback.message.answer(
+                f"{'🔴' if next_action.priority <= 1 else '🟡' if next_action.priority == 2 else '🟢'} {next_action.title}",
+                reply_markup=action_keyboard(next_action.id),
+            )
+
+    except Exception as e:
+        logger.error(f"Action skip error: {e}", exc_info=True)
+        await callback.answer(f"Ошибка: {str(e)[:100]}", show_alert=True)
+
+
+@router.callback_query(F.data == "evening_approve")
+async def on_evening_approve(callback: CallbackQuery):
+    """Approve the evening plan."""
+    await callback.message.edit_text(
+        f"{callback.message.text}\n\n"
+        f"✅ План на завтра утверждён."
+    )
+    await callback.answer("План утверждён")
+    logger.info("Evening plan approved")
+
+
+@router.callback_query(F.data == "evening_adjust")
+async def on_evening_adjust(callback: CallbackQuery):
+    """Enter evening adjustment mode — user types corrections."""
+    user_id = callback.from_user.id
+    _evening_adjust_state.add(user_id)
+    await callback.message.edit_text(
+        f"{callback.message.text}\n\n"
+        f"✏️ Напиши, что изменить в плане на завтра:"
+    )
+    await callback.answer("Жду корректировки")

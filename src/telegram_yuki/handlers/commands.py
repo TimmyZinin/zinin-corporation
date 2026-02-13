@@ -161,39 +161,26 @@ async def cmd_post(message: Message):
         # Record success for circuit breaker
         circuit_breaker.record_success()
 
-        # Generate image (non-blocking)
-        image_path = ""
-        try:
-            image_path = await asyncio.to_thread(generate_image, topic, post_text)
-        except Exception as e:
-            logger.warning(f"Image generation failed: {e}")
-
+        # CS-001: Text first, image deferred (no auto-generation)
         post_id = DraftManager.create_draft(
             topic=topic,
             text=post_text,
             author=author,
             brand=brand,
-            image_path=image_path or "",
+            image_path="",
         )
 
-        # Send post
+        # Send post text
         for chunk in format_for_telegram(post_text):
             await message.answer(chunk)
 
-        if image_path:
-            try:
-                from aiogram.types import FSInputFile
-                await message.answer_photo(
-                    FSInputFile(image_path), caption="Картинка для поста"
-                )
-            except Exception as e:
-                logger.warning(f"Failed to send image: {e}")
-
+        # CS-002: Use post_ready_keyboard with image choice
+        from ..keyboards import post_ready_keyboard
         await message.answer(
             f"Пост готов (ID: {post_id})\n"
             f"Автор: {author_label} | Бренд: {brand}\n"
             f"Что делаем?",
-            reply_markup=approval_keyboard(post_id),
+            reply_markup=post_ready_keyboard(post_id),
         )
 
     except Exception as e:

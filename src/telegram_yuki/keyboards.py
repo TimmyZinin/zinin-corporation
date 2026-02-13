@@ -104,6 +104,50 @@ def author_keyboard(post_id: str) -> InlineKeyboardMarkup:
     ])
 
 
+def post_ready_keyboard(post_id: str) -> InlineKeyboardMarkup:
+    """Post ready keyboard — choose image or publish without. CS-001 + CS-002."""
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [
+            InlineKeyboardButton(text="🖼 С картинкой", callback_data=f"gen_image:{post_id}"),
+            InlineKeyboardButton(text="📝 Без картинки", callback_data=f"approve:{post_id}"),
+        ],
+        [
+            InlineKeyboardButton(text="🔄 Переделать", callback_data=f"regen:{post_id}"),
+            InlineKeyboardButton(text="❌ Отклонить", callback_data=f"reject:{post_id}"),
+        ],
+        [
+            InlineKeyboardButton(text="✏️ Редактировать", callback_data=f"edit:{post_id}"),
+        ],
+    ])
+
+
+def approval_with_image_keyboard(post_id: str) -> InlineKeyboardMarkup:
+    """Approval keyboard when image is attached. CS-003."""
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [
+            InlineKeyboardButton(text="✅ Опубликовать", callback_data=f"approve:{post_id}"),
+            InlineKeyboardButton(text="❌ Отклонить", callback_data=f"reject:{post_id}"),
+        ],
+        [
+            InlineKeyboardButton(text="🎨 Другая картинка", callback_data=f"regen_image:{post_id}"),
+            InlineKeyboardButton(text="🔄 Переделать текст", callback_data=f"regen:{post_id}"),
+        ],
+        [
+            InlineKeyboardButton(text="✏️ Редактировать", callback_data=f"edit:{post_id}"),
+        ],
+    ])
+
+
+def final_choice_keyboard(post_id: str) -> InlineKeyboardMarkup:
+    """Final choice keyboard after max iterations. CS-004."""
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [
+            InlineKeyboardButton(text="✅ Опубликовать как есть", callback_data=f"approve:{post_id}"),
+            InlineKeyboardButton(text="🗑 Отклонить окончательно", callback_data=f"reject:{post_id}"),
+        ],
+    ])
+
+
 def feedback_keyboard(post_id: str) -> InlineKeyboardMarkup:
     """Post-publish feedback keyboard: feedback on this post or for future posts."""
     return InlineKeyboardMarkup(inline_keyboard=[

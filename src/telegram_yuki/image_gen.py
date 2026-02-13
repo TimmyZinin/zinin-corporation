@@ -1097,3 +1097,36 @@ def generate_image(topic: str, post_text: str = "") -> str:
     except Exception as e:
         logger.error(f"Image generation error: {e}", exc_info=True)
         return ""
+
+
+def generate_image_with_refinement(topic: str, post_text: str, refinement: str) -> str:
+    """Generate image with user refinement instructions appended to prompt.
+
+    CS-003: User presses [Другая картинка] → types refinement → this function.
+    Returns path to saved image file, or empty string on failure.
+    """
+    try:
+        prompt = _build_prompt(topic, post_text)
+        prompt += f"\n\nADDITIONAL USER REFINEMENT:\n{refinement}"
+        logger.info(f"Generating refined image for topic: {topic[:50]}, refinement: {refinement[:50]}")
+
+        response = _call_openrouter(prompt)
+        image_data = _extract_image(response)
+
+        if not image_data:
+            logger.warning("Refined image generation returned no image data")
+            return ""
+
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        path = IMAGES_DIR / f"yuki_{timestamp}_refined.png"
+        path.parent.mkdir(parents=True, exist_ok=True)
+
+        with open(path, "wb") as f:
+            f.write(image_data)
+
+        logger.info(f"Refined image saved: {path}")
+        return str(path)
+
+    except Exception as e:
+        logger.error(f"Refined image generation error: {e}", exc_info=True)
+        return ""

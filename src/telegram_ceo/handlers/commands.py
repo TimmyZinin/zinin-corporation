@@ -315,6 +315,29 @@ async def cmd_analytics(message: Message):
     await message.answer(report)
 
 
+@router.message(Command("calendar"))
+async def cmd_calendar(message: Message):
+    """Show content calendar — weekly plan + overdue items."""
+    from ...content_calendar import format_week_plan, format_today_plan, get_today, seed_sborka_launch
+    today_entries = get_today()
+    if not today_entries:
+        # Check if calendar is empty
+        week_text = format_week_plan()
+        if "Нет записей" in week_text:
+            await message.answer(
+                "📅 Контент-календарь пуст.\n\n"
+                "Заполнить план запуска СБОРКИ (5 постов, 14-18 февраля)?",
+            )
+            return
+
+    today_text = format_today_plan()
+    week_text = format_week_plan()
+    text = f"{today_text}\n\n{'─' * 30}\n\n{week_text}"
+    if len(text) > 4000:
+        text = text[:4000] + "..."
+    await message.answer(text, parse_mode="HTML")
+
+
 @router.message(Command("help"))
 async def cmd_help(message: Message):
     await message.answer(
@@ -327,7 +350,8 @@ async def cmd_help(message: Message):
         "/analytics [часы] — Аналитика API и агентов (мгновенно)\n\n"
         "Контент (Юки SMM):\n"
         "/content <тема> — Юки генерирует пост для LinkedIn\n"
-        "/linkedin — Статус LinkedIn-интеграции\n\n"
+        "/linkedin — Статус LinkedIn-интеграции\n"
+        "/calendar — Контент-календарь (план на неделю)\n\n"
         "Задачи (Task Pool v2.3):\n"
         "/task <заголовок> — Создать задачу (auto-tag + suggest)\n"
         "/task — Меню Task Pool\n"

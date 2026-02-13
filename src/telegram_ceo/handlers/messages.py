@@ -13,6 +13,7 @@ from .callbacks import (
     is_in_conditions_mode, get_conditions_proposal_id,
     is_in_new_task_mode, _new_task_state,
     is_in_split_mode, _split_task_state,
+    is_in_evening_adjust_mode, consume_evening_adjust_mode,
 )
 
 logger = logging.getLogger(__name__)
@@ -79,6 +80,16 @@ def _get_context(user_id: int) -> list[dict]:
 async def handle_text(message: Message):
     user_text = message.text.strip()
     if not user_text:
+        return
+
+    # Evening adjust mode — user typed plan corrections
+    if is_in_evening_adjust_mode(message.from_user.id):
+        consume_evening_adjust_mode(message.from_user.id)
+        await message.answer(
+            f"📝 Корректировки приняты: «{user_text[:200]}»\n"
+            f"Учту в завтрашнем плане."
+        )
+        logger.info(f"Evening adjustment received: {user_text[:100]}")
         return
 
     # Task Pool "split task" mode — intercept text as subtask titles

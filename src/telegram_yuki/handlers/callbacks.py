@@ -14,9 +14,10 @@ from ...telegram.formatters import format_for_telegram
 from ..keyboards import (
     approval_keyboard, reject_reasons_keyboard, platform_keyboard,
     time_keyboard, author_keyboard, feedback_keyboard,
+    approval_with_image_keyboard, post_ready_keyboard,
 )
 from ..drafts import DraftManager
-from ..image_gen import generate_image
+from ..image_gen import generate_image, generate_image_with_refinement
 from ..publishers import get_publisher, get_all_publishers, AUTHORS
 from ..scheduler import PostScheduler, get_schedule_time
 from ..safety import circuit_breaker
@@ -377,5 +378,87 @@ async def on_feedback_future(callback: CallbackQuery):
         "• «Меньше советов, больше историй»\n"
         "• «Не поучай читателя»\n"
         "• «Всегда заканчивай вопросом»"
+    )
+    await callback.answer()
+
+
+# ── CS-001: On-demand image generation ─────────────────────────────────────
+
+@router.callback_query(F.data.startswith("gen_image:"))
+async def on_gen_image(callback: CallbackQuery):
+    """Generate image on demand when user presses [С картинкой]."""
+    post_id = callback.data.split(":")[1]
+    draft = DraftManager.get_draft(post_id)
+    if not draft:
+        await callback.answer("Черновик не найден", show_alert=True)
+        return
+
+    await callback.answer("Генерирую картинку...")
+    await callback.message.edit_text(f"🎨 Генерирую картинку для: {draft['topic'][:40]}...")
+
+    try:
+        image_path = await asyncio.to_thread(
+            generate_image, draft["topic"], draft["text"]
+        )
+
+        if not image_path:
+            await callback.message.edit_text(
+                "Не удалось сгенерировать картинку.",
+                reply_markup=post_ready_keyboard(post_id),
+            )
+            return
+
+        DraftManager.update_draft(post_id, image_path=image_path)
+
+        from aiogram.types import FSInputFile
+        await callback.message.answer_photo(
+            FSInputFile(image_path), caption="Картинка для поста"
+        )
+        await callback.message.answer(
+            f"Пост с картинкой (ID: {post_id})\nЧто делаем?",
+            reply_markup=approval_with_image_keyboard(post_id),
+        )
+
+    except Exception as e:
+        logger.error(f"On-demand image generation error: {e}", exc_info=True)
+        await callback.message.edit_text(
+            f"Ошибка генерации: {str(e)[:200]}",
+            reply_markup=post_ready_keyboard(post_id),
+        )
+
+
+# ── CS-003: Image regeneration with refinement ────────────────────────────
+
+_image_regen_state: dict[int, str] = {}  # user_id → post_id
+
+
+def is_in_image_regen_mode(user_id: int) -> bool:
+    return user_id in _image_regen_state
+
+
+def get_image_regen_post_id(user_id: int) -> str | None:
+    return _image_regen_state.get(user_id)
+
+
+def consume_image_regen_mode(user_id: int) -> str | None:
+    return _image_regen_state.pop(user_id, None)
+
+
+@router.callback_query(F.data.startswith("regen_image:"))
+async def on_regen_image(callback: CallbackQuery):
+    """Start image regeneration — ask user what to change."""
+    post_id = callback.data.split(":")[1]
+    draft = DraftManager.get_draft(post_id)
+    if not draft:
+        await callback.answer("Черновик не найден", show_alert=True)
+        return
+
+    _image_regen_state[callback.from_user.id] = post_id
+    await callback.message.edit_text(
+        f"🎨 Что изменить в картинке? (пост {post_id})\n\n"
+        "Напиши текстом, например:\n"
+        "• «Сделай ярче»\n"
+        "• «Добавь стрелку вверх»\n"
+        "• «Используй сцену с лестницей»"
     )
     await callback.answer()

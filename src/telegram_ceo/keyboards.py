@@ -121,6 +121,38 @@ def stale_task_keyboard(task_id: str) -> InlineKeyboardMarkup:
     ])
 
 
+def action_keyboard(action_id: str) -> InlineKeyboardMarkup:
+    """Action keyboard for proactive planner items — [Launch] [Skip]."""
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [
+            InlineKeyboardButton(
+                text="🚀 Запустить",
+                callback_data=f"action_launch:{action_id}",
+            ),
+            InlineKeyboardButton(
+                text="⏭ Пропустить",
+                callback_data=f"action_skip:{action_id}",
+            ),
+        ],
+    ])
+
+
+def evening_review_keyboard() -> InlineKeyboardMarkup:
+    """Evening review keyboard — [Approve plan] [Adjust]."""
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [
+            InlineKeyboardButton(
+                text="✅ Утвердить план",
+                callback_data="evening_approve",
+            ),
+            InlineKeyboardButton(
+                text="✏️ Скорректировать",
+                callback_data="evening_adjust",
+            ),
+        ],
+    ])
+
+
 def diagnostic_keyboard(diag_id: str) -> InlineKeyboardMarkup:
     """Action keyboard for CTO API diagnostic reports."""
     return InlineKeyboardMarkup(inline_keyboard=[

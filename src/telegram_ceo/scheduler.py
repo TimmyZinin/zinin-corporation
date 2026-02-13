@@ -457,8 +457,133 @@ def setup_ceo_scheduler(bot: Bot, config: CeoTelegramConfig) -> AsyncIOScheduler
         replace_existing=True,
     )
 
-    # 10) Enhanced morning briefing: add Task Pool + rate alerts
-    # (enhancement is inside the existing morning_briefing function above)
+    # 10) Proactive morning plan — 09:00 MSK (UTC+3 = 06:00 UTC)
+    async def proactive_morning():
+        try:
+            from ..revenue_tracker import add_daily_snapshot, format_revenue_summary
+            from ..proactive_planner import generate_morning_plan, format_morning_message
+            from ..keyboards import action_keyboard
+
+            add_daily_snapshot()
+            actions = generate_morning_plan()
+            msg = format_morning_message(actions)
+            await bot.send_message(chat_id, msg)
+
+            for action in actions:
+                await bot.send_message(
+                    chat_id,
+                    f"{'🔴' if action.priority <= 1 else '🟡' if action.priority == 2 else '🟢'} {action.title}",
+                    reply_markup=action_keyboard(action.id),
+                )
+            logger.info(f"Proactive morning: {len(actions)} actions sent")
+        except Exception as e:
+            logger.error(f"Proactive morning failed: {e}")
+
+    scheduler.add_job(
+        proactive_morning,
+        CronTrigger(hour=6, minute=0),
+        id="proactive_morning",
+        replace_existing=True,
+    )
+
+    # 11) Proactive midday check — 14:00 MSK (= 11:00 UTC)
+    async def proactive_midday():
+        try:
+            from ..proactive_planner import generate_midday_check, format_midday_message
+            from ..keyboards import action_keyboard
+
+            actions = generate_midday_check()
+            msg = format_midday_message(actions)
+            await bot.send_message(chat_id, msg)
+
+            for action in actions:
+                await bot.send_message(
+                    chat_id,
+                    f"📢 {action.title}",
+                    reply_markup=action_keyboard(action.id),
+                )
+            logger.info(f"Proactive midday: {len(actions)} actions sent")
+        except Exception as e:
+            logger.error(f"Proactive midday failed: {e}")
+
+    scheduler.add_job(
+        proactive_midday,
+        CronTrigger(hour=11, minute=0),
+        id="proactive_midday",
+        replace_existing=True,
+    )
+
+    # 12) Proactive evening review — 20:00 MSK (= 17:00 UTC)
+    async def proactive_evening():
+        try:
+            from ..proactive_planner import generate_evening_review, format_evening_message
+            from ..keyboards import evening_review_keyboard
+
+            summary, tomorrow = generate_evening_review()
+            msg = format_evening_message(summary, tomorrow)
+            await bot.send_message(
+                chat_id,
+                msg,
+                reply_markup=evening_review_keyboard(),
+            )
+            logger.info("Proactive evening review sent")
+        except Exception as e:
+            logger.error(f"Proactive evening failed: {e}")
+
+    scheduler.add_job(
+        proactive_evening,
+        CronTrigger(hour=17, minute=0),
+        id="proactive_evening",
+        replace_existing=True,
+    )
+
+    # 13) Comment digest — every 3 hours, only sends if comments found
+    async def comment_digest_job():
+        try:
+            from ..comment_digest import fetch_comment_digest
+            entry = await fetch_comment_digest()
+            if entry and entry.get("comment_count", 0) > 0:
+                await bot.send_message(
+                    chat_id,
+                    f"💬 Новые комментарии ({entry['comment_count']}):\n\n"
+                    f"{entry.get('summary', '')[:500]}",
+                )
+                logger.info(f"Comment digest: {entry['comment_count']} comments")
+            else:
+                logger.info("Comment digest: no new comments")
+        except Exception as e:
+            logger.error(f"Comment digest failed: {e}")
+
+    scheduler.add_job(
+        comment_digest_job,
+        "interval",
+        hours=3,
+        id="comment_digest",
+        replace_existing=True,
+    )
+
+    # 14) Competitor analysis — daily at 07:00 MSK (= 04:00 UTC)
+    async def competitor_scan():
+        try:
+            from ..competitor_analysis import run_daily_scan, format_insights_summary
+            insights = await run_daily_scan()
+            if insights:
+                summary = format_insights_summary(insights)
+                if len(summary) > 4000:
+                    summary = summary[:4000] + "..."
+                await bot.send_message(chat_id, summary)
+                logger.info(f"Competitor scan: {len(insights)} insights")
+            else:
+                logger.info("Competitor scan: no insights gathered")
+        except Exception as e:
+            logger.error(f"Competitor scan failed: {e}")
+
+    scheduler.add_job(
+        competitor_scan,
+        CronTrigger(hour=4),
+        id="competitor_scan",
+        replace_existing=True,
+    )
 
     logger.info(
         f"CEO scheduler: briefing=daily {config.morning_briefing_hour}:00, "
@@ -466,7 +591,9 @@ def setup_ceo_scheduler(bot: Bot, config: CeoTelegramConfig) -> AsyncIOScheduler
         f"api_health=every 30min, "
         f"cto_improvement=4x/day (9:30, 13:30, 17:30, 21:30), "
         f"archive=daily 01:00, orphan_patrol=daily 10:00, "
-        f"analytics=daily 22:00, evening=daily 21:00, digest=Sun 20:00"
+        f"analytics=daily 22:00, evening=daily 21:00, digest=Sun 20:00, "
+        f"proactive: morning=06:00, midday=11:00, evening=17:00, "
+        f"comment_digest=every 3h, competitor_scan=daily 04:00"
     )
 
     return scheduler

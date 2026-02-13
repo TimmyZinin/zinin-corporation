@@ -47,6 +47,9 @@ class DraftManager:
             "feedback": "",
             "created_at": time.time(),
             "scheduled_at": "",
+            "iteration": 1,
+            "max_iterations": 3,
+            "feedback_history": [],
         }
         cls._save_to_disk(post_id)
         logger.info(f"Draft created: {post_id} topic={topic[:40]} author={author}")

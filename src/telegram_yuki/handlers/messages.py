@@ -11,8 +11,8 @@ from ...telegram.bridge import AgentBridge
 from ...telegram.formatters import format_for_telegram
 from ...telegram.handlers.commands import keep_typing
 from ..drafts import DraftManager
-from ..keyboards import approval_keyboard
-from ..image_gen import generate_image
+from ..keyboards import approval_keyboard, post_ready_keyboard, approval_with_image_keyboard, final_choice_keyboard
+from ..image_gen import generate_image, generate_image_with_refinement
 from ..safety import circuit_breaker
 from ..publishers import AUTHORS
 from .commands import _parse_author_topic
@@ -50,6 +50,14 @@ async def handle_text(message: Message):
         return
 
     user_id = message.from_user.id
+
+    # CS-003: Check if user is in image regeneration mode
+    from .callbacks import is_in_image_regen_mode, consume_image_regen_mode
+    if is_in_image_regen_mode(user_id):
+        post_id = consume_image_regen_mode(user_id)
+        if post_id:
+            await _handle_image_refinement(message, post_id, user_text)
+            return
 
     # Check if user is in feedback mode (post-publish)
     fb = DraftManager.get_feedback(user_id)
@@ -196,7 +204,7 @@ async def _handle_future_feedback(message: Message, post_id: str, feedback: str)
 
 
 async def _handle_edit_feedback(message: Message, post_id: str, feedback: str):
-    """Handle text input when user is editing a draft."""
+    """Handle text input when user is editing a draft. CS-004: iteration tracking."""
     draft = DraftManager.get_draft(post_id)
     if not draft:
         DraftManager.clear_editing(message.from_user.id)
@@ -205,31 +213,68 @@ async def _handle_edit_feedback(message: Message, post_id: str, feedback: str):
 
     DraftManager.clear_editing(message.from_user.id)
 
-    status = await message.answer(f"✏️ Переделываю пост с учётом правок...")
+    # CS-004: Check iteration limits
+    iteration = draft.get("iteration", 1)
+    max_iterations = draft.get("max_iterations", 3)
+
+    if iteration >= max_iterations:
+        await message.answer(
+            f"⚠️ Достигнут лимит правок ({max_iterations} итераций).\n"
+            f"Выбери финальное действие:",
+            reply_markup=final_choice_keyboard(post_id),
+        )
+        return
+
+    # CS-004: Track feedback history
+    feedback_history = draft.get("feedback_history", [])
+    feedback_history.append(feedback)
+
+    status = await message.answer(f"✏️ Переделываю пост с учётом правок (итерация {iteration + 1}/{max_iterations})...")
     stop = asyncio.Event()
     typing_task = asyncio.create_task(keep_typing(message, stop))
 
     try:
+        # Include feedback history as context for better iterations
+        history_context = ""
+        if len(feedback_history) > 1:
+            prev = "\n".join(f"- {fb}" for fb in feedback_history[:-1])
+            history_context = f"\nПредыдущие правки (уже учтены):\n{prev}\n"
+
         new_text = await AgentBridge.send_to_agent(
             message=(
                 f"Переделай этот пост с учётом правок.\n\n"
                 f"Текущий пост:\n{draft['text'][:1500]}\n\n"
-                f"Правки от Тима: {feedback}\n\n"
+                f"Правки от Тима: {feedback}\n"
+                f"{history_context}"
                 f"Тема: {draft['topic']}\n"
                 f"Верни ТОЛЬКО текст поста, без комментариев."
             ),
             agent_name="smm",
         )
 
-        DraftManager.update_draft(post_id, text=new_text, feedback=feedback)
+        DraftManager.update_draft(
+            post_id,
+            text=new_text,
+            feedback=feedback,
+            iteration=iteration + 1,
+            feedback_history=feedback_history,
+        )
 
         for chunk in format_for_telegram(new_text):
             await message.answer(chunk)
 
-        await message.answer(
-            f"Пост обновлён (ID: {post_id}). Что делаем?",
-            reply_markup=approval_keyboard(post_id),
-        )
+        # CS-004: At max iterations, show final choice keyboard
+        if iteration + 1 >= max_iterations:
+            await message.answer(
+                f"Пост обновлён (ID: {post_id}). Лимит правок ({max_iterations}) достигнут.\n"
+                f"Финальное решение:",
+                reply_markup=final_choice_keyboard(post_id),
+            )
+        else:
+            await message.answer(
+                f"Пост обновлён (ID: {post_id}, итерация {iteration + 1}/{max_iterations}). Что делаем?",
+                reply_markup=approval_keyboard(post_id),
+            )
 
     except Exception as e:
         logger.error(f"Edit feedback error: {e}", exc_info=True)
@@ -244,7 +289,7 @@ async def _handle_edit_feedback(message: Message, post_id: str, feedback: str):
 
 
 async def _generate_post_flow(message: Message, topic: str, author: str = "kristina", brand: str = "sborka"):
-    """Generate a post from natural language trigger."""
+    """Generate a post from natural language trigger. CS-001: text first, image deferred."""
     if circuit_breaker.is_open:
         await message.answer("Circuit breaker активен. Подожди или /health.")
         return
@@ -258,32 +303,21 @@ async def _generate_post_flow(message: Message, topic: str, author: str = "krist
         post_text = await AgentBridge.run_generate_post(topic=topic, author=author)
         circuit_breaker.record_success()
 
-        image_path = ""
-        try:
-            image_path = await asyncio.to_thread(generate_image, topic, post_text)
-        except Exception as e:
-            logger.warning(f"Image generation failed: {e}")
-
+        # CS-001: Text first, image deferred (no auto-generation)
         post_id = DraftManager.create_draft(
             topic=topic, text=post_text, author=author, brand=brand,
-            image_path=image_path or "",
+            image_path="",
         )
 
         for chunk in format_for_telegram(post_text):
             await message.answer(chunk)
 
-        if image_path:
-            try:
-                from aiogram.types import FSInputFile
-                await message.answer_photo(FSInputFile(image_path), caption="Картинка для поста")
-            except Exception as e:
-                logger.warning(f"Failed to send image: {e}")
-
+        # CS-002: Use post_ready_keyboard with image choice
         await message.answer(
             f"Пост готов (ID: {post_id})\n"
             f"Автор: {author_label} | Бренд: {brand}\n"
             f"Что делаем?",
-            reply_markup=approval_keyboard(post_id),
+            reply_markup=post_ready_keyboard(post_id),
         )
 
     except Exception as e:
@@ -295,6 +329,52 @@ async def _generate_post_flow(message: Message, topic: str, author: str = "krist
         await typing_task
         try:
             await status_msg.delete()
+        except Exception:
+            pass
+
+
+async def _handle_image_refinement(message: Message, post_id: str, refinement: str):
+    """CS-003: Handle image refinement text input."""
+    draft = DraftManager.get_draft(post_id)
+    if not draft:
+        await message.answer("Черновик не найден.")
+        return
+
+    status = await message.answer("🎨 Генерирую новую картинку с учётом пожеланий...")
+    stop = asyncio.Event()
+    typing_task = asyncio.create_task(keep_typing(message, stop))
+
+    try:
+        image_path = await asyncio.to_thread(
+            generate_image_with_refinement, draft["topic"], draft["text"], refinement
+        )
+
+        if not image_path:
+            await message.answer(
+                "Не удалось сгенерировать картинку.",
+                reply_markup=approval_with_image_keyboard(post_id),
+            )
+            return
+
+        DraftManager.update_draft(post_id, image_path=image_path)
+
+        from aiogram.types import FSInputFile
+        await message.answer_photo(
+            FSInputFile(image_path), caption="Обновлённая картинка"
+        )
+        await message.answer(
+            f"Картинка обновлена (ID: {post_id}). Что делаем?",
+            reply_markup=approval_with_image_keyboard(post_id),
+        )
+
+    except Exception as e:
+        logger.error(f"Image refinement error: {e}", exc_info=True)
+        await message.answer(f"Ошибка: {str(e)[:200]}")
+    finally:
+        stop.set()
+        await typing_task
+        try:
+            await status.delete()
         except Exception:
             pass
 
