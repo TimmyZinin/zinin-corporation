@@ -49,7 +49,7 @@ class TestAPIRegistry(unittest.TestCase):
         from src.tools.tech_tools import _API_REGISTRY
         platform = [k for k, v in _API_REGISTRY.items() if v["category"] == "platform"]
         self.assertIn("linkedin", platform)
-        self.assertIn("railway", platform)
+        # railway removed — self-monitoring is circular
 
     def test_auth_headers_callable(self):
         from src.tools.tech_tools import _API_REGISTRY

@@ -94,6 +94,47 @@ def setup_ceo_scheduler(bot: Bot, config: CeoTelegramConfig) -> AsyncIOScheduler
         replace_existing=True,
     )
 
+    def _rule_based_analysis(failed_keys: list, details: dict) -> str:
+        """Rule-based CTO analysis fallback when LLM is unavailable."""
+        _KNOWN_FIXES = {
+            "tbank": "Проверьте TBANK_API_KEY и IP-whitelist в личном кабинете Т-Банка.",
+            "moralis": "Проверьте MORALIS_API_KEY. Бесплатный tier: 25K req/day.",
+            "helius": "Проверьте HELIUS_API_KEY и статус Solana RPC на status.helius.dev.",
+            "tonapi": "Проверьте TON_API_KEY. Возможен таймаут — TON сеть медленная.",
+            "coingecko": "CoinGecko без ключа: 10 req/min. Подождите или добавьте COINGECKO_API_KEY.",
+            "tribute": "Проверьте TRIBUTE_API_KEY и статус Tribute сервиса.",
+            "forex": "Forex API бесплатный: 250 req/month. Возможен лимит.",
+            "eventum": "Проверьте EVENTUM_API_KEY и доступность сервиса.",
+            "openrouter": "Проверьте OPENROUTER_API_KEY и баланс на openrouter.ai/activity.",
+            "elevenlabs": "Проверьте ELEVENLABS_API_KEY и остаток символов на elevenlabs.io.",
+            "openai": "Проверьте OPENAI_API_KEY и баланс на platform.openai.com.",
+            "groq": "Проверьте GROQ_API_KEY. Бесплатный tier: 14.4K req/day.",
+            "linkedin": "LinkedIn токен истёк (60 дней). Обновите через OAuth flow.",
+        }
+        lines = []
+        for key in failed_keys:
+            info = details.get(key, {})
+            error = info.get("error", "неизвестная ошибка")
+            code = info.get("code", "N/A")
+            fix = _KNOWN_FIXES.get(key, "Проверьте конфигурацию и env vars.")
+
+            if "Missing" in error:
+                hint = "Не настроен API ключ."
+            elif code == 429:
+                hint = "Rate limit — слишком много запросов."
+            elif code == 401 or code == 403:
+                hint = "Ошибка авторизации — ключ невалидный или истёк."
+            elif code == 502 or code == 503:
+                hint = "Сервис временно недоступен."
+            elif "timeout" in error.lower() or "timed out" in error.lower():
+                hint = "Таймаут — сервис не отвечает."
+            else:
+                hint = f"Ошибка: {error}"
+
+            lines.append(f"• {key}: {hint}\n  → {fix}")
+
+        return "\n".join(lines) if lines else "Нет данных для анализа."
+
     # 3) API health check every 30 minutes — with CTO diagnostics + action buttons
     async def api_health_check():
         try:
@@ -180,10 +221,8 @@ def setup_ceo_scheduler(bot: Bot, config: CeoTelegramConfig) -> AsyncIOScheduler
                     diag_data["last_analysis"] = now.isoformat()
 
             if not analysis:
-                analysis = (
-                    "Автоматический анализ временно недоступен. "
-                    "Нажмите «Подробнее» для просмотра деталей по каждому API."
-                )
+                # Rule-based fallback when LLM is unavailable
+                analysis = _rule_based_analysis(failed_api_keys, detailed_results)
 
             # Save diagnostic record
             diagnostic = {

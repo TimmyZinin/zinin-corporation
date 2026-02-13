@@ -555,14 +555,8 @@ _API_REGISTRY = {
         },
         "description": "LinkedIn publishing API",
     },
-    "railway": {
-        "name": "Railway App",
-        "category": "platform",
-        "env_vars": [],
-        "ping_url": "https://crewai-studio-production-b962.up.railway.app/",
-        "auth_header": lambda: {},
-        "description": "Production deployment",
-    },
+    # NOTE: Railway self-ping removed — bot can't report its own downtime.
+    # Monitoring will move to external uptime service (e.g., UptimeRobot).
 }
 
 
