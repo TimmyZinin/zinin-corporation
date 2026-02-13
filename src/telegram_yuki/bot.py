@@ -134,7 +134,13 @@ async def main():
     scheduler_task = asyncio.create_task(_scheduler_loop(bot))
     logger.info("Scheduler background task started")
 
-    logger.info("Юки SMM Telegram bot starting...")
+    # Force-disconnect any previous polling session
+    try:
+        await bot.delete_webhook(drop_pending_updates=True)
+    except Exception as e:
+        logger.warning(f"delete_webhook failed: {e}")
+
+    logger.info("Юки SMM Telegram bot starting polling...")
 
     try:
         await dp.start_polling(bot, drop_pending_updates=True)

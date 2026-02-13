@@ -16,7 +16,7 @@ load_dotenv(os.path.join(PROJECT_ROOT, ".env"))
 # Also try config/.env
 load_dotenv(os.path.join(PROJECT_ROOT, "config", ".env"))
 
-MAX_RETRIES = 10
+MAX_RETRIES = 5
 RETRY_DELAY = 30  # seconds
 
 
@@ -28,7 +28,12 @@ async def run_with_retry():
             await main()
             break
         except Exception as e:
-            print(f"[Алексей bot] Crashed: {e}", flush=True)
+            err_name = type(e).__name__
+            print(f"[Алексей bot] Crashed ({err_name}): {e}", flush=True)
+            # TelegramConflictError = another instance running, don't retry
+            if "Conflict" in err_name or "Conflict" in str(e):
+                print("[Алексей bot] Another instance detected — exiting.", flush=True)
+                sys.exit(1)
             if attempt < MAX_RETRIES:
                 print(f"[Алексей bot] Retrying in {RETRY_DELAY}s...", flush=True)
                 await asyncio.sleep(RETRY_DELAY)

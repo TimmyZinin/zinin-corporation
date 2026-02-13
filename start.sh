@@ -1,5 +1,6 @@
 #!/bin/bash
 # Start Telegram bots (Streamlit disabled to save RAM)
+# Stagger starts to avoid Telegram polling conflicts during deployment
 
 # Start Маттиас (CFO) Telegram bot in background
 if [ -n "$TELEGRAM_BOT_TOKEN" ]; then
@@ -7,6 +8,7 @@ if [ -n "$TELEGRAM_BOT_TOKEN" ]; then
     python run_telegram.py &
     TELEGRAM_PID=$!
     echo "Маттиас bot started (PID: $TELEGRAM_PID)"
+    sleep 3
 else
     echo "TELEGRAM_BOT_TOKEN not set — Маттиас bot skipped"
 fi
@@ -17,6 +19,7 @@ if [ -n "$TELEGRAM_CEO_BOT_TOKEN" ]; then
     python run_alexey_bot.py &
     CEO_BOT_PID=$!
     echo "Алексей bot started (PID: $CEO_BOT_PID)"
+    sleep 3
 else
     echo "TELEGRAM_CEO_BOT_TOKEN not set — Алексей bot skipped"
 fi

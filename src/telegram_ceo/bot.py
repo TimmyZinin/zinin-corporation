@@ -77,7 +77,14 @@ async def main():
         except Exception as e:
             logger.warning(f"Startup notification failed: {e}")
 
-    logger.info("Алексей CEO Telegram bot starting...")
+    # Force-disconnect any previous polling session
+    logger.info("Clearing webhook/polling lock...")
+    try:
+        await bot.delete_webhook(drop_pending_updates=True)
+    except Exception as e:
+        logger.warning(f"delete_webhook failed: {e}")
+
+    logger.info("Алексей CEO Telegram bot starting polling...")
 
     try:
         await dp.start_polling(bot, drop_pending_updates=True)

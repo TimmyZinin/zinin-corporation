@@ -17,7 +17,7 @@ load_dotenv(os.path.join(PROJECT_ROOT, ".env"))
 # Also try config/.env
 load_dotenv(os.path.join(PROJECT_ROOT, "config", ".env"))
 
-MAX_RETRIES = 10
+MAX_RETRIES = 5
 RETRY_DELAY = 30  # seconds
 
 
@@ -29,7 +29,11 @@ async def run_with_retry():
             await main()
             break  # clean exit
         except Exception as e:
-            print(f"[Маттиас bot] Crashed: {e}", flush=True)
+            err_name = type(e).__name__
+            print(f"[Маттиас bot] Crashed ({err_name}): {e}", flush=True)
+            if "Conflict" in err_name or "Conflict" in str(e):
+                print("[Маттиас bot] Another instance detected — exiting.", flush=True)
+                sys.exit(1)
             if attempt < MAX_RETRIES:
                 print(f"[Маттиас bot] Retrying in {RETRY_DELAY}s...", flush=True)
                 await asyncio.sleep(RETRY_DELAY)

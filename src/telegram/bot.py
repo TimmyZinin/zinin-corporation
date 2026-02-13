@@ -100,7 +100,13 @@ async def main():
     except ImportError:
         logger.warning("APScheduler not available — proactive messages disabled")
 
-    logger.info("Маттиас Telegram bot starting...")
+    # Force-disconnect any previous polling session
+    try:
+        await bot.delete_webhook(drop_pending_updates=True)
+    except Exception as e:
+        logger.warning(f"delete_webhook failed: {e}")
+
+    logger.info("Маттиас Telegram bot starting polling...")
 
     try:
         await dp.start_polling(bot, drop_pending_updates=True)
