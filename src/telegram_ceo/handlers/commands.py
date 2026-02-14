@@ -20,22 +20,21 @@ VALID_AGENTS = {"accountant", "automator", "smm", "manager", "designer", "cpo"}
 
 @router.message(CommandStart())
 async def cmd_start(message: Message):
+    from ..keyboards import main_reply_keyboard
     await message.answer(
         "Алексей Воронов — CEO Zinin Corp\n\n"
         "Добрый день, Тим. Я Алексей, генеральный директор корпорации.\n\n"
-        "Команды:\n"
+        "Используйте кнопки внизу или команды:\n"
         "/review — Стратегический обзор\n"
         "/report — Полный отчёт корпорации\n"
         "/status — Статус агентов\n"
         "/analytics — Аналитика API и агентов\n"
-        "/task <заголовок> — Создать задачу\n"
-        "/tasks — Сводка задач\n"
-        "/content <тема> — Юки готовит пост для LinkedIn\n"
-        "/linkedin — Статус LinkedIn от Юки\n"
-        "/delegate <агент> <задача> — Делегировать задачу\n"
+        "/task — Задачи\n"
+        "/content <тема> — Пост для LinkedIn\n"
+        "/gallery — Галерея изображений\n"
         "/help — Справка\n\n"
-        "Можете написать любой вопрос — я отвечу как CEO "
-        "и при необходимости привлеку специалистов (включая Юки для контента).",
+        "Можете написать любой вопрос или отправить голосовое сообщение.",
+        reply_markup=main_reply_keyboard(),
     )
 
 

@@ -690,8 +690,7 @@ class TestCeoVoiceHandler:
     def test_voice_handler_has_brain_dump_check(self):
         from src.telegram_ceo.handlers import messages
         src = inspect.getsource(messages.handle_voice)
-        assert "is_brain_dump" in src
-        assert "parse_brain_dump" in src
+        assert "_analyze_voice_input" in src
 
     def test_voice_handler_cleans_up_files(self):
         from src.telegram_ceo.handlers import messages
@@ -701,7 +700,7 @@ class TestCeoVoiceHandler:
     def test_voice_handler_forwards_to_agent(self):
         from src.telegram_ceo.handlers import messages
         src = inspect.getsource(messages.handle_voice)
-        assert "AgentBridge" in src
+        assert "voice_brain_confirm_keyboard" in src
 
     def test_voice_handler_shows_transcription(self):
         from src.telegram_ceo.handlers import messages

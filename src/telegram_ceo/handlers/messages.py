@@ -2,6 +2,7 @@
 
 import asyncio
 import logging
+import re
 
 from aiogram import Router, F
 from aiogram.types import Message
@@ -15,6 +16,12 @@ from .callbacks import (
     is_in_new_task_mode, _new_task_state,
     is_in_split_mode, _split_task_state,
     is_in_evening_adjust_mode, consume_evening_adjust_mode,
+    is_in_new_content_mode, _new_content_state,
+)
+from ..voice_brain_state import (
+    is_in_voice_brain_mode, get_voice_brain_session,
+    start_voice_brain_session, update_voice_brain_session,
+    end_voice_brain_session, can_iterate,
 )
 
 logger = logging.getLogger(__name__)
@@ -32,6 +39,16 @@ _AGENT_LABELS = {
     "smm": "Юки",
     "designer": "Райан",
     "cpo": "Софи",
+}
+
+# Reply keyboard button → command mapping
+_REPLY_KB_MAP = {
+    "📋 задачи": "tasks",
+    "📊 статус": "status",
+    "📈 аналитика": "analytics",
+    "✍️ контент": "content_menu",
+    "🖼 галерея": "gallery",
+    "❓ помощь": "help",
 }
 
 # Intent → command handler mapping
@@ -94,10 +111,139 @@ def _get_context(user_id: int) -> list[dict]:
     return _chat_contexts[user_id]
 
 
+# ── Voice Brain Dump helpers ─────────────────────────────────────────────────
+
+def _analyze_voice_input(text: str) -> tuple[list, list, str]:
+    """Analyze transcribed voice text → (tasks, proposals, summary).
+
+    Returns:
+        tasks: list of PoolTask if brain dump detected
+        proposals: list of dicts {text, index} if not a brain dump
+        summary: human-readable summary string
+    """
+    from ...brain_dump import is_brain_dump, parse_brain_dump, format_brain_dump_result
+
+    if is_brain_dump(text):
+        tasks = parse_brain_dump(text, source="voice_brain_dump")
+        if tasks:
+            summary = format_brain_dump_result(tasks)
+            return tasks, [], summary
+
+    # Not a brain dump — extract proposals (sentences/items)
+    proposals = _extract_proposals(text)
+    summary = _format_proposals(text, proposals)
+    return [], proposals, summary
+
+
+def _extract_proposals(text: str) -> list[dict]:
+    """Split text into proposal items (sentences or list items)."""
+    proposals = []
+    # Try line-based splitting first
+    lines = [l.strip() for l in text.split("\n") if l.strip()]
+    if len(lines) >= 2:
+        for i, line in enumerate(lines):
+            clean = re.sub(r"^\d+[\.\)]\s+|^[-•●]\s+", "", line).strip()
+            if len(clean) >= 5:
+                proposals.append({"text": clean, "index": i})
+    else:
+        # Single block — split by sentences
+        sentences = re.split(r'(?<=[.!?])\s+', text.strip())
+        for i, sent in enumerate(sentences):
+            sent = sent.strip()
+            if len(sent) >= 5:
+                proposals.append({"text": sent, "index": i})
+
+    return proposals
+
+
+def _format_proposals(text: str, proposals: list[dict]) -> str:
+    """Format proposals for display."""
+    if not proposals:
+        return f"📝 Текст:\n{text[:1500]}"
+
+    lines = [f"📝 Распознано {len(proposals)} пунктов:\n"]
+    for p in proposals[:15]:
+        lines.append(f"  {p['index'] + 1}. {p['text'][:200]}")
+    return "\n".join(lines)
+
+
+async def _handle_voice_brain_correction(message: Message, correction_text: str):
+    """Handle text/voice correction in voice brain dump mode."""
+    user_id = message.from_user.id
+    session = get_voice_brain_session(user_id)
+    if not session:
+        end_voice_brain_session(user_id)
+        return
+
+    if not can_iterate(user_id):
+        end_voice_brain_session(user_id)
+        await message.answer("🚫 Достигнут лимит уточнений. Начните заново голосовым сообщением.")
+        return
+
+    # Combine previous text + correction
+    combined = f"{session.raw_text}\n\nУточнение: {correction_text}"
+    tasks, proposals, summary = _analyze_voice_input(combined)
+
+    update_voice_brain_session(
+        user_id,
+        raw_text=combined,
+        parsed_tasks=tasks,
+        proposals=proposals,
+        summary_text=summary,
+    )
+
+    from ..keyboards import voice_brain_confirm_keyboard
+
+    summary_display = summary[:3500] if len(summary) > 3500 else summary
+    await message.answer(
+        f"🧠 Обновлённый анализ (итерация {session.iteration + 1}):\n\n{summary_display}",
+        reply_markup=voice_brain_confirm_keyboard(),
+        parse_mode="HTML",
+    )
+
+
+# ── Main text handler ────────────────────────────────────────────────────────
+
 @router.message(F.text)
 async def handle_text(message: Message):
     user_text = message.text.strip()
     if not user_text:
+        return
+
+    # Voice Brain Dump correction mode — FIRST priority among FSM checks
+    if is_in_voice_brain_mode(message.from_user.id):
+        await _handle_voice_brain_correction(message, user_text)
+        return
+
+    # Reply Keyboard button routing — BEFORE Fast Router
+    btn_key = user_text.lower()
+    if btn_key in _REPLY_KB_MAP:
+        action = _REPLY_KB_MAP[btn_key]
+        from .commands import cmd_tasks, cmd_status, cmd_analytics, cmd_gallery, cmd_help
+        from ..keyboards import content_submenu_keyboard
+
+        action_map = {
+            "tasks": cmd_tasks,
+            "status": cmd_status,
+            "analytics": cmd_analytics,
+            "gallery": cmd_gallery,
+            "help": cmd_help,
+        }
+        if action == "content_menu":
+            await message.answer("✍️ Контент:", reply_markup=content_submenu_keyboard())
+            return
+        handler = action_map.get(action)
+        if handler:
+            await handler(message)
+            return
+
+    # Sub-menu "new content post" mode — intercept topic text
+    if is_in_new_content_mode(message.from_user.id):
+        _new_content_state.discard(message.from_user.id)
+        from .commands import cmd_content
+        # Inject topic into message text for cmd_content
+        message.text = f"/content {user_text}"
+        await cmd_content(message)
         return
 
     # Evening adjust mode — user typed plan corrections
@@ -268,9 +414,11 @@ async def handle_text(message: Message):
             pass
 
 
+# ── Voice handler (with Brain Dump Pipeline) ─────────────────────────────────
+
 @router.message(F.voice)
 async def handle_voice(message: Message):
-    """Voice message handler — transcribe → brain dump or agent."""
+    """Voice message handler — transcribe → brain dump pipeline with confirmation."""
     import os
     import tempfile
 
@@ -311,56 +459,31 @@ async def handle_voice(message: Message):
         # Show transcription
         await message.answer(f"📝 Распознано:\n{text[:2000]}")
 
-        # Check if it's a brain dump
-        from ...brain_dump import is_brain_dump, parse_brain_dump, format_brain_dump_result
-        if is_brain_dump(text):
-            tasks = parse_brain_dump(text, source="voice_brain_dump")
-            if tasks:
-                from ..keyboards import task_menu_keyboard
-                result_text = format_brain_dump_result(tasks)
-                if len(result_text) > 4000:
-                    result_text = result_text[:4000] + "..."
-                await message.answer(
-                    result_text, reply_markup=task_menu_keyboard(), parse_mode="HTML",
-                )
-                return
+        # If already in voice brain mode → treat as voice correction
+        if is_in_voice_brain_mode(message.from_user.id):
+            await _handle_voice_brain_correction(message, text)
+            return
 
-        # Otherwise treat as regular text — forward to agent
-        # Create a synthetic text message behavior
-        user_ctx = _get_context(message.from_user.id)
-        user_ctx.append({"role": "user", "text": f"[голос] {text}"})
+        # Analyze voice input
+        tasks, proposals, summary = _analyze_voice_input(text)
 
-        stop = asyncio.Event()
-        typing_task = asyncio.create_task(keep_typing(message, stop))
-        context_str = _format_context(user_ctx[-MAX_CONTEXT:])
+        from ..keyboards import voice_brain_confirm_keyboard
 
-        try:
-            response = await asyncio.wait_for(
-                AgentBridge.send_to_agent(
-                    message=text,
-                    agent_name="manager",
-                    chat_context=context_str,
-                    bot=message.bot,
-                    chat_id=message.chat.id,
-                ),
-                timeout=AGENT_TIMEOUT_SEC,
-            )
-            user_ctx.append({"role": "assistant", "text": response})
-            from ..image_sender import send_images_from_response
-            response = await send_images_from_response(message.bot, message.chat.id, response)
-            for chunk in format_for_telegram(response):
-                await message.answer(chunk)
-        except asyncio.TimeoutError:
-            logger.warning(f"Voice agent timed out after {AGENT_TIMEOUT_SEC}s")
-            await message.answer(
-                f"⏱ Агент не ответил за {AGENT_TIMEOUT_SEC} сек. Отправьте текстом ещё раз."
-            )
-        except Exception as e:
-            logger.error(f"Voice → agent error: {e}", exc_info=True)
-            await message.answer(f"Ошибка: {format_error_for_user(e)}")
-        finally:
-            stop.set()
-            await typing_task
+        # Start voice brain session
+        start_voice_brain_session(
+            user_id=message.from_user.id,
+            raw_text=text,
+            parsed_tasks=tasks,
+            proposals=proposals,
+            summary_text=summary,
+        )
+
+        summary_display = summary[:3500] if len(summary) > 3500 else summary
+        await message.answer(
+            f"🧠 Вот что я понял:\n\n{summary_display}",
+            reply_markup=voice_brain_confirm_keyboard(),
+            parse_mode="HTML",
+        )
 
     except Exception as e:
         logger.error(f"Voice handler error: {e}", exc_info=True)

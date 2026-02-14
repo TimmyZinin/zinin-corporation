@@ -1124,3 +1124,192 @@ async def on_gallery_page(callback: CallbackQuery):
 async def on_gallery_noop(callback: CallbackQuery):
     """No-op for page counter button."""
     await callback.answer()
+
+
+# ── Voice Brain Dump callbacks ───────────────────────────────────────────────
+
+@router.callback_query(F.data == "vb_confirm")
+async def on_vb_confirm(callback: CallbackQuery):
+    """Confirm voice brain dump — create tasks from parsed data."""
+    from ..voice_brain_state import get_voice_brain_session, end_voice_brain_session
+    from ..keyboards import task_menu_keyboard
+
+    user_id = callback.from_user.id
+    session = get_voice_brain_session(user_id)
+    if not session:
+        await callback.answer("Сессия истекла", show_alert=True)
+        return
+
+    end_voice_brain_session(user_id)
+
+    if session.parsed_tasks:
+        # Tasks already created by parse_brain_dump — just show result
+        count = len(session.parsed_tasks)
+        try:
+            await callback.message.edit_text(
+                f"✅ Создано {count} задач в Task Pool",
+                reply_markup=task_menu_keyboard(),
+            )
+        except Exception:
+            await callback.message.answer(
+                f"✅ Создано {count} задач в Task Pool",
+                reply_markup=task_menu_keyboard(),
+            )
+        await callback.answer(f"Создано {count} задач")
+    elif session.proposals:
+        # Create tasks from proposals
+        from ...task_pool import create_task
+
+        created = []
+        for p in session.proposals:
+            if len(p.get("text", "")) >= 5:
+                task = create_task(p["text"], source="voice_proposal", assigned_by="tim")
+                created.append(task)
+
+        count = len(created)
+        try:
+            await callback.message.edit_text(
+                f"✅ Создано {count} задач из предложений",
+                reply_markup=task_menu_keyboard(),
+            )
+        except Exception:
+            await callback.message.answer(
+                f"✅ Создано {count} задач из предложений",
+                reply_markup=task_menu_keyboard(),
+            )
+        await callback.answer(f"Создано {count} задач")
+    else:
+        try:
+            await callback.message.edit_text("📝 Принято. Нет задач для создания.")
+        except Exception:
+            pass
+        await callback.answer("Принято")
+
+
+@router.callback_query(F.data == "vb_correct")
+async def on_vb_correct(callback: CallbackQuery):
+    """Enter voice brain dump correction mode."""
+    from ..voice_brain_state import is_in_voice_brain_mode, can_iterate
+
+    user_id = callback.from_user.id
+    if not is_in_voice_brain_mode(user_id):
+        await callback.answer("Сессия истекла", show_alert=True)
+        return
+
+    if not can_iterate(user_id):
+        from ..voice_brain_state import end_voice_brain_session
+        end_voice_brain_session(user_id)
+        await callback.answer("Лимит уточнений достигнут", show_alert=True)
+        return
+
+    try:
+        await callback.message.edit_text(
+            "✏️ Отправьте уточнение текстом или голосом:",
+            reply_markup=None,
+        )
+    except Exception:
+        await callback.message.answer("✏️ Отправьте уточнение текстом или голосом:")
+    await callback.answer()
+
+
+@router.callback_query(F.data == "vb_cancel")
+async def on_vb_cancel(callback: CallbackQuery):
+    """Cancel voice brain dump session."""
+    from ..voice_brain_state import end_voice_brain_session
+
+    end_voice_brain_session(callback.from_user.id)
+    try:
+        await callback.message.edit_text("🚫 Голосовой дамп отменён.")
+    except Exception:
+        pass
+    await callback.answer("Отменено")
+
+
+# ── Sub-menu callbacks ───────────────────────────────────────────────────────
+
+# State for new content post mode
+_new_content_state: set[int] = set()
+
+
+def is_in_new_content_mode(user_id: int) -> bool:
+    return user_id in _new_content_state
+
+
+@router.callback_query(F.data == "sub_content_post")
+async def on_sub_content_post(callback: CallbackQuery):
+    """Enter content post mode — user types topic next."""
+    _new_content_state.add(callback.from_user.id)
+    try:
+        await callback.message.edit_text("📝 Напишите тему для поста:")
+    except Exception:
+        await callback.message.answer("📝 Напишите тему для поста:")
+    await callback.answer()
+
+
+@router.callback_query(F.data == "sub_content_calendar")
+async def on_sub_content_calendar(callback: CallbackQuery):
+    """Show content calendar."""
+    from .commands import cmd_calendar
+    await cmd_calendar(callback.message)
+    await callback.answer()
+
+
+@router.callback_query(F.data == "sub_content_linkedin")
+async def on_sub_content_linkedin(callback: CallbackQuery):
+    """Show LinkedIn status."""
+    from .commands import cmd_linkedin
+    await cmd_linkedin(callback.message)
+    await callback.answer()
+
+
+@router.callback_query(F.data == "sub_status_agents")
+async def on_sub_status_agents(callback: CallbackQuery):
+    """Show agent statuses."""
+    from .commands import cmd_status
+    await cmd_status(callback.message)
+    await callback.answer()
+
+
+@router.callback_query(F.data == "sub_status_tasks")
+async def on_sub_status_tasks(callback: CallbackQuery):
+    """Show task pool."""
+    from .commands import cmd_tasks
+    await cmd_tasks(callback.message)
+    await callback.answer()
+
+
+@router.callback_query(F.data == "sub_status_revenue")
+async def on_sub_status_revenue(callback: CallbackQuery):
+    """Show revenue summary (rule-based, no LLM)."""
+    import json as _json
+    revenue_path = None
+    for p in ["/app/data/revenue.json", "data/revenue.json"]:
+        if os.path.exists(p):
+            revenue_path = p
+            break
+
+    if not revenue_path or not os.path.exists(revenue_path):
+        await callback.message.answer("💰 Данные о revenue пока отсутствуют.")
+        await callback.answer()
+        return
+
+    try:
+        with open(revenue_path, "r", encoding="utf-8") as f:
+            data = _json.load(f)
+        mrr = data.get("current_mrr", 0)
+        target = data.get("target_mrr", 2500)
+        gap = target - mrr
+        channels = data.get("channels", {})
+
+        lines = [f"💰 Revenue Summary\n"]
+        lines.append(f"MRR: ${mrr:.0f} / ${target:.0f} (gap: ${gap:.0f})")
+        if channels:
+            lines.append("")
+            for ch_name, ch_data in channels.items():
+                ch_mrr = ch_data.get("mrr", 0)
+                lines.append(f"  {ch_name}: ${ch_mrr:.0f}")
+
+        await callback.message.answer("\n".join(lines))
+    except Exception as e:
+        await callback.message.answer(f"💰 Ошибка чтения revenue: {e}")
+    await callback.answer()

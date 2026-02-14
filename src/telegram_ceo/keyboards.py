@@ -1,6 +1,6 @@
-"""Inline keyboards for CEO Telegram bot — CTO proposals, API diagnostics, Task Pool, Gallery."""
+"""Inline keyboards for CEO Telegram bot — CTO proposals, API diagnostics, Task Pool, Gallery, Voice Brain Dump."""
 
-from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardMarkup, KeyboardButton
 
 
 # ── Task Pool keyboards ──────────────────────────────────────────────────────
@@ -230,3 +230,62 @@ def gallery_keyboard(
         rows.append(nav)
 
     return InlineKeyboardMarkup(inline_keyboard=rows) if rows else InlineKeyboardMarkup(inline_keyboard=[])
+
+
+# ── Voice Brain Dump keyboards ──────────────────────────────────────────────
+
+def voice_brain_confirm_keyboard() -> InlineKeyboardMarkup:
+    """Confirmation keyboard for voice brain dump: [Yes] [Correct] [Cancel]."""
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [
+            InlineKeyboardButton(text="✅ Да, верно", callback_data="vb_confirm"),
+            InlineKeyboardButton(text="❌ Уточнить", callback_data="vb_correct"),
+            InlineKeyboardButton(text="🚫 Отмена", callback_data="vb_cancel"),
+        ],
+    ])
+
+
+# ── ReplyKeyboard (persistent menu) ─────────────────────────────────────────
+
+def main_reply_keyboard() -> ReplyKeyboardMarkup:
+    """Persistent 3x2 reply keyboard for CEO bot."""
+    return ReplyKeyboardMarkup(
+        keyboard=[
+            [
+                KeyboardButton(text="📋 Задачи"),
+                KeyboardButton(text="📊 Статус"),
+                KeyboardButton(text="📈 Аналитика"),
+            ],
+            [
+                KeyboardButton(text="✍️ Контент"),
+                KeyboardButton(text="🖼 Галерея"),
+                KeyboardButton(text="❓ Помощь"),
+            ],
+        ],
+        resize_keyboard=True,
+        is_persistent=True,
+    )
+
+
+# ── Sub-menu keyboards ──────────────────────────────────────────────────────
+
+def content_submenu_keyboard() -> InlineKeyboardMarkup:
+    """Content sub-menu: post / calendar / linkedin."""
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [
+            InlineKeyboardButton(text="📝 Пост", callback_data="sub_content_post"),
+            InlineKeyboardButton(text="📅 Календарь", callback_data="sub_content_calendar"),
+            InlineKeyboardButton(text="📱 LinkedIn", callback_data="sub_content_linkedin"),
+        ],
+    ])
+
+
+def status_submenu_keyboard() -> InlineKeyboardMarkup:
+    """Status sub-menu: agents / tasks / revenue."""
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [
+            InlineKeyboardButton(text="👥 Агенты", callback_data="sub_status_agents"),
+            InlineKeyboardButton(text="📋 Tasks", callback_data="sub_status_tasks"),
+            InlineKeyboardButton(text="💰 Revenue", callback_data="sub_status_revenue"),
+        ],
+    ])
