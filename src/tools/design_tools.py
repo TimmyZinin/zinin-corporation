@@ -181,14 +181,35 @@ class ImageGenerator(BaseTool):
     args_schema: Type[BaseModel] = ImageGeneratorInput
 
     def _run(self, prompt: str, style: str = "auto", model: str = "auto") -> str:
-        style_prefix = _get_style_prefix(style)
-        full_prompt = f"{style_prefix}\n\n{prompt}" if style_prefix else prompt
+        # For isotype style with topic — use full ISOTYPE scene library
+        if style == "isotype":
+            try:
+                from .isotype_scenes import build_isotype_prompt
+                full_prompt = build_isotype_prompt(topic=prompt)
+            except ImportError:
+                full_prompt = f"{_get_style_prefix('isotype')}\n\n{prompt}"
+        else:
+            style_prefix = _get_style_prefix(style)
+            full_prompt = f"{style_prefix}\n\n{prompt}" if style_prefix else prompt
 
         image_data = _call_image_api(full_prompt, model=model)
         if not image_data:
             return "ERROR: Не удалось сгенерировать изображение. Все модели недоступны."
 
         path = _save_image(image_data, prefix=f"gen_{style}")
+
+        # Auto-register in Image Registry
+        try:
+            from ..image_registry import register_image
+            register_image(
+                path=path,
+                source_agent="designer",
+                style=style,
+                topic=prompt[:200],
+            )
+        except Exception as e:
+            logger.warning("Failed to register image: %s", e)
+
         return f"Изображение сохранено: {path}"
 
 

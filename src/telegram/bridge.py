@@ -227,6 +227,18 @@ class AgentBridge:
         return await asyncio.to_thread(_sync)
 
     @classmethod
+    async def run_generate_image(cls, topic: str, style: str = "isotype") -> str:
+        """Generate image via Ryan's ImageGenerator tool + register in Image Registry.
+
+        Used by Yuki→Ryan pipeline. Returns path to image file or error string.
+        """
+        def _sync():
+            from ..tools.design_tools import ImageGenerator
+            tool = ImageGenerator()
+            return tool._run(prompt=topic, style=style)
+        return await asyncio.to_thread(_sync)
+
+    @classmethod
     async def run_api_health_report(cls) -> str:
         """Run comprehensive API health check with Мартин (CTO)."""
         def _sync():

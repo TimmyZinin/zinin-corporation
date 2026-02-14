@@ -1,4 +1,4 @@
-"""Callback handlers for CTO proposals, API diagnostics, and Task Pool in CEO bot."""
+"""Callback handlers for CTO proposals, API diagnostics, Task Pool, and Gallery in CEO bot."""
 
 import asyncio
 import json
@@ -1028,3 +1028,99 @@ async def on_evening_adjust(callback: CallbackQuery):
         f"✏️ Напиши, что изменить в плане на завтра:"
     )
     await callback.answer("Жду корректировки")
+
+
+# ── Gallery callbacks ────────────────────────────────────────────────────────
+
+@router.callback_query(F.data.startswith("gal_ok:"))
+async def on_gallery_approve(callback: CallbackQuery):
+    """Approve an image in the gallery."""
+    image_id = callback.data.split(":", 1)[1]
+    from ...image_registry import update_status, STATUS_APPROVED
+    entry = update_status(image_id, STATUS_APPROVED)
+    if entry:
+        await callback.message.edit_text(
+            f"{callback.message.text}\n\n✅ Изображение {image_id} одобрено"
+        )
+        await callback.answer("Одобрено")
+    else:
+        await callback.answer("Изображение не найдено", show_alert=True)
+
+
+@router.callback_query(F.data.startswith("gal_no:"))
+async def on_gallery_reject(callback: CallbackQuery):
+    """Reject an image in the gallery."""
+    image_id = callback.data.split(":", 1)[1]
+    from ...image_registry import update_status, STATUS_REJECTED
+    entry = update_status(image_id, STATUS_REJECTED)
+    if entry:
+        await callback.message.edit_text(
+            f"{callback.message.text}\n\n❌ Изображение {image_id} отклонено"
+        )
+        await callback.answer("Отклонено")
+    else:
+        await callback.answer("Изображение не найдено", show_alert=True)
+
+
+@router.callback_query(F.data.startswith("gal_fwd:"))
+async def on_gallery_forward(callback: CallbackQuery):
+    """Forward an image to Yuki (mark as forwarded)."""
+    image_id = callback.data.split(":", 1)[1]
+    from ...image_registry import forward_to_agent, update_status, STATUS_APPROVED
+    entry = forward_to_agent(image_id, "smm")
+    if entry:
+        update_status(image_id, STATUS_APPROVED)
+        await callback.message.edit_text(
+            f"{callback.message.text}\n\n📱 Изображение {image_id} → Юки (одобрено + переслано)"
+        )
+        await callback.answer("Переслано Юки")
+    else:
+        await callback.answer("Изображение не найдено", show_alert=True)
+
+
+@router.callback_query(F.data.startswith("gal_page:"))
+async def on_gallery_page(callback: CallbackQuery):
+    """Navigate gallery pages."""
+    page = int(callback.data.split(":", 1)[1])
+    from ...image_registry import get_gallery, STATUS_PENDING
+    from ..keyboards import gallery_keyboard
+
+    gallery = get_gallery(limit=5, page=page)
+    images = gallery["images"]
+    pages = gallery["pages"]
+
+    if not images:
+        await callback.answer("Страница пуста")
+        return
+
+    pending = sum(1 for img in images if img.get("status") == STATUS_PENDING)
+    header = f"🖼 Галерея ({gallery['total']} изобр., стр. {page + 1}/{pages})"
+    if pending:
+        header += f" | ⏳ {pending} на утверждении"
+
+    lines = [header, ""]
+    for img in images:
+        status_icon = {"pending": "⏳", "approved": "✅", "rejected": "❌"}.get(
+            img.get("status", ""), "❓"
+        )
+        agent = img.get("source_agent", "?")
+        style = img.get("style", "auto")
+        topic = img.get("topic", "")[:40]
+        img_id = img.get("id", "")
+        lines.append(f"{status_icon} <code>{img_id}</code> [{agent}/{style}] {topic}")
+
+    first_pending = next((img for img in images if img.get("status") == STATUS_PENDING), None)
+    kb = gallery_keyboard(
+        image_id=first_pending["id"] if first_pending else "",
+        page=page,
+        pages=pages,
+    )
+
+    await callback.message.edit_text("\n".join(lines), reply_markup=kb, parse_mode="HTML")
+    await callback.answer()
+
+
+@router.callback_query(F.data == "gal_noop")
+async def on_gallery_noop(callback: CallbackQuery):
+    """No-op for page counter button."""
+    await callback.answer()

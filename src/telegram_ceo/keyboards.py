@@ -1,4 +1,4 @@
-"""Inline keyboards for CEO Telegram bot — CTO proposals, API diagnostics, Task Pool."""
+"""Inline keyboards for CEO Telegram bot — CTO proposals, API diagnostics, Task Pool, Gallery."""
 
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 
@@ -199,3 +199,34 @@ def proposal_keyboard(proposal_id: str) -> InlineKeyboardMarkup:
             ),
         ],
     ])
+
+
+# ── Gallery keyboards ────────────────────────────────────────────────────────
+
+def gallery_keyboard(
+    image_id: str = "",
+    page: int = 0,
+    pages: int = 1,
+) -> InlineKeyboardMarkup:
+    """Gallery keyboard: approve/reject/forward + pagination."""
+    rows = []
+
+    # Action buttons for current image (if any pending)
+    if image_id:
+        rows.append([
+            InlineKeyboardButton(text="✅ Одобрить", callback_data=f"gal_ok:{image_id}"),
+            InlineKeyboardButton(text="❌ Отклонить", callback_data=f"gal_no:{image_id}"),
+            InlineKeyboardButton(text="📱 → Юки", callback_data=f"gal_fwd:{image_id}"),
+        ])
+
+    # Pagination
+    if pages > 1:
+        nav = []
+        if page > 0:
+            nav.append(InlineKeyboardButton(text="◀️", callback_data=f"gal_page:{page - 1}"))
+        nav.append(InlineKeyboardButton(text=f"{page + 1}/{pages}", callback_data="gal_noop"))
+        if page < pages - 1:
+            nav.append(InlineKeyboardButton(text="▶️", callback_data=f"gal_page:{page + 1}"))
+        rows.append(nav)
+
+    return InlineKeyboardMarkup(inline_keyboard=rows) if rows else InlineKeyboardMarkup(inline_keyboard=[])

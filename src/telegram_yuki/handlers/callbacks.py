@@ -24,6 +24,7 @@ from ..keyboards import (
 )
 from ..drafts import DraftManager
 from ..image_gen import generate_image, generate_image_with_refinement
+from ..image_pipeline import generate_image_via_pipeline
 from ..publishers import get_publisher, get_all_publishers, AUTHORS
 from ..scheduler import PostScheduler, get_schedule_time
 from ..safety import circuit_breaker
@@ -407,9 +408,7 @@ async def on_regenerate(callback: CallbackQuery):
 
         image_path = ""
         try:
-            image_path = await asyncio.to_thread(
-                generate_image, draft["topic"], new_text
-            )
+            image_path = await generate_image_via_pipeline(draft["topic"], new_text)
         except Exception as e:
             logger.warning(f"Image regen failed: {e}")
 
@@ -558,9 +557,7 @@ async def on_gen_image(callback: CallbackQuery):
     await callback.message.edit_text(f"🎨 Генерирую картинку для: {draft['topic'][:40]}...")
 
     try:
-        image_path = await asyncio.to_thread(
-            generate_image, draft["topic"], draft["text"]
-        )
+        image_path = await generate_image_via_pipeline(draft["topic"], draft["text"])
 
         if not image_path:
             await callback.message.edit_text(
@@ -1115,7 +1112,7 @@ async def on_pp_generate_image(callback: CallbackQuery):
     await callback.message.edit_text("🎨 Генерирую картинку...")
 
     try:
-        image_path = await asyncio.to_thread(generate_image, draft["topic"], draft["text"])
+        image_path = await generate_image_via_pipeline(draft["topic"], draft["text"])
         if image_path:
             DraftManager.update_draft(post_id, image_path=image_path)
             from aiogram.types import FSInputFile

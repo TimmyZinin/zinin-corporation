@@ -1,6 +1,7 @@
-"""CEO Telegram command handlers (/start, /help, /review, /report, /status, /delegate, /content, /linkedin)."""
+"""CEO Telegram command handlers (/start, /help, /review, /report, /status, /delegate, /content, /linkedin, /gallery)."""
 
 import logging
+import os
 
 from aiogram import Router
 from aiogram.filters import CommandStart, Command
@@ -340,6 +341,63 @@ async def cmd_calendar(message: Message):
     await message.answer(text, parse_mode="HTML")
 
 
+@router.message(Command("gallery"))
+async def cmd_gallery(message: Message):
+    """Show image gallery with approve/reject controls."""
+    from ...image_registry import get_gallery, STATUS_PENDING
+    from ..keyboards import gallery_keyboard
+
+    # Parse page from args
+    args = (message.text or "").split()
+    page = 0
+    if len(args) > 1:
+        try:
+            page = max(0, int(args[1]) - 1)
+        except ValueError:
+            pass
+
+    gallery = get_gallery(limit=5, page=page)
+    images = gallery["images"]
+    total = gallery["total"]
+    pages = gallery["pages"]
+
+    if not images:
+        await message.answer("🖼 Галерея пуста — нет изображений.")
+        return
+
+    pending = sum(1 for img in images if img.get("status") == STATUS_PENDING)
+    header = f"🖼 Галерея ({total} изобр., стр. {page + 1}/{pages})"
+    if pending:
+        header += f" | ⏳ {pending} на утверждении"
+
+    lines = [header, ""]
+    for img in images:
+        status_icon = {"pending": "⏳", "approved": "✅", "rejected": "❌"}.get(
+            img.get("status", ""), "❓"
+        )
+        agent = img.get("source_agent", "?")
+        style = img.get("style", "auto")
+        topic = img.get("topic", "")[:40]
+        img_id = img.get("id", "")
+        lines.append(f"{status_icon} <code>{img_id}</code> [{agent}/{style}] {topic}")
+
+    # Send text + keyboard for first pending image
+    first_pending = next((img for img in images if img.get("status") == STATUS_PENDING), None)
+    kb = gallery_keyboard(
+        image_id=first_pending["id"] if first_pending else "",
+        page=page,
+        pages=pages,
+    )
+    await message.answer("\n".join(lines), reply_markup=kb, parse_mode="HTML")
+
+    # Send actual image file for first pending
+    if first_pending:
+        img_path = first_pending.get("path", "")
+        if img_path and os.path.exists(img_path):
+            from aiogram.types import FSInputFile
+            await message.answer_photo(FSInputFile(img_path))
+
+
 @router.message(Command("help"))
 async def cmd_help(message: Message):
     await message.answer(
@@ -358,6 +416,8 @@ async def cmd_help(message: Message):
         "/task <заголовок> — Создать задачу (auto-tag + suggest)\n"
         "/task — Меню Task Pool\n"
         "/tasks — Сводка всех задач\n\n"
+        "Дизайн (Райан):\n"
+        "/gallery — Галерея изображений (approve/reject/forward)\n\n"
         "Делегация:\n"
         "/delegate <агент> <задача> — Прямая делегация\n"
         "/route <агент> <задача> — Маршрутизация к агенту (алиасы: ceo, cfo, cto, smm, designer, cpo)\n"
