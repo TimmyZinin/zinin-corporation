@@ -3,6 +3,7 @@
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 
+from src.telegram_ceo.callback_factory import VoiceBrainCB
 from src.telegram_ceo.voice_brain_state import (
     VoiceBrainSession,
     _voice_brain_state,
@@ -139,9 +140,9 @@ class TestVoiceBrainKeyboard:
         from src.telegram_ceo.keyboards import voice_brain_confirm_keyboard
         kb = voice_brain_confirm_keyboard()
         data_values = [btn.callback_data for btn in kb.inline_keyboard[0]]
-        assert "vb_confirm" in data_values
-        assert "vb_correct" in data_values
-        assert "vb_cancel" in data_values
+        assert VoiceBrainCB(action="confirm").pack() in data_values
+        assert VoiceBrainCB(action="correct").pack() in data_values
+        assert VoiceBrainCB(action="cancel").pack() in data_values
 
     def test_confirm_keyboard_labels(self):
         from src.telegram_ceo.keyboards import voice_brain_confirm_keyboard
@@ -182,8 +183,8 @@ class TestVoiceBrainCallbacks:
         from src.telegram_ceo.handlers.callbacks import on_vb_confirm
         task_mock = MagicMock()
         start_voice_brain_session(123, raw_text="test", parsed_tasks=[task_mock, task_mock])
-        callback = self._make_callback("vb_confirm")
-        await on_vb_confirm(callback)
+        callback = self._make_callback("vb:confirm")
+        await on_vb_confirm(callback, VoiceBrainCB(action="confirm"))
         callback.message.edit_text.assert_called_once()
         assert "2 задач" in callback.message.edit_text.call_args[0][0]
         assert not is_in_voice_brain_mode(123)
@@ -193,41 +194,41 @@ class TestVoiceBrainCallbacks:
         from src.telegram_ceo.handlers.callbacks import on_vb_confirm
         proposals = [{"text": "Обновить сайт"}, {"text": "Добавить блог"}]
         start_voice_brain_session(123, raw_text="test", proposals=proposals)
-        callback = self._make_callback("vb_confirm")
+        callback = self._make_callback("vb:confirm")
         with patch("src.task_pool.create_task") as mock_create:
             mock_create.return_value = MagicMock()
-            await on_vb_confirm(callback)
+            await on_vb_confirm(callback, VoiceBrainCB(action="confirm"))
             assert mock_create.call_count == 2
 
     @pytest.mark.asyncio
     async def test_vb_confirm_expired(self):
         from src.telegram_ceo.handlers.callbacks import on_vb_confirm
-        callback = self._make_callback("vb_confirm")
-        await on_vb_confirm(callback)
+        callback = self._make_callback("vb:confirm")
+        await on_vb_confirm(callback, VoiceBrainCB(action="confirm"))
         callback.answer.assert_called_with("Сессия истекла", show_alert=True)
 
     @pytest.mark.asyncio
     async def test_vb_correct(self):
         from src.telegram_ceo.handlers.callbacks import on_vb_correct
         start_voice_brain_session(123, raw_text="test")
-        callback = self._make_callback("vb_correct")
-        await on_vb_correct(callback)
+        callback = self._make_callback("vb:correct")
+        await on_vb_correct(callback, VoiceBrainCB(action="correct"))
         callback.message.edit_text.assert_called_once()
         assert "уточнение" in callback.message.edit_text.call_args[0][0].lower()
 
     @pytest.mark.asyncio
     async def test_vb_correct_expired(self):
         from src.telegram_ceo.handlers.callbacks import on_vb_correct
-        callback = self._make_callback("vb_correct")
-        await on_vb_correct(callback)
+        callback = self._make_callback("vb:correct")
+        await on_vb_correct(callback, VoiceBrainCB(action="correct"))
         callback.answer.assert_called_with("Сессия истекла", show_alert=True)
 
     @pytest.mark.asyncio
     async def test_vb_cancel(self):
         from src.telegram_ceo.handlers.callbacks import on_vb_cancel
         start_voice_brain_session(123, raw_text="test")
-        callback = self._make_callback("vb_cancel")
-        await on_vb_cancel(callback)
+        callback = self._make_callback("vb:cancel")
+        await on_vb_cancel(callback, VoiceBrainCB(action="cancel"))
         assert not is_in_voice_brain_mode(123)
         callback.message.edit_text.assert_called_once()
         assert "отменён" in callback.message.edit_text.call_args[0][0].lower()
@@ -320,7 +321,7 @@ class TestVoiceBrainIntegration:
         start_voice_brain_session(123, raw_text="test", proposals=proposals)
 
         callback = AsyncMock()
-        callback.data = "vb_confirm"
+        callback.data = "vb:confirm"
         callback.from_user = MagicMock()
         callback.from_user.id = 123
         callback.message = AsyncMock()
@@ -328,7 +329,7 @@ class TestVoiceBrainIntegration:
 
         with patch("src.task_pool.create_task") as mock_create:
             mock_create.return_value = MagicMock()
-            await on_vb_confirm(callback)
+            await on_vb_confirm(callback, VoiceBrainCB(action="confirm"))
             assert mock_create.call_count == 2
 
     @pytest.mark.asyncio
@@ -338,13 +339,13 @@ class TestVoiceBrainIntegration:
         start_voice_brain_session(2, raw_text="b")
 
         callback = AsyncMock()
-        callback.data = "vb_cancel"
+        callback.data = "vb:cancel"
         callback.from_user = MagicMock()
         callback.from_user.id = 1
         callback.message = AsyncMock()
         callback.answer = AsyncMock()
 
-        await on_vb_cancel(callback)
+        await on_vb_cancel(callback, VoiceBrainCB(action="cancel"))
         assert not is_in_voice_brain_mode(1)
         assert is_in_voice_brain_mode(2)
 

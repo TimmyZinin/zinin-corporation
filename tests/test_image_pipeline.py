@@ -236,6 +236,7 @@ class TestGenerateImageViaPipeline:
 # ══════════════════════════════════════════════════════════════
 
 from src.telegram_ceo.keyboards import gallery_keyboard
+from src.telegram_ceo.callback_factory import GalleryCB
 
 
 class TestGalleryKeyboard:
@@ -250,9 +251,9 @@ class TestGalleryKeyboard:
         assert len(kb.inline_keyboard) >= 1
         first_row = kb.inline_keyboard[0]
         assert len(first_row) == 3
-        assert "gal_ok:abc123" in first_row[0].callback_data
-        assert "gal_no:abc123" in first_row[1].callback_data
-        assert "gal_fwd:abc123" in first_row[2].callback_data
+        assert GalleryCB(action="ok", id="abc123").pack() in first_row[0].callback_data
+        assert GalleryCB(action="no", id="abc123").pack() in first_row[1].callback_data
+        assert GalleryCB(action="fwd", id="abc123").pack() in first_row[2].callback_data
 
     def test_pagination_single_page(self):
         kb = gallery_keyboard(image_id="abc", page=0, pages=1)
@@ -267,23 +268,23 @@ class TestGalleryKeyboard:
         # First page → no "prev", has counter, has "next"
         assert len(nav_row) == 2  # counter + next
         assert "1/3" in nav_row[0].text
-        assert "gal_page:1" in nav_row[1].callback_data
+        assert GalleryCB(action="page", id="1").pack() in nav_row[1].callback_data
 
     def test_pagination_middle_page(self):
         kb = gallery_keyboard(image_id="abc", page=1, pages=3)
         nav_row = kb.inline_keyboard[1]
         # prev + counter + next
         assert len(nav_row) == 3
-        assert "gal_page:0" in nav_row[0].callback_data
+        assert GalleryCB(action="page", id="0").pack() in nav_row[0].callback_data
         assert "2/3" in nav_row[1].text
-        assert "gal_page:2" in nav_row[2].callback_data
+        assert GalleryCB(action="page", id="2").pack() in nav_row[2].callback_data
 
     def test_pagination_last_page(self):
         kb = gallery_keyboard(image_id="abc", page=2, pages=3)
         nav_row = kb.inline_keyboard[1]
         # prev + counter, no next
         assert len(nav_row) == 2
-        assert "gal_page:1" in nav_row[0].callback_data
+        assert GalleryCB(action="page", id="1").pack() in nav_row[0].callback_data
         assert "3/3" in nav_row[1].text
 
     def test_no_image_with_multi_page(self):
@@ -326,8 +327,8 @@ class TestGalleryCallbacks:
         from src.telegram_ceo.handlers.callbacks import on_gallery_approve
         from src.image_registry import register_image, get_image_by_id, STATUS_APPROVED
         entry = register_image("/img/test.png")
-        callback = self._make_callback(f"gal_ok:{entry['id']}")
-        await on_gallery_approve(callback)
+        callback = self._make_callback(f"gal:ok:{entry['id']}")
+        await on_gallery_approve(callback, GalleryCB(action="ok", id=entry["id"]))
         callback.answer.assert_called_once_with("Одобрено")
         reloaded = get_image_by_id(entry["id"])
         assert reloaded["status"] == STATUS_APPROVED
@@ -337,8 +338,8 @@ class TestGalleryCallbacks:
         from src.telegram_ceo.handlers.callbacks import on_gallery_reject
         from src.image_registry import register_image, get_image_by_id, STATUS_REJECTED
         entry = register_image("/img/test.png")
-        callback = self._make_callback(f"gal_no:{entry['id']}")
-        await on_gallery_reject(callback)
+        callback = self._make_callback(f"gal:no:{entry['id']}")
+        await on_gallery_reject(callback, GalleryCB(action="no", id=entry["id"]))
         callback.answer.assert_called_once_with("Отклонено")
         reloaded = get_image_by_id(entry["id"])
         assert reloaded["status"] == STATUS_REJECTED
@@ -348,8 +349,8 @@ class TestGalleryCallbacks:
         from src.telegram_ceo.handlers.callbacks import on_gallery_forward
         from src.image_registry import register_image, get_image_by_id, STATUS_APPROVED
         entry = register_image("/img/test.png")
-        callback = self._make_callback(f"gal_fwd:{entry['id']}")
-        await on_gallery_forward(callback)
+        callback = self._make_callback(f"gal:fwd:{entry['id']}")
+        await on_gallery_forward(callback, GalleryCB(action="fwd", id=entry["id"]))
         callback.answer.assert_called_once_with("Переслано Юки")
         reloaded = get_image_by_id(entry["id"])
         assert reloaded["status"] == STATUS_APPROVED
@@ -358,29 +359,29 @@ class TestGalleryCallbacks:
     @pytest.mark.asyncio
     async def test_approve_not_found(self, tmp_registry):
         from src.telegram_ceo.handlers.callbacks import on_gallery_approve
-        callback = self._make_callback("gal_ok:nonexistent")
-        await on_gallery_approve(callback)
+        callback = self._make_callback("gal:ok:nonexistent")
+        await on_gallery_approve(callback, GalleryCB(action="ok", id="nonexistent"))
         callback.answer.assert_called_once_with("Изображение не найдено", show_alert=True)
 
     @pytest.mark.asyncio
     async def test_reject_not_found(self, tmp_registry):
         from src.telegram_ceo.handlers.callbacks import on_gallery_reject
-        callback = self._make_callback("gal_no:nonexistent")
-        await on_gallery_reject(callback)
+        callback = self._make_callback("gal:no:nonexistent")
+        await on_gallery_reject(callback, GalleryCB(action="no", id="nonexistent"))
         callback.answer.assert_called_once_with("Изображение не найдено", show_alert=True)
 
     @pytest.mark.asyncio
     async def test_forward_not_found(self, tmp_registry):
         from src.telegram_ceo.handlers.callbacks import on_gallery_forward
-        callback = self._make_callback("gal_fwd:nonexistent")
-        await on_gallery_forward(callback)
+        callback = self._make_callback("gal:fwd:nonexistent")
+        await on_gallery_forward(callback, GalleryCB(action="fwd", id="nonexistent"))
         callback.answer.assert_called_once_with("Изображение не найдено", show_alert=True)
 
     @pytest.mark.asyncio
     async def test_noop_callback(self, tmp_registry):
         from src.telegram_ceo.handlers.callbacks import on_gallery_noop
-        callback = self._make_callback("gal_noop")
-        await on_gallery_noop(callback)
+        callback = self._make_callback("gal:noop:")
+        await on_gallery_noop(callback, GalleryCB(action="noop"))
         callback.answer.assert_called_once()
 
     @pytest.mark.asyncio
@@ -389,16 +390,16 @@ class TestGalleryCallbacks:
         from src.image_registry import register_image
         for i in range(8):
             register_image(f"/img/{i}.png")
-        callback = self._make_callback("gal_page:1")
-        await on_gallery_page(callback)
+        callback = self._make_callback("gal:page:1")
+        await on_gallery_page(callback, GalleryCB(action="page", id="1"))
         callback.message.edit_text.assert_called_once()
         callback.answer.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_page_empty(self, tmp_registry):
         from src.telegram_ceo.handlers.callbacks import on_gallery_page
-        callback = self._make_callback("gal_page:99")
-        await on_gallery_page(callback)
+        callback = self._make_callback("gal:page:99")
+        await on_gallery_page(callback, GalleryCB(action="page", id="99"))
         callback.answer.assert_called_once_with("Страница пуста")
 
 

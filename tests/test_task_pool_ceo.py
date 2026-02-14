@@ -11,6 +11,7 @@ from src.telegram_ceo.keyboards import (
     escalation_keyboard,
     stale_task_keyboard,
 )
+from src.telegram_ceo.callback_factory import TaskCB, EscCB
 
 
 # ──────────────────────────────────────────────────────────
@@ -22,53 +23,54 @@ class TestTaskKeyboards:
         kb = task_menu_keyboard()
         assert len(kb.inline_keyboard) == 2
         assert kb.inline_keyboard[0][0].text == "📝 Новая задача"
-        assert kb.inline_keyboard[0][0].callback_data == "task_new"
+        assert kb.inline_keyboard[0][0].callback_data == TaskCB(action="new").pack()
 
     def test_task_detail_todo(self):
         kb = task_detail_keyboard("abc", "TODO")
         buttons = [b.callback_data for row in kb.inline_keyboard for b in row]
-        assert "task_assign:abc" in buttons
-        assert "task_delete:abc" in buttons
+        assert TaskCB(action="assign", id="abc").pack() in buttons
+        assert TaskCB(action="delete", id="abc").pack() in buttons
 
     def test_task_detail_assigned(self):
         kb = task_detail_keyboard("abc", "ASSIGNED")
         buttons = [b.callback_data for row in kb.inline_keyboard for b in row]
-        assert "task_start:abc" in buttons
-        assert "task_assign:abc" in buttons
+        assert TaskCB(action="start", id="abc").pack() in buttons
+        assert TaskCB(action="assign", id="abc").pack() in buttons
 
     def test_task_detail_in_progress(self):
         kb = task_detail_keyboard("abc", "IN_PROGRESS")
         buttons = [b.callback_data for row in kb.inline_keyboard for b in row]
-        assert "task_done:abc" in buttons
-        assert "task_block:abc" in buttons
+        assert TaskCB(action="done", id="abc").pack() in buttons
+        assert TaskCB(action="block", id="abc").pack() in buttons
 
     def test_task_detail_blocked(self):
         kb = task_detail_keyboard("abc", "BLOCKED")
         buttons = [b.callback_data for row in kb.inline_keyboard for b in row]
-        assert "task_assign:abc" in buttons
+        assert TaskCB(action="assign", id="abc").pack() in buttons
 
     def test_task_detail_done_has_back(self):
         kb = task_detail_keyboard("abc", "DONE")
         buttons = [b.callback_data for row in kb.inline_keyboard for b in row]
-        assert "task_all" in buttons
+        assert TaskCB(action="all").pack() in buttons
 
     def test_task_assign_keyboard(self):
         kb = task_assign_keyboard("abc")
         callbacks = [b.callback_data for row in kb.inline_keyboard for b in row]
-        assert "task_do_assign:abc:accountant" in callbacks
-        assert "task_do_assign:abc:automator" in callbacks
-        assert "task_do_assign:abc:smm" in callbacks
-        assert "task_do_assign:abc:designer" in callbacks
-        assert "task_do_assign:abc:cpo" in callbacks
-        assert "task_detail:abc" in callbacks  # back button
+        assert TaskCB(action="do_assign", id="abc", agent="accountant").pack() in callbacks
+        assert TaskCB(action="do_assign", id="abc", agent="automator").pack() in callbacks
+        assert TaskCB(action="do_assign", id="abc", agent="smm").pack() in callbacks
+        assert TaskCB(action="do_assign", id="abc", agent="designer").pack() in callbacks
+        assert TaskCB(action="do_assign", id="abc", agent="cpo").pack() in callbacks
+        assert TaskCB(action="detail", id="abc").pack() in callbacks  # back button
 
     def test_task_assign_has_all_agents(self):
         kb = task_assign_keyboard("x")
         agent_keys = []
         for row in kb.inline_keyboard:
             for b in row:
-                if b.callback_data and b.callback_data.startswith("task_do_assign:"):
-                    agent_keys.append(b.callback_data.split(":")[2])
+                if b.callback_data and b.callback_data.startswith("task:do_assign:"):
+                    cb = TaskCB.unpack(b.callback_data)
+                    agent_keys.append(cb.agent)
         assert set(agent_keys) == {"accountant", "automator", "smm", "designer", "cpo"}
 
 
@@ -195,17 +197,17 @@ class TestEscalationKeyboards:
     def test_escalation_callback_data(self):
         kb = escalation_keyboard("abc")
         callbacks = [b.callback_data for row in kb.inline_keyboard for b in row]
-        assert "esc_extend:abc" in callbacks
-        assert "esc_create:abc" in callbacks
-        assert "esc_split:abc" in callbacks
-        assert "esc_manual:abc" in callbacks
+        assert EscCB(action="extend", id="abc").pack() in callbacks
+        assert EscCB(action="create", id="abc").pack() in callbacks
+        assert EscCB(action="split", id="abc").pack() in callbacks
+        assert EscCB(action="manual", id="abc").pack() in callbacks
 
     def test_stale_task_keyboard(self):
         kb = stale_task_keyboard("xyz")
         callbacks = [b.callback_data for row in kb.inline_keyboard for b in row]
-        assert "task_assign:xyz" in callbacks
-        assert "task_block:xyz" in callbacks
-        assert "task_detail:xyz" in callbacks
+        assert TaskCB(action="assign", id="xyz").pack() in callbacks
+        assert TaskCB(action="block", id="xyz").pack() in callbacks
+        assert TaskCB(action="detail", id="xyz").pack() in callbacks
 
 
 class TestEscalationCallbacks:

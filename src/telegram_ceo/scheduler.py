@@ -623,6 +623,186 @@ def setup_ceo_scheduler(bot: Bot, config: CeoTelegramConfig) -> AsyncIOScheduler
         replace_existing=True,
     )
 
+    # 16) Sophie daily health — 10:00 MSK (= 07:00 UTC), rule-based
+    async def sophie_daily_health():
+        try:
+            from ..task_pool import get_all_tasks, TaskStatus
+
+            lines = ["📋 Софи — Дневной health check:\n"]
+            all_tasks = get_all_tasks()
+            blocked = [t for t in all_tasks if t.status == TaskStatus.BLOCKED]
+            in_progress = [t for t in all_tasks if t.status == TaskStatus.IN_PROGRESS]
+            todo = [t for t in all_tasks if t.status == TaskStatus.TODO]
+
+            lines.append(f"📊 TODO: {len(todo)} | IN_PROGRESS: {len(in_progress)} | BLOCKED: {len(blocked)}")
+
+            if blocked:
+                lines.append("\n🚫 Заблокированные:")
+                for t in blocked[:5]:
+                    lines.append(f"  • {t.title[:60]}")
+
+            # Check for agents with no tasks
+            from ..activity_tracker import get_agent_task_count
+            idle_agents = []
+            for agent_key in ["smm", "designer", "automator", "accountant", "cpo"]:
+                if get_agent_task_count(agent_key, hours=48) == 0:
+                    idle_agents.append(agent_key)
+            if idle_agents:
+                labels = {"smm": "Юки", "designer": "Райан", "automator": "Мартин", "accountant": "Маттиас", "cpo": "Софи"}
+                names = [labels.get(a, a) for a in idle_agents]
+                lines.append(f"\n⚠️ Без задач 48ч: {', '.join(names)}")
+
+            if len(blocked) > 0 or idle_agents:
+                await bot.send_message(chat_id, "\n".join(lines))
+                logger.info(f"Sophie health: {len(blocked)} blocked, {len(idle_agents)} idle")
+            else:
+                logger.info("Sophie health: all clear")
+        except Exception as e:
+            logger.error(f"Sophie daily health failed: {e}")
+
+    scheduler.add_job(
+        sophie_daily_health,
+        CronTrigger(hour=7, minute=0),
+        id="sophie_daily_health",
+        replace_existing=True,
+    )
+
+    # 17) Sophie weekly sprint — Monday 09:30 MSK (= 06:30 UTC)
+    async def sophie_weekly_sprint():
+        try:
+            from ..task_pool import get_all_tasks, TaskStatus
+            from ..analytics import format_weekly_digest
+
+            all_tasks = get_all_tasks()
+            done_count = sum(1 for t in all_tasks if t.status == TaskStatus.DONE)
+            active_count = sum(1 for t in all_tasks if t.status != TaskStatus.DONE)
+
+            lines = [
+                "📋 Софи — Недельный спринт-итог:\n",
+                f"✅ Выполнено: {done_count}",
+                f"📊 Активных: {active_count}",
+            ]
+
+            try:
+                digest = format_weekly_digest()
+                if digest:
+                    lines.append(f"\n{digest[:1500]}")
+            except Exception:
+                pass
+
+            await bot.send_message(chat_id, "\n".join(lines))
+            logger.info("Sophie weekly sprint sent")
+        except Exception as e:
+            logger.error(f"Sophie weekly sprint failed: {e}")
+
+    scheduler.add_job(
+        sophie_weekly_sprint,
+        CronTrigger(day_of_week="mon", hour=6, minute=30),
+        id="sophie_weekly_sprint",
+        replace_existing=True,
+    )
+
+    # 18) Ryan visual prep — 19:00 MSK (= 16:00 UTC)
+    async def ryan_visual_prep():
+        try:
+            from ..tools.image_registry import ImageRegistry
+
+            registry = ImageRegistry()
+            pending = [img for img in registry.list_images() if img.get("status") == "pending"]
+            if not pending:
+                logger.info("Ryan visual prep: no pending images")
+                return
+
+            lines = [f"🎨 Райан — {len(pending)} изображений ожидают проверки:\n"]
+            for img in pending[:5]:
+                lines.append(f"  • {img.get('prompt', '?')[:60]}")
+            if len(pending) > 5:
+                lines.append(f"  ... и ещё {len(pending) - 5}")
+
+            from .keyboards import gallery_keyboard
+            await bot.send_message(chat_id, "\n".join(lines))
+            logger.info(f"Ryan visual prep: {len(pending)} pending images")
+        except Exception as e:
+            logger.error(f"Ryan visual prep failed: {e}")
+
+    scheduler.add_job(
+        ryan_visual_prep,
+        CronTrigger(hour=16, minute=0),
+        id="ryan_visual_prep",
+        replace_existing=True,
+    )
+
+    # 19) Alexey content pulse — 12:00 MSK (= 09:00 UTC), 0 LLM
+    async def alexey_content_pulse():
+        try:
+            from ..content_calendar import get_calendar_entries
+            import datetime
+
+            today = datetime.date.today().isoformat()
+            entries = get_calendar_entries()
+            today_entries = [e for e in entries if e.get("date", "")[:10] == today]
+            upcoming = [e for e in entries if e.get("date", "")[:10] > today][:3]
+
+            if not today_entries and not upcoming:
+                logger.info("Content pulse: no content scheduled")
+                return
+
+            lines = ["✍️ Контент-пульс:\n"]
+            if today_entries:
+                lines.append(f"📅 Сегодня ({len(today_entries)}):")
+                for e in today_entries:
+                    status = "✅" if e.get("published") else "⏳"
+                    lines.append(f"  {status} {e.get('topic', '?')[:50]}")
+            if upcoming:
+                lines.append(f"\n📆 Ближайшие ({len(upcoming)}):")
+                for e in upcoming:
+                    lines.append(f"  • {e.get('date', '?')[:10]}: {e.get('topic', '?')[:50]}")
+
+            await bot.send_message(chat_id, "\n".join(lines))
+            logger.info(f"Content pulse: {len(today_entries)} today, {len(upcoming)} upcoming")
+        except Exception as e:
+            logger.error(f"Content pulse failed: {e}")
+
+    scheduler.add_job(
+        alexey_content_pulse,
+        CronTrigger(hour=9, minute=0),
+        id="alexey_content_pulse",
+        replace_existing=True,
+    )
+
+    # 20) Alexey revenue pulse — 16:00 MSK (= 13:00 UTC), 0 LLM
+    async def alexey_revenue_pulse():
+        try:
+            from ..revenue_tracker import load_revenue_data
+
+            data = load_revenue_data()
+            target = data.get("target_mrr", 2500)
+            current = data.get("total_mrr", 0)
+            gap = target - current
+            channels = data.get("channels", {})
+
+            lines = [
+                "💰 Revenue-пульс:\n",
+                f"📊 MRR: ${current:,.0f} / ${target:,.0f} (gap: ${gap:,.0f})",
+            ]
+            for name, ch in channels.items():
+                mrr = ch.get("mrr", 0)
+                ch_target = ch.get("target", 0)
+                pct = (mrr / ch_target * 100) if ch_target > 0 else 0
+                lines.append(f"  {'✅' if pct >= 80 else '⚠️' if pct >= 50 else '🔴'} {name}: ${mrr:,.0f} ({pct:.0f}%)")
+
+            await bot.send_message(chat_id, "\n".join(lines))
+            logger.info(f"Revenue pulse: ${current} / ${target}")
+        except Exception as e:
+            logger.error(f"Revenue pulse failed: {e}")
+
+    scheduler.add_job(
+        alexey_revenue_pulse,
+        CronTrigger(hour=13, minute=0),
+        id="alexey_revenue_pulse",
+        replace_existing=True,
+    )
+
     logger.info(
         f"CEO scheduler: briefing=daily {config.morning_briefing_hour}:00, "
         f"full_report={config.weekly_review_day} {config.weekly_review_hour}:00, "
@@ -632,7 +812,10 @@ def setup_ceo_scheduler(bot: Bot, config: CeoTelegramConfig) -> AsyncIOScheduler
         f"analytics=daily 22:00, evening=daily 21:00, digest=Sun 20:00, "
         f"proactive: morning=06:00, midday=11:00, evening=17:00, "
         f"comment_digest=every 3h, competitor_scan=daily 04:00, "
-        f"market_listener=daily 05:30"
+        f"market_listener=daily 05:30, "
+        f"sophie: health=daily 07:00, sprint=Mon 06:30, "
+        f"ryan: visual_prep=daily 16:00, "
+        f"alexey: content_pulse=daily 09:00, revenue_pulse=daily 13:00"
     )
 
     return scheduler

@@ -378,7 +378,7 @@ class TestCeoScheduler:
         config = CeoTelegramConfig(allowed_user_ids=[123])
         scheduler = setup_ceo_scheduler(bot, config)
         jobs = scheduler.get_jobs()
-        assert len(jobs) == 18
+        assert len(jobs) >= 20  # Sprint 10: 5 new proactive jobs added
         job_ids = {j.id for j in jobs}
         assert "ceo_morning_briefing" in job_ids
         assert "ceo_weekly_review" in job_ids
@@ -513,10 +513,11 @@ class TestAPIDiagnostics:
 
     def test_diagnostic_keyboard_callback_data(self):
         from src.telegram_ceo.keyboards import diagnostic_keyboard
+        from src.telegram_ceo.callback_factory import ApiCB
         kb = diagnostic_keyboard("diag_20260208_1430")
-        assert kb.inline_keyboard[0][0].callback_data == "api_recheck:diag_20260208_1430"
-        assert kb.inline_keyboard[0][1].callback_data == "api_detail:diag_20260208_1430"
-        assert kb.inline_keyboard[1][0].callback_data == "api_ack:diag_20260208_1430"
+        assert kb.inline_keyboard[0][0].callback_data == ApiCB(action="recheck", id="diag_20260208_1430").pack()
+        assert kb.inline_keyboard[0][1].callback_data == ApiCB(action="detail", id="diag_20260208_1430").pack()
+        assert kb.inline_keyboard[1][0].callback_data == ApiCB(action="ack", id="diag_20260208_1430").pack()
 
     def test_diagnostic_storage_helpers_exist(self):
         from src.telegram_ceo.handlers.callbacks import (

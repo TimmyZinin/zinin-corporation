@@ -360,6 +360,17 @@ async def handle_text(message: Message):
     # Agent route from fast_router (agent detection or fallback)
     agent_name = route.agent_name or "manager"
 
+    # Agent mutex — check if agent is busy
+    from ...agent_mutex import is_busy, get_active_duration
+    if is_busy(agent_name):
+        duration = get_active_duration(agent_name)
+        dur_str = f" ({int(duration)}с)" if duration else ""
+        agent_label_busy = _AGENT_LABELS.get(agent_name, "Алексей")
+        await message.answer(
+            f"⏳ {agent_label_busy} сейчас занят{dur_str}. Подождите — ответит, как освободится."
+        )
+        return
+
     user_ctx = _get_context(message.from_user.id)
     user_ctx.append({"role": "user", "text": user_text})
 

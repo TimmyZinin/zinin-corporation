@@ -13,6 +13,8 @@ from unittest.mock import AsyncMock, MagicMock, patch, PropertyMock
 
 import pytest
 
+from src.telegram_ceo.callback_factory import CtoCB
+
 
 # ──────────────────────────────────────────────────────────
 # Helpers
@@ -192,7 +194,7 @@ class TestOnCtoApprove:
             "src.telegram_ceo.handlers.callbacks._find_and_update_proposal",
             return_value=proposal,
         ):
-            await on_cto_approve(callback)
+            await on_cto_approve(callback, CtoCB(action="approve", id="prop_test_001"))
 
         # Now calls edit_text multiple times: "⏳ ПРИМЕНЯЮ" then result
         assert callback.message.edit_text.call_count >= 2
@@ -214,7 +216,7 @@ class TestOnCtoApprove:
             "src.telegram_ceo.handlers.callbacks._find_and_update_proposal",
             return_value=None,
         ):
-            await on_cto_approve(callback)
+            await on_cto_approve(callback, CtoCB(action="approve", id="nonexistent"))
 
         callback.answer.assert_called_once_with(
             "Предложение не найдено", show_alert=True
@@ -233,7 +235,7 @@ class TestOnCtoApprove:
             "src.telegram_ceo.handlers.callbacks._find_and_update_proposal",
             return_value=proposal,
         ):
-            await on_cto_approve(callback)
+            await on_cto_approve(callback, CtoCB(action="approve", id="prop_test_001"))
 
         # Check that edit_text was called with reply_markup=None to remove keyboard
         call_kwargs = callback.message.edit_text.call_args
@@ -259,7 +261,7 @@ class TestOnCtoApprove:
             return_value=proposal,
         ):
             # Should NOT raise — error is caught internally
-            await on_cto_approve(callback)
+            await on_cto_approve(callback, CtoCB(action="approve", id="prop_test_001"))
 
         # callback.answer should be called even if edit_text fails
         callback.answer.assert_called_once_with("Одобрено! Применяю...")
@@ -275,7 +277,7 @@ class TestOnCtoApprove:
             "src.telegram_ceo.handlers.callbacks._find_and_update_proposal",
             return_value=proposal,
         ):
-            await on_cto_approve(callback)
+            await on_cto_approve(callback, CtoCB(action="approve", id="prop_test_001"))
 
         text = callback.message.edit_text.call_args[0][0]
         assert "Юки" in text
@@ -299,7 +301,7 @@ class TestOnCtoReject:
             "src.telegram_ceo.handlers.callbacks._find_and_update_proposal",
             return_value=proposal,
         ):
-            await on_cto_reject(callback)
+            await on_cto_reject(callback, CtoCB(action="reject", id="prop_test_001"))
 
         text = callback.message.edit_text.call_args[0][0]
         assert "ОТКЛОНЕНО" in text
@@ -317,7 +319,7 @@ class TestOnCtoReject:
             "src.telegram_ceo.handlers.callbacks._find_and_update_proposal",
             return_value=proposal,
         ):
-            await on_cto_reject(callback)
+            await on_cto_reject(callback, CtoCB(action="reject", id="prop_test_001"))
 
         call_kwargs = callback.message.edit_text.call_args
         assert call_kwargs.kwargs.get("reply_markup") is None, (
@@ -340,7 +342,7 @@ class TestOnCtoReject:
             return_value=proposal,
         ):
             # Should NOT raise
-            await on_cto_reject(callback)
+            await on_cto_reject(callback, CtoCB(action="reject", id="prop_test_001"))
 
         callback.answer.assert_called_once_with("Отклонено")
 
@@ -365,7 +367,7 @@ class TestOnCtoConditions:
         callback = _make_callback_query("cto_conditions:prop_test_001", user_id=999)
 
         with patch("src.tools.improvement_advisor._load_proposals", return_value=data):
-            await on_cto_conditions(callback)
+            await on_cto_conditions(callback, CtoCB(action="conditions", id="prop_test_001"))
 
         assert is_in_conditions_mode(999)
         # Clean up
@@ -379,7 +381,7 @@ class TestOnCtoConditions:
         callback = _make_callback_query("cto_conditions:nonexistent", user_id=999)
 
         with patch("src.tools.improvement_advisor._load_proposals", return_value=data):
-            await on_cto_conditions(callback)
+            await on_cto_conditions(callback, CtoCB(action="conditions", id="nonexistent"))
 
         callback.answer.assert_called_once_with(
             "Предложение не найдено", show_alert=True
@@ -418,7 +420,7 @@ class TestOnCtoDetail:
         callback = _make_callback_query("cto_detail:prop_test_001")
 
         with patch("src.tools.improvement_advisor._load_proposals", return_value=data):
-            await on_cto_detail(callback)
+            await on_cto_detail(callback, CtoCB(action="detail", id="prop_test_001"))
 
         text = callback.message.edit_text.call_args[0][0]
         assert "Улучшить goal для Юки" in text
@@ -435,7 +437,7 @@ class TestOnCtoDetail:
         callback = _make_callback_query("cto_detail:prop_test_001")
 
         with patch("src.tools.improvement_advisor._load_proposals", return_value=data):
-            await on_cto_detail(callback)
+            await on_cto_detail(callback, CtoCB(action="detail", id="prop_test_001"))
 
         call_kwargs = callback.message.edit_text.call_args.kwargs
         assert "reply_markup" in call_kwargs
@@ -449,7 +451,7 @@ class TestOnCtoDetail:
         callback = _make_callback_query("cto_detail:nonexistent")
 
         with patch("src.tools.improvement_advisor._load_proposals", return_value=data):
-            await on_cto_detail(callback)
+            await on_cto_detail(callback, CtoCB(action="detail", id="nonexistent"))
 
         callback.answer.assert_called_once_with(
             "Предложение не найдено", show_alert=True
@@ -465,7 +467,7 @@ class TestOnCtoDetail:
         callback = _make_callback_query("cto_detail:prop_test_001")
 
         with patch("src.tools.improvement_advisor._load_proposals", return_value=data):
-            await on_cto_detail(callback)
+            await on_cto_detail(callback, CtoCB(action="detail", id="prop_test_001"))
 
         text = callback.message.edit_text.call_args[0][0]
         assert len(text) <= 4003  # 4000 + "..."
@@ -487,10 +489,10 @@ class TestProposalKeyboard:
         from src.telegram_ceo.keyboards import proposal_keyboard
 
         kb = proposal_keyboard("prop_test_001")
-        assert kb.inline_keyboard[0][0].callback_data == "cto_approve:prop_test_001"
-        assert kb.inline_keyboard[0][1].callback_data == "cto_reject:prop_test_001"
-        assert kb.inline_keyboard[1][0].callback_data == "cto_conditions:prop_test_001"
-        assert kb.inline_keyboard[1][1].callback_data == "cto_detail:prop_test_001"
+        assert kb.inline_keyboard[0][0].callback_data == CtoCB(action="approve", id="prop_test_001").pack()
+        assert kb.inline_keyboard[0][1].callback_data == CtoCB(action="reject", id="prop_test_001").pack()
+        assert kb.inline_keyboard[1][0].callback_data == CtoCB(action="conditions", id="prop_test_001").pack()
+        assert kb.inline_keyboard[1][1].callback_data == CtoCB(action="detail", id="prop_test_001").pack()
 
     def test_keyboard_button_labels(self):
         from src.telegram_ceo.keyboards import proposal_keyboard
@@ -564,7 +566,7 @@ class TestFullFlow:
 
         # Verify keyboard is constructed correctly
         assert kb.inline_keyboard[0][0].text == "✅ Одобрить"
-        assert "cto_approve:prop_test_001" in kb.inline_keyboard[0][0].callback_data
+        assert CtoCB(action="approve", id="prop_test_001").pack() in kb.inline_keyboard[0][0].callback_data
 
 
 # ──────────────────────────────────────────────────────────
@@ -609,7 +611,7 @@ class TestEdgeCases:
             "src.telegram_ceo.handlers.callbacks._find_and_update_proposal",
             return_value=proposal,
         ):
-            await on_cto_approve(callback)
+            await on_cto_approve(callback, CtoCB(action="approve", id="prop_test_001"))
 
         # Called at least twice: "⏳ ПРИМЕНЯЮ" + error/result message
         assert callback.message.edit_text.call_count >= 2

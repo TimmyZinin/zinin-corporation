@@ -5,6 +5,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 from aiogram.types import ReplyKeyboardMarkup, InlineKeyboardMarkup
 
 from src.telegram_ceo.voice_brain_state import _voice_brain_state
+from src.telegram_ceo.callback_factory import SubMenuCB
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -146,9 +147,9 @@ class TestSubMenuKeyboards:
         assert len(kb.inline_keyboard) == 1
         assert len(kb.inline_keyboard[0]) == 3
         data = [btn.callback_data for btn in kb.inline_keyboard[0]]
-        assert "sub_content_post" in data
-        assert "sub_content_calendar" in data
-        assert "sub_content_linkedin" in data
+        assert SubMenuCB(menu="content", action="post").pack() in data
+        assert SubMenuCB(menu="content", action="calendar").pack() in data
+        assert SubMenuCB(menu="content", action="linkedin").pack() in data
 
     def test_status_submenu_type(self):
         from src.telegram_ceo.keyboards import status_submenu_keyboard
@@ -161,9 +162,9 @@ class TestSubMenuKeyboards:
         assert len(kb.inline_keyboard) == 1
         assert len(kb.inline_keyboard[0]) == 3
         data = [btn.callback_data for btn in kb.inline_keyboard[0]]
-        assert "sub_status_agents" in data
-        assert "sub_status_tasks" in data
-        assert "sub_status_revenue" in data
+        assert SubMenuCB(menu="status", action="agents").pack() in data
+        assert SubMenuCB(menu="status", action="tasks").pack() in data
+        assert SubMenuCB(menu="status", action="revenue").pack() in data
 
     def test_content_submenu_labels(self):
         from src.telegram_ceo.keyboards import content_submenu_keyboard
@@ -202,52 +203,52 @@ class TestSubMenuCallbacks:
     async def test_sub_content_post(self):
         from src.telegram_ceo.handlers.callbacks import on_sub_content_post, _new_content_state
         _new_content_state.discard(123)
-        callback = self._make_callback("sub_content_post")
-        await on_sub_content_post(callback)
+        callback = self._make_callback("sub:content:post")
+        await on_sub_content_post(callback, SubMenuCB(menu="content", action="post"))
         assert 123 in _new_content_state
         _new_content_state.discard(123)
 
     @pytest.mark.asyncio
     async def test_sub_content_calendar(self):
         from src.telegram_ceo.handlers.callbacks import on_sub_content_calendar
-        callback = self._make_callback("sub_content_calendar")
+        callback = self._make_callback("sub:content:calendar")
         with patch("src.telegram_ceo.handlers.commands.cmd_calendar") as mock:
             mock.return_value = None
-            await on_sub_content_calendar(callback)
+            await on_sub_content_calendar(callback, SubMenuCB(menu="content", action="calendar"))
             mock.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_sub_content_linkedin(self):
         from src.telegram_ceo.handlers.callbacks import on_sub_content_linkedin
-        callback = self._make_callback("sub_content_linkedin")
+        callback = self._make_callback("sub:content:linkedin")
         with patch("src.telegram_ceo.handlers.commands.cmd_linkedin") as mock:
             mock.return_value = None
-            await on_sub_content_linkedin(callback)
+            await on_sub_content_linkedin(callback, SubMenuCB(menu="content", action="linkedin"))
             mock.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_sub_status_agents(self):
         from src.telegram_ceo.handlers.callbacks import on_sub_status_agents
-        callback = self._make_callback("sub_status_agents")
+        callback = self._make_callback("sub:status:agents")
         with patch("src.telegram_ceo.handlers.commands.cmd_status") as mock:
             mock.return_value = None
-            await on_sub_status_agents(callback)
+            await on_sub_status_agents(callback, SubMenuCB(menu="status", action="agents"))
             mock.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_sub_status_tasks(self):
         from src.telegram_ceo.handlers.callbacks import on_sub_status_tasks
-        callback = self._make_callback("sub_status_tasks")
+        callback = self._make_callback("sub:status:tasks")
         with patch("src.telegram_ceo.handlers.commands.cmd_tasks") as mock:
             mock.return_value = None
-            await on_sub_status_tasks(callback)
+            await on_sub_status_tasks(callback, SubMenuCB(menu="status", action="tasks"))
             mock.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_sub_status_revenue_no_file(self):
         from src.telegram_ceo.handlers.callbacks import on_sub_status_revenue
-        callback = self._make_callback("sub_status_revenue")
+        callback = self._make_callback("sub:status:revenue")
         with patch("os.path.exists", return_value=False):
-            await on_sub_status_revenue(callback)
+            await on_sub_status_revenue(callback, SubMenuCB(menu="status", action="revenue"))
             callback.message.answer.assert_called_once()
             assert "отсутствуют" in callback.message.answer.call_args[0][0]

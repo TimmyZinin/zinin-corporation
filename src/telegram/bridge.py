@@ -69,7 +69,10 @@ class AgentBridge:
         """Send a message to a CrewAI agent (runs in thread).
 
         Also tracks delegation as a task in the Shared Task Pool.
+        Uses agent_mutex to prevent concurrent access to the same agent.
         """
+        from ..agent_mutex import get_lock, set_active, clear_active
+
         task_desc = message
         if chat_context:
             task_desc = (
@@ -91,15 +94,19 @@ class AgentBridge:
             print(f"[Bridge] _sync: done, {len(result)} chars", flush=True)
             return result
 
-        try:
-            result = await asyncio.to_thread(_sync)
-            cls._complete_delegation(pool_task, result)
-            return result
-        except Exception as e:
-            cls._complete_delegation(pool_task, f"ERROR: {e}")
-            raise
-        finally:
-            cls._clear_progress()
+        lock = get_lock(agent_name)
+        async with lock:
+            set_active(agent_name)
+            try:
+                result = await asyncio.to_thread(_sync)
+                cls._complete_delegation(pool_task, result)
+                return result
+            except Exception as e:
+                cls._complete_delegation(pool_task, f"ERROR: {e}")
+                raise
+            finally:
+                clear_active(agent_name)
+                cls._clear_progress()
 
     @classmethod
     def _track_delegation(cls, message: str, agent_name: str):

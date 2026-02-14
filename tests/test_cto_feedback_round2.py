@@ -11,6 +11,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from src.telegram_ceo.callback_factory import CtoCB
+
 
 # ──────────────────────────────────────────────────────────
 # Helpers (same as round 1)
@@ -72,7 +74,7 @@ class TestReplyMarkupRemoval:
             "src.telegram_ceo.handlers.callbacks._find_and_update_proposal",
             return_value=proposal,
         ):
-            await on_cto_approve(callback)
+            await on_cto_approve(callback, CtoCB(action="approve", id="p1"))
 
         _, kwargs = callback.message.edit_text.call_args
         assert "reply_markup" in kwargs
@@ -89,7 +91,7 @@ class TestReplyMarkupRemoval:
             "src.telegram_ceo.handlers.callbacks._find_and_update_proposal",
             return_value=proposal,
         ):
-            await on_cto_reject(callback)
+            await on_cto_reject(callback, CtoCB(action="reject", id="p1"))
 
         _, kwargs = callback.message.edit_text.call_args
         assert "reply_markup" in kwargs
@@ -104,7 +106,7 @@ class TestReplyMarkupRemoval:
         callback = _make_callback_query("cto_conditions:p1", user_id=888)
 
         with patch("src.tools.improvement_advisor._load_proposals", return_value=data):
-            await on_cto_conditions(callback)
+            await on_cto_conditions(callback, CtoCB(action="conditions", id="p1"))
 
         _, kwargs = callback.message.edit_text.call_args
         assert "reply_markup" in kwargs
@@ -122,7 +124,7 @@ class TestReplyMarkupRemoval:
         callback = _make_callback_query("cto_detail:p1")
 
         with patch("src.tools.improvement_advisor._load_proposals", return_value=data):
-            await on_cto_detail(callback)
+            await on_cto_detail(callback, CtoCB(action="detail", id="p1"))
 
         _, kwargs = callback.message.edit_text.call_args
         assert "reply_markup" in kwargs
@@ -150,7 +152,7 @@ class TestErrorHandling:
             "src.telegram_ceo.handlers.callbacks._find_and_update_proposal",
             return_value=proposal,
         ):
-            await on_cto_approve(callback)
+            await on_cto_approve(callback, CtoCB(action="approve", id="p1"))
 
         callback.answer.assert_called_once_with("Одобрено! Применяю...")
 
@@ -168,7 +170,7 @@ class TestErrorHandling:
             "src.telegram_ceo.handlers.callbacks._find_and_update_proposal",
             return_value=proposal,
         ):
-            await on_cto_reject(callback)
+            await on_cto_reject(callback, CtoCB(action="reject", id="p1"))
 
         callback.answer.assert_called_once_with("Отклонено")
 
@@ -184,7 +186,7 @@ class TestErrorHandling:
         )
 
         with patch("src.tools.improvement_advisor._load_proposals", return_value=data):
-            await on_cto_conditions(callback)
+            await on_cto_conditions(callback, CtoCB(action="conditions", id="p1"))
 
         callback.answer.assert_called_once()
         _conditions_state.pop(889, None)
@@ -203,7 +205,7 @@ class TestErrorHandling:
 
         with patch("src.tools.improvement_advisor._load_proposals", return_value=data):
             # Should NOT raise — error is caught
-            await on_cto_detail(callback)
+            await on_cto_detail(callback, CtoCB(action="detail", id="p1"))
 
         callback.answer.assert_called_once()
 
@@ -473,7 +475,7 @@ class TestAgentLabels:
             "src.telegram_ceo.handlers.callbacks._find_and_update_proposal",
             return_value=proposal,
         ):
-            await on_cto_approve(callback)
+            await on_cto_approve(callback, CtoCB(action="approve", id="p1"))
 
         text = callback.message.edit_text.call_args[0][0]
         assert "Юки" in text
@@ -489,7 +491,7 @@ class TestAgentLabels:
             "src.telegram_ceo.handlers.callbacks._find_and_update_proposal",
             return_value=proposal,
         ):
-            await on_cto_approve(callback)
+            await on_cto_approve(callback, CtoCB(action="approve", id="p1"))
 
         text = callback.message.edit_text.call_args[0][0]
         assert "Маттиас" in text
@@ -505,7 +507,7 @@ class TestAgentLabels:
             "src.telegram_ceo.handlers.callbacks._find_and_update_proposal",
             return_value=proposal,
         ):
-            await on_cto_approve(callback)
+            await on_cto_approve(callback, CtoCB(action="approve", id="p1"))
 
         text = callback.message.edit_text.call_args[0][0]
         assert "Алексей" in text
@@ -521,7 +523,7 @@ class TestAgentLabels:
             "src.telegram_ceo.handlers.callbacks._find_and_update_proposal",
             return_value=proposal,
         ):
-            await on_cto_approve(callback)
+            await on_cto_approve(callback, CtoCB(action="approve", id="p1"))
 
         text = callback.message.edit_text.call_args[0][0]
         assert "Мартин" in text
@@ -537,7 +539,7 @@ class TestAgentLabels:
             "src.telegram_ceo.handlers.callbacks._find_and_update_proposal",
             return_value=proposal,
         ):
-            await on_cto_approve(callback)
+            await on_cto_approve(callback, CtoCB(action="approve", id="p1"))
 
         text = callback.message.edit_text.call_args[0][0]
         assert "unknown_agent" in text

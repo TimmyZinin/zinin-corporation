@@ -3,6 +3,8 @@
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 
+from src.telegram_ceo.callback_factory import ActionCB, EveningCB
+
 
 class TestActionKeyboard:
     """Test action_keyboard() and evening_review_keyboard()."""
@@ -18,14 +20,14 @@ class TestActionKeyboard:
         from src.telegram_ceo.keyboards import action_keyboard
         kb = action_keyboard("act_test")
         launch_btn = kb.inline_keyboard[0][0]
-        assert launch_btn.callback_data == "action_launch:act_test"
+        assert launch_btn.callback_data == ActionCB(action="launch", id="act_test").pack()
         assert "Запустить" in launch_btn.text
 
     def test_action_keyboard_skip_callback(self):
         from src.telegram_ceo.keyboards import action_keyboard
         kb = action_keyboard("act_test")
         skip_btn = kb.inline_keyboard[0][1]
-        assert skip_btn.callback_data == "action_skip:act_test"
+        assert skip_btn.callback_data == ActionCB(action="skip", id="act_test").pack()
         assert "Пропустить" in skip_btn.text
 
     def test_evening_review_keyboard_has_two_buttons(self):
@@ -39,14 +41,14 @@ class TestActionKeyboard:
         from src.telegram_ceo.keyboards import evening_review_keyboard
         kb = evening_review_keyboard()
         approve_btn = kb.inline_keyboard[0][0]
-        assert approve_btn.callback_data == "evening_approve"
+        assert approve_btn.callback_data == EveningCB(action="approve").pack()
         assert "Утвердить" in approve_btn.text
 
     def test_evening_adjust_callback(self):
         from src.telegram_ceo.keyboards import evening_review_keyboard
         kb = evening_review_keyboard()
         adjust_btn = kb.inline_keyboard[0][1]
-        assert adjust_btn.callback_data == "evening_adjust"
+        assert adjust_btn.callback_data == EveningCB(action="adjust").pack()
         assert "Скорректировать" in adjust_btn.text
 
 
@@ -177,3 +179,64 @@ class TestExistingKeyboardsUnchanged:
         from src.telegram_ceo.keyboards import diagnostic_keyboard
         kb = diagnostic_keyboard("diag1")
         assert len(kb.inline_keyboard) == 2
+
+
+# ═══════════════════════════════════════════════════════════════
+# Sprint 10: New proactive scheduler jobs
+# ═══════════════════════════════════════════════════════════════
+
+class TestSprint10SchedulerJobs:
+    """Test new proactive scheduler jobs added in Sprint 10."""
+
+    def test_sophie_daily_health_job(self):
+        from src.telegram_ceo.scheduler import setup_ceo_scheduler
+        from src.telegram_ceo.config import CeoTelegramConfig
+        mock_bot = MagicMock()
+        config = CeoTelegramConfig(allowed_user_ids=[123])
+        scheduler = setup_ceo_scheduler(mock_bot, config)
+        job_ids = [j.id for j in scheduler.get_jobs()]
+        assert "sophie_daily_health" in job_ids
+
+    def test_sophie_weekly_sprint_job(self):
+        from src.telegram_ceo.scheduler import setup_ceo_scheduler
+        from src.telegram_ceo.config import CeoTelegramConfig
+        mock_bot = MagicMock()
+        config = CeoTelegramConfig(allowed_user_ids=[123])
+        scheduler = setup_ceo_scheduler(mock_bot, config)
+        job_ids = [j.id for j in scheduler.get_jobs()]
+        assert "sophie_weekly_sprint" in job_ids
+
+    def test_ryan_visual_prep_job(self):
+        from src.telegram_ceo.scheduler import setup_ceo_scheduler
+        from src.telegram_ceo.config import CeoTelegramConfig
+        mock_bot = MagicMock()
+        config = CeoTelegramConfig(allowed_user_ids=[123])
+        scheduler = setup_ceo_scheduler(mock_bot, config)
+        job_ids = [j.id for j in scheduler.get_jobs()]
+        assert "ryan_visual_prep" in job_ids
+
+    def test_alexey_content_pulse_job(self):
+        from src.telegram_ceo.scheduler import setup_ceo_scheduler
+        from src.telegram_ceo.config import CeoTelegramConfig
+        mock_bot = MagicMock()
+        config = CeoTelegramConfig(allowed_user_ids=[123])
+        scheduler = setup_ceo_scheduler(mock_bot, config)
+        job_ids = [j.id for j in scheduler.get_jobs()]
+        assert "alexey_content_pulse" in job_ids
+
+    def test_alexey_revenue_pulse_job(self):
+        from src.telegram_ceo.scheduler import setup_ceo_scheduler
+        from src.telegram_ceo.config import CeoTelegramConfig
+        mock_bot = MagicMock()
+        config = CeoTelegramConfig(allowed_user_ids=[123])
+        scheduler = setup_ceo_scheduler(mock_bot, config)
+        job_ids = [j.id for j in scheduler.get_jobs()]
+        assert "alexey_revenue_pulse" in job_ids
+
+    def test_scheduler_has_at_least_20_jobs(self):
+        from src.telegram_ceo.scheduler import setup_ceo_scheduler
+        from src.telegram_ceo.config import CeoTelegramConfig
+        mock_bot = MagicMock()
+        config = CeoTelegramConfig(allowed_user_ids=[123])
+        scheduler = setup_ceo_scheduler(mock_bot, config)
+        assert len(scheduler.get_jobs()) >= 20

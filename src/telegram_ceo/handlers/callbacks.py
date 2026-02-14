@@ -1,4 +1,4 @@
-"""Callback handlers for CTO proposals, API diagnostics, Task Pool, and Gallery in CEO bot."""
+"""Callback handlers for CEO bot — typed CallbackData factories (Sprint 10)."""
 
 import asyncio
 import json
@@ -10,6 +10,10 @@ from aiogram import Router, F
 from aiogram.types import CallbackQuery
 
 from ...error_handler import format_error_for_user
+from ..callback_factory import (
+    TaskCB, EscCB, CtoCB, ApiCB, ActionCB, EveningCB,
+    GalleryCB, VoiceBrainCB, SubMenuCB,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -36,16 +40,16 @@ def consume_new_task_mode(user_id: int) -> bool:
 # Task Pool callbacks
 # ═══════════════════════════════════════════════════════════════
 
-@router.callback_query(F.data == "task_new")
-async def on_task_new(callback: CallbackQuery):
+@router.callback_query(TaskCB.filter(F.action == "new"))
+async def on_task_new(callback: CallbackQuery, callback_data: TaskCB):
     """Enter new task mode — user types title next."""
     _new_task_state.add(callback.from_user.id)
     await callback.message.edit_text("📝 Напишите заголовок задачи:")
     await callback.answer()
 
 
-@router.callback_query(F.data == "task_all")
-async def on_task_all(callback: CallbackQuery):
+@router.callback_query(TaskCB.filter(F.action == "all"))
+async def on_task_all(callback: CallbackQuery, callback_data: TaskCB):
     """Show all active tasks."""
     from ...task_pool import get_all_tasks, format_task_summary, format_pool_summary, TaskStatus
     from ..keyboards import task_menu_keyboard
@@ -80,13 +84,13 @@ async def on_task_all(callback: CallbackQuery):
     await callback.answer()
 
 
-@router.callback_query(F.data.startswith("task_filter:"))
-async def on_task_filter(callback: CallbackQuery):
+@router.callback_query(TaskCB.filter(F.action == "filter"))
+async def on_task_filter(callback: CallbackQuery, callback_data: TaskCB):
     """Filter tasks by status."""
     from ...task_pool import get_tasks_by_status, TaskStatus, format_task_summary
     from ..keyboards import task_menu_keyboard
 
-    status_str = callback.data.split(":")[1]
+    status_str = callback_data.id
     try:
         status = TaskStatus(status_str)
     except ValueError:
@@ -118,13 +122,13 @@ async def on_task_filter(callback: CallbackQuery):
     await callback.answer()
 
 
-@router.callback_query(F.data.startswith("task_detail:"))
-async def on_task_detail(callback: CallbackQuery):
+@router.callback_query(TaskCB.filter(F.action == "detail"))
+async def on_task_detail(callback: CallbackQuery, callback_data: TaskCB):
     """Show task detail with action buttons."""
     from ...task_pool import get_task, format_task_summary
     from ..keyboards import task_detail_keyboard
 
-    task_id = callback.data.split(":")[1]
+    task_id = callback_data.id
     task = get_task(task_id)
     if not task:
         await callback.answer("Задача не найдена", show_alert=True)
@@ -149,13 +153,13 @@ async def on_task_detail(callback: CallbackQuery):
     await callback.answer()
 
 
-@router.callback_query(F.data.startswith("task_assign:"))
-async def on_task_assign(callback: CallbackQuery):
+@router.callback_query(TaskCB.filter(F.action == "assign"))
+async def on_task_assign(callback: CallbackQuery, callback_data: TaskCB):
     """Show agent selection keyboard."""
     from ...task_pool import get_task, suggest_assignee
     from ..keyboards import task_assign_keyboard
 
-    task_id = callback.data.split(":")[1]
+    task_id = callback_data.id
     task = get_task(task_id)
     if not task:
         await callback.answer("Задача не найдена", show_alert=True)
@@ -178,15 +182,14 @@ async def on_task_assign(callback: CallbackQuery):
     await callback.answer()
 
 
-@router.callback_query(F.data.startswith("task_do_assign:"))
-async def on_task_do_assign(callback: CallbackQuery):
+@router.callback_query(TaskCB.filter(F.action == "do_assign"))
+async def on_task_do_assign(callback: CallbackQuery, callback_data: TaskCB):
     """Actually assign task to selected agent."""
     from ...task_pool import assign_task, format_task_summary
     from ..keyboards import task_detail_keyboard
 
-    parts = callback.data.split(":")
-    task_id = parts[1]
-    agent_key = parts[2]
+    task_id = callback_data.id
+    agent_key = callback_data.agent
 
     task = assign_task(task_id, assignee=agent_key, assigned_by="ceo-alexey")
     if not task:
@@ -209,13 +212,13 @@ async def on_task_do_assign(callback: CallbackQuery):
     await callback.answer(f"Назначено: {agent_key}")
 
 
-@router.callback_query(F.data.startswith("task_start:"))
-async def on_task_start(callback: CallbackQuery):
+@router.callback_query(TaskCB.filter(F.action == "start"))
+async def on_task_start(callback: CallbackQuery, callback_data: TaskCB):
     """Start a task: ASSIGNED → IN_PROGRESS."""
     from ...task_pool import start_task, format_task_summary
     from ..keyboards import task_detail_keyboard
 
-    task_id = callback.data.split(":")[1]
+    task_id = callback_data.id
     task = start_task(task_id)
     if not task:
         await callback.answer("Не удалось начать задачу", show_alert=True)
@@ -233,12 +236,12 @@ async def on_task_start(callback: CallbackQuery):
     await callback.answer("В работе")
 
 
-@router.callback_query(F.data.startswith("task_done:"))
-async def on_task_done(callback: CallbackQuery):
+@router.callback_query(TaskCB.filter(F.action == "done"))
+async def on_task_done(callback: CallbackQuery, callback_data: TaskCB):
     """Complete a task: IN_PROGRESS → DONE."""
     from ...task_pool import complete_task, format_task_summary
 
-    task_id = callback.data.split(":")[1]
+    task_id = callback_data.id
     task = complete_task(task_id)
     if not task:
         await callback.answer("Не удалось завершить", show_alert=True)
@@ -252,13 +255,13 @@ async def on_task_done(callback: CallbackQuery):
     await callback.answer("Завершено")
 
 
-@router.callback_query(F.data.startswith("task_block:"))
-async def on_task_block(callback: CallbackQuery):
+@router.callback_query(TaskCB.filter(F.action == "block"))
+async def on_task_block(callback: CallbackQuery, callback_data: TaskCB):
     """Block a task."""
     from ...task_pool import block_task, format_task_summary
     from ..keyboards import task_detail_keyboard
 
-    task_id = callback.data.split(":")[1]
+    task_id = callback_data.id
     task = block_task(task_id)
     if not task:
         await callback.answer("Не удалось заблокировать", show_alert=True)
@@ -276,13 +279,13 @@ async def on_task_block(callback: CallbackQuery):
     await callback.answer("Заблокировано")
 
 
-@router.callback_query(F.data.startswith("task_delete:"))
-async def on_task_delete(callback: CallbackQuery):
+@router.callback_query(TaskCB.filter(F.action == "delete"))
+async def on_task_delete(callback: CallbackQuery, callback_data: TaskCB):
     """Delete a task from the pool."""
     from ...task_pool import delete_task
     from ..keyboards import task_menu_keyboard
 
-    task_id = callback.data.split(":")[1]
+    task_id = callback_data.id
     ok = delete_task(task_id)
     if not ok:
         await callback.answer("Задача не найдена", show_alert=True)
@@ -310,12 +313,12 @@ def is_in_split_mode(user_id: int) -> bool:
     return user_id in _split_task_state
 
 
-@router.callback_query(F.data.startswith("esc_extend:"))
-async def on_esc_extend(callback: CallbackQuery):
+@router.callback_query(EscCB.filter(F.action == "extend"))
+async def on_esc_extend(callback: CallbackQuery, callback_data: EscCB):
     """Suggest extending the closest agent's prompt with new tags."""
     from ...task_pool import get_task, suggest_assignee, AGENT_TAGS
 
-    task_id = callback.data.split(":")[1]
+    task_id = callback_data.id
     task = get_task(task_id)
     if not task:
         await callback.answer("Задача не найдена", show_alert=True)
@@ -346,12 +349,12 @@ async def on_esc_extend(callback: CallbackQuery):
     await callback.answer()
 
 
-@router.callback_query(F.data.startswith("esc_create:"))
-async def on_esc_create(callback: CallbackQuery):
+@router.callback_query(EscCB.filter(F.action == "create"))
+async def on_esc_create(callback: CallbackQuery, callback_data: EscCB):
     """Suggest creating a new agent for unmatched task tags."""
     from ...task_pool import get_task
 
-    task_id = callback.data.split(":")[1]
+    task_id = callback_data.id
     task = get_task(task_id)
     if not task:
         await callback.answer("Задача не найдена", show_alert=True)
@@ -377,10 +380,10 @@ async def on_esc_create(callback: CallbackQuery):
     await callback.answer()
 
 
-@router.callback_query(F.data.startswith("esc_split:"))
-async def on_esc_split(callback: CallbackQuery):
+@router.callback_query(EscCB.filter(F.action == "split"))
+async def on_esc_split(callback: CallbackQuery, callback_data: EscCB):
     """Enter split-task mode — user types subtask titles."""
-    task_id = callback.data.split(":")[1]
+    task_id = callback_data.id
     _split_task_state[callback.from_user.id] = task_id
     await callback.message.edit_text(
         "✂️ Разделить задачу — введите подзадачи (каждая с новой строки):"
@@ -388,12 +391,12 @@ async def on_esc_split(callback: CallbackQuery):
     await callback.answer()
 
 
-@router.callback_query(F.data.startswith("esc_manual:"))
-async def on_esc_manual(callback: CallbackQuery):
+@router.callback_query(EscCB.filter(F.action == "manual"))
+async def on_esc_manual(callback: CallbackQuery, callback_data: EscCB):
     """Fallback to standard agent assignment keyboard."""
     from ..keyboards import task_assign_keyboard
 
-    task_id = callback.data.split(":")[1]
+    task_id = callback_data.id
     text = "👤 Выберите агента для ручного назначения:"
 
     try:
@@ -427,7 +430,6 @@ def _find_and_update_proposal(proposal_id: str, updates: dict) -> dict | None:
             old_status = p.get("status")
             p.update(updates)
             p["reviewed_at"] = datetime.now().isoformat()
-            # Update stats only if status actually changed
             new_status = updates.get("status")
             if (
                 new_status
@@ -440,10 +442,10 @@ def _find_and_update_proposal(proposal_id: str, updates: dict) -> dict | None:
     return None
 
 
-@router.callback_query(F.data.startswith("cto_approve:"))
-async def on_cto_approve(callback: CallbackQuery):
+@router.callback_query(CtoCB.filter(F.action == "approve"))
+async def on_cto_approve(callback: CallbackQuery, callback_data: CtoCB):
     """Approve a CTO improvement proposal and auto-apply changes."""
-    proposal_id = callback.data.split(":")[1]
+    proposal_id = callback_data.id
     proposal = _find_and_update_proposal(proposal_id, {"status": "approved"})
 
     if not proposal:
@@ -454,7 +456,6 @@ async def on_cto_approve(callback: CallbackQuery):
 
     target = _AGENT_LABELS.get(proposal.get("target_agent", ""), proposal.get("target_agent", ""))
 
-    # Show "applying..." status
     try:
         await callback.message.edit_text(
             f"⏳ ПРИМЕНЯЮ ИЗМЕНЕНИЯ...\n\n"
@@ -467,14 +468,12 @@ async def on_cto_approve(callback: CallbackQuery):
         logger.warning(f"edit_text failed for proposal {proposal_id}: {e}")
     await callback.answer("Одобрено! Применяю...")
 
-    # Auto-apply the proposal
     try:
         from ...tools.proposal_applier import apply_proposal, format_diff_for_telegram
 
         result = await asyncio.to_thread(apply_proposal, proposal)
 
         if result["applied"]:
-            # Store result in proposal record
             _find_and_update_proposal(proposal_id, {
                 "applied_diff": result["diff"],
                 "applied_at": datetime.now().isoformat(),
@@ -491,9 +490,7 @@ async def on_cto_approve(callback: CallbackQuery):
                     parse_mode="HTML",
                     reply_markup=None,
                 )
-            except Exception as e:
-                logger.warning(f"edit_text with diff failed: {e}")
-                # Fallback without HTML formatting
+            except Exception:
                 try:
                     await callback.message.edit_text(
                         f"✅ ОДОБРЕНО И ПРИМЕНЕНО\n\n"
@@ -505,7 +502,6 @@ async def on_cto_approve(callback: CallbackQuery):
                 except Exception:
                     pass
         else:
-            # Tool proposals or other non-applicable
             try:
                 await callback.message.edit_text(
                     f"✅ ОДОБРЕНО\n\n"
@@ -514,15 +510,12 @@ async def on_cto_approve(callback: CallbackQuery):
                     f"💡 {result['message']}",
                     reply_markup=None,
                 )
-            except Exception as e:
-                logger.warning(f"edit_text failed: {e}")
+            except Exception:
+                pass
 
     except Exception as apply_err:
         logger.error(f"Failed to apply proposal {proposal_id}: {apply_err}")
-        # Store error in proposal record
-        _find_and_update_proposal(proposal_id, {
-            "apply_error": str(apply_err),
-        })
+        _find_and_update_proposal(proposal_id, {"apply_error": str(apply_err)})
         try:
             await callback.message.edit_text(
                 f"✅ ОДОБРЕНО (не применено)\n\n"
@@ -532,16 +525,16 @@ async def on_cto_approve(callback: CallbackQuery):
                 f"Предложение одобрено, но изменения не внесены автоматически.",
                 reply_markup=None,
             )
-        except Exception as e:
-            logger.warning(f"edit_text failed after apply error: {e}")
+        except Exception:
+            pass
 
     logger.info(f"Proposal {proposal_id} approved")
 
 
-@router.callback_query(F.data.startswith("cto_reject:"))
-async def on_cto_reject(callback: CallbackQuery):
+@router.callback_query(CtoCB.filter(F.action == "reject"))
+async def on_cto_reject(callback: CallbackQuery, callback_data: CtoCB):
     """Reject a CTO improvement proposal."""
-    proposal_id = callback.data.split(":")[1]
+    proposal_id = callback_data.id
     proposal = _find_and_update_proposal(proposal_id, {"status": "rejected"})
 
     if not proposal:
@@ -559,16 +552,16 @@ async def on_cto_reject(callback: CallbackQuery):
             f"Предложение отклонено.",
             reply_markup=None,
         )
-    except Exception as e:
-        logger.warning(f"edit_text failed for proposal {proposal_id}: {e}")
+    except Exception:
+        pass
     await callback.answer("Отклонено")
     logger.info(f"Proposal {proposal_id} rejected")
 
 
-@router.callback_query(F.data.startswith("cto_conditions:"))
-async def on_cto_conditions(callback: CallbackQuery):
+@router.callback_query(CtoCB.filter(F.action == "conditions"))
+async def on_cto_conditions(callback: CallbackQuery, callback_data: CtoCB):
     """Enter conditions mode — user types conditions text."""
-    proposal_id = callback.data.split(":")[1]
+    proposal_id = callback_data.id
 
     from ...tools.improvement_advisor import _load_proposals, _AGENT_LABELS
 
@@ -594,15 +587,15 @@ async def on_cto_conditions(callback: CallbackQuery):
             f"Напишите текст условий — Мартин учтёт их при доработке.",
             reply_markup=None,
         )
-    except Exception as e:
-        logger.warning(f"edit_text failed for conditions {proposal_id}: {e}")
+    except Exception:
+        pass
     await callback.answer()
 
 
-@router.callback_query(F.data.startswith("cto_detail:"))
-async def on_cto_detail(callback: CallbackQuery):
+@router.callback_query(CtoCB.filter(F.action == "detail"))
+async def on_cto_detail(callback: CallbackQuery, callback_data: CtoCB):
     """Show full proposal details."""
-    proposal_id = callback.data.split(":")[1]
+    proposal_id = callback_data.id
 
     from ...tools.improvement_advisor import _load_proposals, _AGENT_LABELS
 
@@ -631,7 +624,6 @@ async def on_cto_detail(callback: CallbackQuery):
         f"📝 Описание:\n{proposal.get('description', '—')[:1500]}"
     )
 
-    # Show applied diff if proposal was applied
     applied_diff = proposal.get("applied_diff")
     applied_at = proposal.get("applied_at")
     if applied_diff:
@@ -645,14 +637,13 @@ async def on_cto_detail(callback: CallbackQuery):
 
     from ..keyboards import proposal_keyboard
 
-    # Truncate to Telegram limit
     if len(text) > 4000:
         text = text[:4000] + "..."
 
     try:
         await callback.message.edit_text(text, reply_markup=proposal_keyboard(proposal_id))
-    except Exception as e:
-        logger.warning(f"edit_text failed for detail {proposal_id}: {e}")
+    except Exception:
+        pass
     await callback.answer()
 
 
@@ -661,7 +652,6 @@ async def on_cto_detail(callback: CallbackQuery):
 # ═══════════════════════════════════════════════════════════════
 
 def _diagnostic_path() -> str:
-    """Path to API diagnostics JSON storage."""
     for p in ["/app/data/api_diagnostics.json", "data/api_diagnostics.json"]:
         d = os.path.dirname(p)
         if d and os.path.isdir(d):
@@ -670,7 +660,6 @@ def _diagnostic_path() -> str:
 
 
 def _load_diagnostics() -> dict:
-    """Load diagnostics data from JSON file."""
     path = _diagnostic_path()
     if os.path.exists(path):
         try:
@@ -686,7 +675,6 @@ def _load_diagnostics() -> dict:
 
 
 def _save_diagnostics(data: dict):
-    """Save diagnostics data, capped at 100 records."""
     path = _diagnostic_path()
     os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
     data["diagnostics"] = data["diagnostics"][-100:]
@@ -695,7 +683,6 @@ def _save_diagnostics(data: dict):
 
 
 def _find_diagnostic(diag_id: str) -> dict | None:
-    """Find a diagnostic record by ID."""
     data = _load_diagnostics()
     for d in data["diagnostics"]:
         if d.get("id") == diag_id:
@@ -704,12 +691,10 @@ def _find_diagnostic(diag_id: str) -> dict | None:
 
 
 def _update_diagnostic(diag_id: str, updates: dict):
-    """Find diagnostic by ID, apply updates, save."""
     data = _load_diagnostics()
     for d in data["diagnostics"]:
         if d.get("id") == diag_id:
             d.update(updates)
-            # Update stats
             status = updates.get("status")
             if status == "recheck_ok":
                 data["stats"]["recheck_ok"] = data["stats"].get("recheck_ok", 0) + 1
@@ -722,17 +707,16 @@ def _update_diagnostic(diag_id: str, updates: dict):
     return None
 
 
-@router.callback_query(F.data.startswith("api_recheck:"))
-async def on_api_recheck(callback: CallbackQuery):
+@router.callback_query(ApiCB.filter(F.action == "recheck"))
+async def on_api_recheck(callback: CallbackQuery, callback_data: ApiCB):
     """Re-run health check for failed APIs and report results."""
-    diag_id = callback.data.split(":")[1]
+    diag_id = callback_data.id
     diagnostic = _find_diagnostic(diag_id)
 
     if not diagnostic:
         await callback.answer("Диагностика не найдена", show_alert=True)
         return
 
-    # Rate limit: 1 recheck per minute
     last_recheck = diagnostic.get("last_recheck")
     if last_recheck:
         try:
@@ -748,7 +732,6 @@ async def on_api_recheck(callback: CallbackQuery):
     await callback.answer("🔄 Перепроверяю...")
 
     from ...tools.tech_tools import _check_single_api, _API_REGISTRY
-    import asyncio
 
     failed_apis = diagnostic.get("failed_apis", [])
     results = {}
@@ -764,7 +747,6 @@ async def on_api_recheck(callback: CallbackQuery):
     recheck_count = diagnostic.get("recheck_count", 0) + 1
 
     if not still_failing:
-        # All recovered
         _update_diagnostic(diag_id, {
             "status": "recheck_ok",
             "recheck_count": recheck_count,
@@ -801,10 +783,10 @@ async def on_api_recheck(callback: CallbackQuery):
     logger.info(f"API recheck {diag_id}: {len(failed_apis)-len(still_failing)} OK, {len(still_failing)} fail")
 
 
-@router.callback_query(F.data.startswith("api_detail:"))
-async def on_api_detail(callback: CallbackQuery):
+@router.callback_query(ApiCB.filter(F.action == "detail"))
+async def on_api_detail(callback: CallbackQuery, callback_data: ApiCB):
     """Show full CTO analysis and per-API details."""
-    diag_id = callback.data.split(":")[1]
+    diag_id = callback_data.id
     diagnostic = _find_diagnostic(diag_id)
 
     if not diagnostic:
@@ -819,7 +801,6 @@ async def on_api_detail(callback: CallbackQuery):
         "",
     ]
 
-    # Per-API details
     for api_key, result in diagnostic.get("results", {}).items():
         api_info = _API_REGISTRY.get(api_key, {})
         icon = "✅" if result.get("ok") else "❌"
@@ -832,7 +813,6 @@ async def on_api_detail(callback: CallbackQuery):
             if env_vars:
                 lines.append(f"  Env: {', '.join(env_vars)}")
 
-    # CTO analysis
     analysis = diagnostic.get("analysis", "")
     if analysis:
         lines.append("")
@@ -849,10 +829,10 @@ async def on_api_detail(callback: CallbackQuery):
     await callback.answer()
 
 
-@router.callback_query(F.data.startswith("api_ack:"))
-async def on_api_ack(callback: CallbackQuery):
+@router.callback_query(ApiCB.filter(F.action == "ack"))
+async def on_api_ack(callback: CallbackQuery, callback_data: ApiCB):
     """Acknowledge diagnostic — mark as handled, remove buttons."""
-    diag_id = callback.data.split(":")[1]
+    diag_id = callback_data.id
     diagnostic = _find_diagnostic(diag_id)
 
     if not diagnostic:
@@ -871,27 +851,24 @@ async def on_api_ack(callback: CallbackQuery):
 
 # ── Proactive System callbacks ───────────────────────────────────────────────
 
-# State for evening adjust mode
 _evening_adjust_state: set[int] = set()
 
 
 def is_in_evening_adjust_mode(user_id: int) -> bool:
-    """Check if user is in evening adjustment text input mode."""
     return user_id in _evening_adjust_state
 
 
 def consume_evening_adjust_mode(user_id: int) -> bool:
-    """Clear evening adjust mode, return True if was active."""
     if user_id in _evening_adjust_state:
         _evening_adjust_state.discard(user_id)
         return True
     return False
 
 
-@router.callback_query(F.data.startswith("action_launch:"))
-async def on_action_launch(callback: CallbackQuery):
+@router.callback_query(ActionCB.filter(F.action == "launch"))
+async def on_action_launch(callback: CallbackQuery, callback_data: ActionCB):
     """Launch an action from the proactive planner."""
-    action_id = callback.data.split(":")[1]
+    action_id = callback_data.id
 
     try:
         from ...proactive_planner import get_action, set_action_status, get_next_pending_action, AGENT_METHOD_MAP
@@ -910,7 +887,6 @@ async def on_action_launch(callback: CallbackQuery):
         )
         await callback.answer("Запуск...")
 
-        # Route to appropriate AgentBridge method
         method_name = AGENT_METHOD_MAP.get(action.agent_method, "send_to_agent")
         kwargs = action.method_kwargs or {}
 
@@ -937,7 +913,6 @@ async def on_action_launch(callback: CallbackQuery):
 
             set_action_status(action_id, "completed")
 
-            # Send any images found in result, then text
             from ..image_sender import send_images_from_response
             result_text = await send_images_from_response(
                 callback.message.bot, callback.message.chat.id, str(result)
@@ -945,12 +920,9 @@ async def on_action_launch(callback: CallbackQuery):
             for chunk in format_for_telegram(result_text):
                 await callback.message.answer(chunk)
 
-            # Suggest next action
             next_action = get_next_pending_action()
             if next_action:
-                await callback.message.answer(
-                    f"📋 Следующее действие:",
-                )
+                await callback.message.answer("📋 Следующее действие:")
                 await callback.message.answer(
                     f"{'🔴' if next_action.priority <= 1 else '🟡' if next_action.priority == 2 else '🟢'} {next_action.title}",
                     reply_markup=action_keyboard(next_action.id),
@@ -966,7 +938,7 @@ async def on_action_launch(callback: CallbackQuery):
             )
         except Exception as e:
             logger.error(f"Action launch error: {e}", exc_info=True)
-            set_action_status(action_id, "pending")  # Return to pending on failure
+            set_action_status(action_id, "pending")
             await callback.message.answer(f"❌ Ошибка: {format_error_for_user(e)}")
 
     except Exception as e:
@@ -974,10 +946,10 @@ async def on_action_launch(callback: CallbackQuery):
         await callback.answer(f"Ошибка: {format_error_for_user(e)[:100]}", show_alert=True)
 
 
-@router.callback_query(F.data.startswith("action_skip:"))
-async def on_action_skip(callback: CallbackQuery):
+@router.callback_query(ActionCB.filter(F.action == "skip"))
+async def on_action_skip(callback: CallbackQuery, callback_data: ActionCB):
     """Skip an action from the proactive planner."""
-    action_id = callback.data.split(":")[1]
+    action_id = callback_data.id
 
     try:
         from ...proactive_planner import get_action, set_action_status, get_next_pending_action
@@ -989,12 +961,9 @@ async def on_action_skip(callback: CallbackQuery):
             return
 
         set_action_status(action_id, "skipped")
-        await callback.message.edit_text(
-            f"⏭ Пропущено: {action.title}"
-        )
+        await callback.message.edit_text(f"⏭ Пропущено: {action.title}")
         await callback.answer("Пропущено")
 
-        # Suggest next action
         next_action = get_next_pending_action()
         if next_action:
             await callback.message.answer(
@@ -1007,8 +976,8 @@ async def on_action_skip(callback: CallbackQuery):
         await callback.answer(f"Ошибка: {format_error_for_user(e)[:100]}", show_alert=True)
 
 
-@router.callback_query(F.data == "evening_approve")
-async def on_evening_approve(callback: CallbackQuery):
+@router.callback_query(EveningCB.filter(F.action == "approve"))
+async def on_evening_approve(callback: CallbackQuery, callback_data: EveningCB):
     """Approve the evening plan."""
     await callback.message.edit_text(
         f"{callback.message.text}\n\n"
@@ -1018,11 +987,10 @@ async def on_evening_approve(callback: CallbackQuery):
     logger.info("Evening plan approved")
 
 
-@router.callback_query(F.data == "evening_adjust")
-async def on_evening_adjust(callback: CallbackQuery):
+@router.callback_query(EveningCB.filter(F.action == "adjust"))
+async def on_evening_adjust(callback: CallbackQuery, callback_data: EveningCB):
     """Enter evening adjustment mode — user types corrections."""
-    user_id = callback.from_user.id
-    _evening_adjust_state.add(user_id)
+    _evening_adjust_state.add(callback.from_user.id)
     await callback.message.edit_text(
         f"{callback.message.text}\n\n"
         f"✏️ Напиши, что изменить в плане на завтра:"
@@ -1032,10 +1000,10 @@ async def on_evening_adjust(callback: CallbackQuery):
 
 # ── Gallery callbacks ────────────────────────────────────────────────────────
 
-@router.callback_query(F.data.startswith("gal_ok:"))
-async def on_gallery_approve(callback: CallbackQuery):
+@router.callback_query(GalleryCB.filter(F.action == "ok"))
+async def on_gallery_approve(callback: CallbackQuery, callback_data: GalleryCB):
     """Approve an image in the gallery."""
-    image_id = callback.data.split(":", 1)[1]
+    image_id = callback_data.id
     from ...image_registry import update_status, STATUS_APPROVED
     entry = update_status(image_id, STATUS_APPROVED)
     if entry:
@@ -1047,10 +1015,10 @@ async def on_gallery_approve(callback: CallbackQuery):
         await callback.answer("Изображение не найдено", show_alert=True)
 
 
-@router.callback_query(F.data.startswith("gal_no:"))
-async def on_gallery_reject(callback: CallbackQuery):
+@router.callback_query(GalleryCB.filter(F.action == "no"))
+async def on_gallery_reject(callback: CallbackQuery, callback_data: GalleryCB):
     """Reject an image in the gallery."""
-    image_id = callback.data.split(":", 1)[1]
+    image_id = callback_data.id
     from ...image_registry import update_status, STATUS_REJECTED
     entry = update_status(image_id, STATUS_REJECTED)
     if entry:
@@ -1062,10 +1030,10 @@ async def on_gallery_reject(callback: CallbackQuery):
         await callback.answer("Изображение не найдено", show_alert=True)
 
 
-@router.callback_query(F.data.startswith("gal_fwd:"))
-async def on_gallery_forward(callback: CallbackQuery):
+@router.callback_query(GalleryCB.filter(F.action == "fwd"))
+async def on_gallery_forward(callback: CallbackQuery, callback_data: GalleryCB):
     """Forward an image to Yuki (mark as forwarded)."""
-    image_id = callback.data.split(":", 1)[1]
+    image_id = callback_data.id
     from ...image_registry import forward_to_agent, update_status, STATUS_APPROVED
     entry = forward_to_agent(image_id, "smm")
     if entry:
@@ -1078,10 +1046,10 @@ async def on_gallery_forward(callback: CallbackQuery):
         await callback.answer("Изображение не найдено", show_alert=True)
 
 
-@router.callback_query(F.data.startswith("gal_page:"))
-async def on_gallery_page(callback: CallbackQuery):
+@router.callback_query(GalleryCB.filter(F.action == "page"))
+async def on_gallery_page(callback: CallbackQuery, callback_data: GalleryCB):
     """Navigate gallery pages."""
-    page = int(callback.data.split(":", 1)[1])
+    page = int(callback_data.id)
     from ...image_registry import get_gallery, STATUS_PENDING
     from ..keyboards import gallery_keyboard
 
@@ -1120,16 +1088,16 @@ async def on_gallery_page(callback: CallbackQuery):
     await callback.answer()
 
 
-@router.callback_query(F.data == "gal_noop")
-async def on_gallery_noop(callback: CallbackQuery):
+@router.callback_query(GalleryCB.filter(F.action == "noop"))
+async def on_gallery_noop(callback: CallbackQuery, callback_data: GalleryCB):
     """No-op for page counter button."""
     await callback.answer()
 
 
 # ── Voice Brain Dump callbacks ───────────────────────────────────────────────
 
-@router.callback_query(F.data == "vb_confirm")
-async def on_vb_confirm(callback: CallbackQuery):
+@router.callback_query(VoiceBrainCB.filter(F.action == "confirm"))
+async def on_vb_confirm(callback: CallbackQuery, callback_data: VoiceBrainCB):
     """Confirm voice brain dump — create tasks from parsed data."""
     from ..voice_brain_state import get_voice_brain_session, end_voice_brain_session
     from ..keyboards import task_menu_keyboard
@@ -1143,7 +1111,6 @@ async def on_vb_confirm(callback: CallbackQuery):
     end_voice_brain_session(user_id)
 
     if session.parsed_tasks:
-        # Tasks already created by parse_brain_dump — just show result
         count = len(session.parsed_tasks)
         try:
             await callback.message.edit_text(
@@ -1157,7 +1124,6 @@ async def on_vb_confirm(callback: CallbackQuery):
             )
         await callback.answer(f"Создано {count} задач")
     elif session.proposals:
-        # Create tasks from proposals
         from ...task_pool import create_task
 
         created = []
@@ -1186,8 +1152,8 @@ async def on_vb_confirm(callback: CallbackQuery):
         await callback.answer("Принято")
 
 
-@router.callback_query(F.data == "vb_correct")
-async def on_vb_correct(callback: CallbackQuery):
+@router.callback_query(VoiceBrainCB.filter(F.action == "correct"))
+async def on_vb_correct(callback: CallbackQuery, callback_data: VoiceBrainCB):
     """Enter voice brain dump correction mode."""
     from ..voice_brain_state import is_in_voice_brain_mode, can_iterate
 
@@ -1212,8 +1178,8 @@ async def on_vb_correct(callback: CallbackQuery):
     await callback.answer()
 
 
-@router.callback_query(F.data == "vb_cancel")
-async def on_vb_cancel(callback: CallbackQuery):
+@router.callback_query(VoiceBrainCB.filter(F.action == "cancel"))
+async def on_vb_cancel(callback: CallbackQuery, callback_data: VoiceBrainCB):
     """Cancel voice brain dump session."""
     from ..voice_brain_state import end_voice_brain_session
 
@@ -1227,7 +1193,6 @@ async def on_vb_cancel(callback: CallbackQuery):
 
 # ── Sub-menu callbacks ───────────────────────────────────────────────────────
 
-# State for new content post mode
 _new_content_state: set[int] = set()
 
 
@@ -1235,8 +1200,8 @@ def is_in_new_content_mode(user_id: int) -> bool:
     return user_id in _new_content_state
 
 
-@router.callback_query(F.data == "sub_content_post")
-async def on_sub_content_post(callback: CallbackQuery):
+@router.callback_query(SubMenuCB.filter((F.menu == "content") & (F.action == "post")))
+async def on_sub_content_post(callback: CallbackQuery, callback_data: SubMenuCB):
     """Enter content post mode — user types topic next."""
     _new_content_state.add(callback.from_user.id)
     try:
@@ -1246,40 +1211,40 @@ async def on_sub_content_post(callback: CallbackQuery):
     await callback.answer()
 
 
-@router.callback_query(F.data == "sub_content_calendar")
-async def on_sub_content_calendar(callback: CallbackQuery):
+@router.callback_query(SubMenuCB.filter((F.menu == "content") & (F.action == "calendar")))
+async def on_sub_content_calendar(callback: CallbackQuery, callback_data: SubMenuCB):
     """Show content calendar."""
     from .commands import cmd_calendar
     await cmd_calendar(callback.message)
     await callback.answer()
 
 
-@router.callback_query(F.data == "sub_content_linkedin")
-async def on_sub_content_linkedin(callback: CallbackQuery):
+@router.callback_query(SubMenuCB.filter((F.menu == "content") & (F.action == "linkedin")))
+async def on_sub_content_linkedin(callback: CallbackQuery, callback_data: SubMenuCB):
     """Show LinkedIn status."""
     from .commands import cmd_linkedin
     await cmd_linkedin(callback.message)
     await callback.answer()
 
 
-@router.callback_query(F.data == "sub_status_agents")
-async def on_sub_status_agents(callback: CallbackQuery):
+@router.callback_query(SubMenuCB.filter((F.menu == "status") & (F.action == "agents")))
+async def on_sub_status_agents(callback: CallbackQuery, callback_data: SubMenuCB):
     """Show agent statuses."""
     from .commands import cmd_status
     await cmd_status(callback.message)
     await callback.answer()
 
 
-@router.callback_query(F.data == "sub_status_tasks")
-async def on_sub_status_tasks(callback: CallbackQuery):
+@router.callback_query(SubMenuCB.filter((F.menu == "status") & (F.action == "tasks")))
+async def on_sub_status_tasks(callback: CallbackQuery, callback_data: SubMenuCB):
     """Show task pool."""
     from .commands import cmd_tasks
     await cmd_tasks(callback.message)
     await callback.answer()
 
 
-@router.callback_query(F.data == "sub_status_revenue")
-async def on_sub_status_revenue(callback: CallbackQuery):
+@router.callback_query(SubMenuCB.filter((F.menu == "status") & (F.action == "revenue")))
+async def on_sub_status_revenue(callback: CallbackQuery, callback_data: SubMenuCB):
     """Show revenue summary (rule-based, no LLM)."""
     import json as _json
     revenue_path = None

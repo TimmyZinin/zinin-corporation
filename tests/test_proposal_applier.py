@@ -6,6 +6,8 @@ from unittest.mock import patch, MagicMock
 
 import pytest
 
+from src.telegram_ceo.callback_factory import CtoCB
+
 # ──────────────────────────────────────────────────────────
 # Sample YAML for tests
 # ──────────────────────────────────────────────────────────
@@ -585,7 +587,7 @@ class TestOnCtoApproveWithApply:
                 return_value="--- a\n+++ b\n-old\n+new",
             ),
         ):
-            await on_cto_approve(mock_callback)
+            await on_cto_approve(mock_callback, CtoCB(action="approve", id="test-id-1"))
 
         # edit_text should be called at least twice:
         # 1) "⏳ ПРИМЕНЯЮ" status
@@ -630,7 +632,7 @@ class TestOnCtoApproveWithApply:
                 return_value=apply_result,
             ),
         ):
-            await on_cto_approve(mock_callback)
+            await on_cto_approve(mock_callback, CtoCB(action="approve", id="test-id-1"))
 
         # Should show ОДОБРЕНО (not ПРИМЕНЕНО)
         final_call = mock_callback.message.edit_text.call_args_list[-1]
@@ -666,7 +668,7 @@ class TestOnCtoApproveWithApply:
                 side_effect=ValueError("YAML не найден"),
             ),
         ):
-            await on_cto_approve(mock_callback)
+            await on_cto_approve(mock_callback, CtoCB(action="approve", id="test-id-1"))
 
         # Should show ОДОБРЕНО (не применено) with error
         final_call = mock_callback.message.edit_text.call_args_list[-1]
@@ -683,7 +685,7 @@ class TestOnCtoApproveWithApply:
             "src.telegram_ceo.handlers.callbacks._find_and_update_proposal",
             return_value=None,
         ):
-            await on_cto_approve(mock_callback)
+            await on_cto_approve(mock_callback, CtoCB(action="approve", id="test-id-1"))
 
         mock_callback.answer.assert_called_with("Предложение не найдено", show_alert=True)
 
