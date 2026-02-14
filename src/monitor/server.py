@@ -28,6 +28,7 @@ from ..activity_tracker import (
 from ..rate_monitor import get_all_usage, get_rate_alerts
 from ..task_pool import get_pool_summary, get_all_tasks, TaskStatus
 from .dashboard_html import render_dashboard_html
+from .webhook_tribute import tribute_webhook
 
 logger = logging.getLogger(__name__)
 
@@ -153,6 +154,7 @@ def create_app() -> Starlette:
         Route("/api/agents", api_agents),
         Route("/api/events", api_events),
         Route("/api/stream", event_stream),
+        Route("/webhooks/tribute", tribute_webhook, methods=["POST"]),
     ]
     return Starlette(routes=routes)
 

@@ -11,7 +11,11 @@ from ...telegram.bridge import AgentBridge
 from ...telegram.formatters import format_for_telegram
 from ...telegram.handlers.commands import keep_typing
 from ..drafts import DraftManager
-from ..keyboards import approval_keyboard, post_ready_keyboard, approval_with_image_keyboard, final_choice_keyboard
+from ..keyboards import (
+    approval_keyboard, post_ready_keyboard, approval_with_image_keyboard,
+    final_choice_keyboard, multiplatform_post_keyboard, publish_all_keyboard,
+    PLAT_SHORT, PLAT_EMOJI,
+)
 from ..image_gen import generate_image, generate_image_with_refinement
 from ..safety import circuit_breaker
 from ..publishers import AUTHORS
@@ -100,6 +104,13 @@ async def handle_text(message: Message):
         if post_id:
             await _handle_image_refinement(message, post_id, user_text)
             return
+
+    # Post-publish image feedback mode
+    img_fb_id = DraftManager.get_image_feedback(user_id)
+    if img_fb_id:
+        DraftManager.clear_image_feedback(user_id)
+        await _handle_pp_image_refinement(message, img_fb_id, user_text)
+        return
 
     # Check if user is in feedback mode (post-publish)
     fb = DraftManager.get_feedback(user_id)
@@ -389,16 +400,54 @@ async def _generate_post_flow(
         if calendar_entry_id:
             DraftManager.update_draft(post_id, calendar_entry_id=calendar_entry_id)
 
-        for chunk in format_for_telegram(post_text):
-            await message.answer(chunk)
+        # Multi-platform: adapt text and show per-platform cards
+        if len(platforms) > 1:
+            try:
+                from ...tools.content_adapter import adapt_for_all_platforms
+                adapted = await asyncio.to_thread(adapt_for_all_platforms, post_text)
+            except Exception as e:
+                logger.warning(f"Content adaptation failed: {e}")
+                adapted = {p: post_text for p in platforms}
 
-        # CS-002: Use post_ready_keyboard with image choice
-        await message.answer(
-            f"Пост готов (ID: {post_id})\n"
-            f"Автор: {author_label} | Платформа: {plat_label}\n"
-            f"Что делаем?",
-            reply_markup=post_ready_keyboard(post_id),
-        )
+            # Save adapted texts and initialize platform statuses
+            platform_status = {p: "pending" for p in platforms}
+            DraftManager.update_draft(
+                post_id,
+                platform_texts=adapted,
+                platform_status=platform_status,
+            )
+
+            # Send per-platform cards
+            for plat in platforms:
+                plat_text = adapted.get(plat, post_text)
+                emoji = PLAT_EMOJI.get(plat, "📝")
+                header = f"{emoji} {plat.upper()} ({len(plat_text)} сим.)\n\n"
+
+                for chunk in format_for_telegram(header + plat_text):
+                    await message.answer(chunk)
+
+                await message.answer(
+                    f"Действия для {emoji} {plat}:",
+                    reply_markup=multiplatform_post_keyboard(post_id, plat),
+                )
+
+            # Publish all button
+            await message.answer(
+                f"Пост готов (ID: {post_id}) — {len(platforms)} платформы",
+                reply_markup=publish_all_keyboard(post_id),
+            )
+        else:
+            # Single platform — original flow
+            for chunk in format_for_telegram(post_text):
+                await message.answer(chunk)
+
+            # CS-002: Use post_ready_keyboard with image choice
+            await message.answer(
+                f"Пост готов (ID: {post_id})\n"
+                f"Автор: {author_label} | Платформа: {plat_label}\n"
+                f"Что делаем?",
+                reply_markup=post_ready_keyboard(post_id),
+            )
 
     except Exception as e:
         circuit_breaker.record_failure()
@@ -449,6 +498,53 @@ async def _handle_image_refinement(message: Message, post_id: str, refinement: s
 
     except Exception as e:
         logger.error(f"Image refinement error: {e}", exc_info=True)
+        await message.answer(f"Ошибка: {str(e)[:200]}")
+    finally:
+        stop.set()
+        await typing_task
+        try:
+            await status.delete()
+        except Exception:
+            pass
+
+
+async def _handle_pp_image_refinement(message: Message, post_id: str, refinement: str):
+    """Post-publish image refinement: user described what to change."""
+    from ..keyboards import image_review_keyboard, rating_keyboard
+
+    draft = DraftManager.get_draft(post_id)
+    if not draft:
+        await message.answer("Черновик не найден.")
+        return
+
+    status = await message.answer("🎨 Генерирую картинку с учётом пожеланий...")
+    stop = asyncio.Event()
+    from ...telegram.handlers.commands import keep_typing
+    typing_task = asyncio.create_task(keep_typing(message, stop))
+
+    try:
+        image_path = await asyncio.to_thread(
+            generate_image_with_refinement, draft["topic"], draft["text"], refinement
+        )
+        # Save feedback text for learning loop
+        DraftManager.update_draft(post_id, image_feedback_text=refinement)
+
+        if image_path:
+            DraftManager.update_draft(post_id, image_path=image_path, rating_step="image_gen")
+            from aiogram.types import FSInputFile
+            await message.answer_photo(FSInputFile(image_path), caption="Обновлённая картинка")
+            await message.answer(
+                "Что делаем с картинкой?",
+                reply_markup=image_review_keyboard(post_id),
+            )
+        else:
+            DraftManager.update_draft(post_id, rating_step="overall")
+            await message.answer(
+                "Не удалось. Оцени пост в целом:",
+                reply_markup=rating_keyboard("r_ovr", post_id),
+            )
+    except Exception as e:
+        logger.error(f"PP image refinement error: {e}", exc_info=True)
         await message.answer(f"Ошибка: {str(e)[:200]}")
     finally:
         stop.set()

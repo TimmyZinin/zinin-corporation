@@ -337,3 +337,75 @@ def seed_sborka_launch_v2() -> list[dict]:
         entry = add_entry(**item)
         created.append(entry)
     return created
+
+
+def seed_sborka_launch_v3() -> list[dict]:
+    """Seed 7 Sborka launch posts for Feb 14-17, 2026.
+
+    Narrative: Зачем → Как → Urgency → Launch Day.
+    Webinar Tue Feb 17 at 15:00 MSK. No social proof (first launch).
+    2 posts/day (Tim + Kristina), launch day — both.
+    """
+    plan = [
+        {
+            "entry_date": "2026-02-14",
+            "topic": "Зачем мы запускаем СБОРКУ — проблема поиска работы",
+            "author": "kristina",
+            "platform": "linkedin",
+            "cta": "Записывайся на вебинар 17 фев → @sborka_career_bot",
+            "brand": "sborka",
+        },
+        {
+            "entry_date": "2026-02-14",
+            "topic": "Я 3 года нанимал людей. Вот что я понял о поиске работы",
+            "author": "tim",
+            "platform": "linkedin",
+            "cta": "Бесплатный вебинар 17 фев → @sborka_career_bot",
+            "brand": "sborka",
+        },
+        {
+            "entry_date": "2026-02-15",
+            "topic": "Что такое СБОРКА — система вместо хаоса в поиске работы",
+            "author": "tim",
+            "platform": "linkedin+threads",
+            "cta": "Вебинар 17 фев, бесплатно → @sborka_career_bot",
+            "brand": "sborka",
+        },
+        {
+            "entry_date": "2026-02-15",
+            "topic": "5 принципов, которые мы заложили в СБОРКУ",
+            "author": "kristina",
+            "platform": "linkedin",
+            "cta": "Регистрация → @sborka_career_bot",
+            "brand": "sborka",
+        },
+        {
+            "entry_date": "2026-02-16",
+            "topic": "Завтра покажем всю систему live — последний день записи",
+            "author": "tim",
+            "platform": "linkedin+threads+telegram",
+            "cta": "Последний шанс → @sborka_career_bot",
+            "brand": "sborka",
+        },
+        {
+            "entry_date": "2026-02-16",
+            "topic": "Что будет на вебинаре и почему стоит прийти",
+            "author": "kristina",
+            "platform": "linkedin+threads",
+            "cta": "Последний день → @sborka_career_bot",
+            "brand": "sborka",
+        },
+        {
+            "entry_date": "2026-02-17",
+            "topic": "СБОРКА LIVE: вебинар сегодня 15:00 МСК",
+            "author": "both",
+            "platform": "linkedin+threads+telegram",
+            "cta": "Присоединяйся сейчас → @sborka_career_bot",
+            "brand": "sborka",
+        },
+    ]
+    created = []
+    for item in plan:
+        entry = add_entry(**item)
+        created.append(entry)
+    return created

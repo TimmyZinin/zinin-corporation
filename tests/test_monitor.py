@@ -215,11 +215,11 @@ class TestCreateApp:
         assert "/api/events" in paths
         assert "/api/stream" in paths
 
-    def test_has_five_routes(self):
+    def test_has_six_routes(self):
         from src.monitor.server import create_app
 
         app = create_app()
-        assert len(app.routes) == 5
+        assert len(app.routes) == 6  # 5 original + /webhooks/tribute
 
 
 class TestEndpoints:

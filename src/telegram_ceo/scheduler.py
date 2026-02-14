@@ -602,6 +602,27 @@ def setup_ceo_scheduler(bot: Bot, config: CeoTelegramConfig) -> AsyncIOScheduler
         replace_existing=True,
     )
 
+    # 15) Market Listener — daily at 08:30 MSK (= 05:30 UTC)
+    async def market_listener_scan():
+        try:
+            from ..market_listener import run_daily_scan, format_topics_for_menu
+            topics = await run_daily_scan()
+            if topics:
+                text = format_topics_for_menu(topics)
+                await bot.send_message(chat_id, f"📊 Market Listener\n\n{text}")
+                logger.info(f"Market listener: {len(topics)} topics")
+            else:
+                logger.info("Market listener: no topics generated")
+        except Exception as e:
+            logger.error(f"Market listener failed: {e}")
+
+    scheduler.add_job(
+        market_listener_scan,
+        CronTrigger(hour=5, minute=30),
+        id="market_listener",
+        replace_existing=True,
+    )
+
     logger.info(
         f"CEO scheduler: briefing=daily {config.morning_briefing_hour}:00, "
         f"full_report={config.weekly_review_day} {config.weekly_review_hour}:00, "
@@ -610,7 +631,8 @@ def setup_ceo_scheduler(bot: Bot, config: CeoTelegramConfig) -> AsyncIOScheduler
         f"archive=daily 01:00, orphan_patrol=daily 10:00, "
         f"analytics=daily 22:00, evening=daily 21:00, digest=Sun 20:00, "
         f"proactive: morning=06:00, midday=11:00, evening=17:00, "
-        f"comment_digest=every 3h, competitor_scan=daily 04:00"
+        f"comment_digest=every 3h, competitor_scan=daily 04:00, "
+        f"market_listener=daily 05:30"
     )
 
     return scheduler

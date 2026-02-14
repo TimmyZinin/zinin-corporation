@@ -931,6 +931,20 @@ def _build_prompt(topic: str, post_text: str) -> str:
     scene_key = _select_scene(topic)
     scene_desc = SCENES[scene_key]
 
+    # Learning loop: inject image feedback if available
+    feedback_section = ""
+    try:
+        from .ratings import RatingStore
+        issues = RatingStore.get_recent_issues("", n=5)
+        if issues:
+            feedback_section = (
+                "\n\nIMAGE FEEDBACK FROM USER (avoid these issues):\n"
+                + "\n".join(f"- {fb}" for fb in issues[:5])
+                + "\n"
+            )
+    except Exception:
+        pass
+
     return f"""Create a flat 2D vector illustration in the style of ISOTYPE pictograms meets Soviet Constructivist poster. Square format 1:1. Pure white background (#FFFFFF).
 
 STYLE DIRECTION:
@@ -994,7 +1008,7 @@ El Lissitzky "Beat the Whites with the Red Wedge" — bold geometric symbolism, 
 Alexander Rodchenko poster compositions — diagonal dynamics, limited palette.
 Soviet-era safety and propaganda posters — simplified human figures in geometric style.
 
-The result must look like a bold pictographic poster: instantly readable objects, powerful composition, impossible to scroll past. The viewer immediately understands what the image is about."""
+The result must look like a bold pictographic poster: instantly readable objects, powerful composition, impossible to scroll past. The viewer immediately understands what the image is about.{feedback_section}"""
 
 
 def _call_openrouter(prompt: str, max_retries: int = 3) -> dict:

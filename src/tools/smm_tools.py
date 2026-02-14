@@ -439,6 +439,25 @@ class ContentGenerator(BaseTool):
 Длина: 1500-2500 символов для LinkedIn.
 Подпись в конце (ДО CTA-вопроса): «— {author}\nСБОРКА — клуб карьерной дисциплины»"""
 
+        # Learning loop: inject rating stats if available
+        try:
+            from ..telegram_yuki.ratings import RatingStore
+            stats = RatingStore.get_author_stats(author_key)
+            if stats.get("count", 0) >= 3:
+                avg_t = stats["avg_text"]
+                avg_o = stats["avg_overall"]
+                system_prompt += (
+                    f"\n\n📊 ДАННЫЕ ИЗ ОБРАТНОЙ СВЯЗИ ({stats['count']} постов):\n"
+                    f"Средняя оценка текста: {avg_t:.1f}/5, общая: {avg_o:.1f}/5\n"
+                )
+                issues = stats.get("common_image_feedback", [])
+                if issues:
+                    system_prompt += f"Частые замечания: {', '.join(issues[:3])}\n"
+                if avg_t < 3.5:
+                    system_prompt += "⚠️ Текст оценивают ниже среднего — будь более конкретен и ярок.\n"
+        except Exception:
+            pass
+
         user_prompt = f"Напиши экспертный пост для {platform.upper()} на тему: {topic}"
 
         result = _call_llm(user_prompt, system=system_prompt, max_tokens=2000)

@@ -88,24 +88,12 @@ def _parse_author_topic(text: str) -> tuple[str, str, str, str | None]:
 
 @router.message(CommandStart())
 async def cmd_start(message: Message):
+    from ..keyboards import start_menu_keyboard
     await message.answer(
-        "Юки Пак — Head of SMM, Zinin Corp\n\n"
-        "Привет, Тим! Я Юки, отвечаю за контент и SMM.\n\n"
-        "Команды:\n"
-        "/пост <тема> — Создать пост\n"
-        "/пост от Тима <тема> — Пост от Тима\n"
-        "/пост для личного бренда <тема> — Личный бренд\n"
-        "/подкаст <тема> — Сгенерировать подкаст\n"
-        "/calendar — Контент-план на сегодня/неделю\n"
-        "/plan — Запланировать новый пост\n"
-        "/status — Статус системы\n"
-        "/health — Диагностика\n"
-        "/linkedin — Статус LinkedIn\n"
-        "/level — Уровень автономности\n"
-        "/reflexion — Анализ фидбека\n"
-        "/schedule — Запланированные посты\n"
-        "/help — Справка\n\n"
-        "Можешь просто написать тему — я пойму."
+        "Юки Пак — Head of SMM, Zinin Corp 🎯\n\n"
+        "Выбери автора — я подготовлю посты для всех платформ.\n"
+        "Или используй команды: /пост, /календарь, /статус",
+        reply_markup=start_menu_keyboard(),
     )
 
 
@@ -452,6 +440,14 @@ async def cmd_linkedin(message: Message):
 
 @router.message(Command("reflexion"))
 async def cmd_reflexion(message: Message):
+    # Show rating stats first (no LLM needed)
+    try:
+        from ..ratings import RatingStore
+        stats_text = RatingStore.format_stats()
+        await message.answer(stats_text)
+    except Exception:
+        pass
+
     await run_with_typing(
         message,
         AgentBridge.send_to_agent(

@@ -1,24 +1,37 @@
 {
-  "version": "1.0.0",
+  "version": "1.1.0",
   "authors": {
     "kristina": {
       "name": "Кристина Жукова",
       "role": "Head of Product СБОРКИ",
       "experience": "15+ лет в HR, 50000+ резюме, 10000+ собеседований",
       "voice": "Прямой, уверенный, экспертный. Говорит как старший коллега.",
-      "telegram": "@kristina_sborka"
+      "telegram": "@kristina_sborka",
+      "topics_strength": "HR-экспертиза, процессы, системы, боль соискателей",
+      "cta_style": "мягкий, приглашающий"
     },
     "tim": {
       "name": "Тим Зинин",
       "role": "CEO СБОРКИ",
       "experience": "20+ лет в маркетинге, Ex-CMO Skyeng",
       "voice": "Системный, провокационный, business-perspective",
-      "telegram": "@tim_sborka"
+      "telegram": "@tim_sborka",
+      "topics_strength": "AI, технологии, маркетинг, build in public",
+      "cta_style": "провокационный, прямой"
     }
   },
   "tone": {
     "do": ["прямо", "конкретно", "уверенно", "честно", "с примерами"],
     "dont": ["водянисто", "лозунги", "высокомерно", "общие фразы"]
   },
-  "signature": "—\n{author}\nСБОРКА — клуб карьерной дисциплины"
+  "signature": "—\n{author}\nСБОРКА — клуб карьерной дисциплины",
+  "sborka_ctas": {
+    "webinar": "Записывайся на вебинар 17 фев → @sborka_career_bot",
+    "trial": "Первая неделя бесплатно → @sborka_career_bot",
+    "bot": "Попробуй СБОРКУ → t.me/sborka_career_bot",
+    "tribute_start": "https://t.me/tribute/app?startapp=sNBT",
+    "tribute_proruv": "https://t.me/tribute/app?startapp=sNBY",
+    "tribute_vip": "https://t.me/tribute/app?startapp=sNC0"
+  },
+  "sborka_narrative": "Первый запуск. Мы строим это вместе. Будь первым."
 }

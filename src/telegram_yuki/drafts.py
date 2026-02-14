@@ -20,6 +20,7 @@ class DraftManager:
     _drafts: dict[str, dict] = {}
     _editing: dict[int, str] = {}  # user_id → post_id
     _feedback: dict[int, tuple[str, str]] = {}  # user_id → (post_id, mode: "post"|"future")
+    _image_feedback: dict[int, str] = {}  # user_id → post_id (post-publish image refinement)
 
     @classmethod
     def create_draft(
@@ -50,6 +51,10 @@ class DraftManager:
             "iteration": 1,
             "max_iterations": 3,
             "feedback_history": [],
+            "platform_texts": {},
+            "platform_status": {},
+            "ratings": {"text": 0, "image": 0, "overall": 0},
+            "rating_step": "",
         }
         cls._save_to_disk(post_id)
         logger.info(f"Draft created: {post_id} topic={topic[:40]} author={author}")
@@ -98,6 +103,20 @@ class DraftManager:
     @classmethod
     def clear_feedback(cls, user_id: int) -> None:
         cls._feedback.pop(user_id, None)
+
+    @classmethod
+    def set_image_feedback(cls, user_id: int, post_id: str) -> None:
+        """Set post-publish image feedback mode."""
+        cls._image_feedback[user_id] = post_id
+
+    @classmethod
+    def get_image_feedback(cls, user_id: int) -> Optional[str]:
+        """Returns post_id for image feedback or None."""
+        return cls._image_feedback.get(user_id)
+
+    @classmethod
+    def clear_image_feedback(cls, user_id: int) -> None:
+        cls._image_feedback.pop(user_id, None)
 
     @classmethod
     def active_count(cls) -> int:

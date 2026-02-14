@@ -1,8 +1,13 @@
-"""Inline keyboards for Yuki SMM bot — approval, platforms, scheduling."""
+"""Inline keyboards for Yuki SMM bot — approval, platforms, scheduling, menu UX, ratings."""
 
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 
 from .publishers import get_all_publishers
+
+# Platform short codes for compact callback_data (< 64 bytes)
+PLAT_SHORT = {"linkedin": "li", "threads": "th", "telegram": "tg"}
+PLAT_LONG = {v: k for k, v in PLAT_SHORT.items()}
+PLAT_EMOJI = {"linkedin": "💼", "threads": "🧵", "telegram": "📱"}
 
 
 def approval_keyboard(post_id: str) -> InlineKeyboardMarkup:
@@ -287,5 +292,131 @@ def preselect_confirm_keyboard() -> InlineKeyboardMarkup:
                 text="🔄 Изменить",
                 callback_data="pre_change",
             ),
+        ],
+    ])
+
+
+# ── Menu-first UX keyboards ─────────────────────────────────────────────
+
+
+def start_menu_keyboard() -> InlineKeyboardMarkup:
+    """Main menu: author selection + calendar + status."""
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [
+            InlineKeyboardButton(text="📝 Тим", callback_data="m_au:tim"),
+            InlineKeyboardButton(text="📝 Кристина", callback_data="m_au:kristina"),
+        ],
+        [
+            InlineKeyboardButton(text="📅 Календарь", callback_data="m_cal_view"),
+            InlineKeyboardButton(text="📊 Статус", callback_data="m_status"),
+        ],
+    ])
+
+
+def author_submenu_keyboard(author: str) -> InlineKeyboardMarkup:
+    """Author submenu: from calendar, custom topic, or market topics."""
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [
+            InlineKeyboardButton(text="🔥 Из календаря", callback_data="m_cal"),
+            InlineKeyboardButton(text="✍️ Своя тема", callback_data="m_topic"),
+        ],
+        [
+            InlineKeyboardButton(text="◀️ Назад", callback_data="m_back"),
+        ],
+    ])
+
+
+# ── Multi-platform post keyboards ───────────────────────────────────────
+
+
+def multiplatform_post_keyboard(post_id: str, platform: str) -> InlineKeyboardMarkup:
+    """Per-platform actions: publish, improve, schedule, remove."""
+    ps = PLAT_SHORT.get(platform, platform[:2])
+    emoji = PLAT_EMOJI.get(platform, "📝")
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [
+            InlineKeyboardButton(
+                text=f"✅ Опубликовать {emoji}",
+                callback_data=f"mp_pub:{ps}:{post_id}",
+            ),
+            InlineKeyboardButton(
+                text="🔄 Улучшить",
+                callback_data=f"mp_imp:{ps}:{post_id}",
+            ),
+        ],
+        [
+            InlineKeyboardButton(
+                text="📅 Запланировать",
+                callback_data=f"mp_sch:{ps}:{post_id}",
+            ),
+            InlineKeyboardButton(
+                text="❌ Убрать",
+                callback_data=f"mp_rm:{ps}:{post_id}",
+            ),
+        ],
+    ])
+
+
+def publish_all_keyboard(post_id: str) -> InlineKeyboardMarkup:
+    """Publish all pending platforms at once."""
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [
+            InlineKeyboardButton(
+                text="🚀 Опубликовать ВСЁ",
+                callback_data=f"mp_all:{post_id}",
+            ),
+        ],
+    ])
+
+
+def published_lock_keyboard(platform: str) -> InlineKeyboardMarkup:
+    """Disabled button showing published status."""
+    emoji = PLAT_EMOJI.get(platform, "✅")
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [
+            InlineKeyboardButton(
+                text=f"✅ Опубликовано {emoji} {platform}",
+                callback_data="noop",
+            ),
+        ],
+    ])
+
+
+# ── Post-publish rating + image keyboards ────────────────────────────────
+
+
+def rating_keyboard(prefix: str, post_id: str, label: str = "") -> InlineKeyboardMarkup:
+    """Rating 1-5 stars. prefix: r_txt, r_img, r_ovr."""
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [
+            InlineKeyboardButton(text="1⭐", callback_data=f"{prefix}:1:{post_id}"),
+            InlineKeyboardButton(text="2⭐", callback_data=f"{prefix}:2:{post_id}"),
+            InlineKeyboardButton(text="3⭐", callback_data=f"{prefix}:3:{post_id}"),
+            InlineKeyboardButton(text="4⭐", callback_data=f"{prefix}:4:{post_id}"),
+            InlineKeyboardButton(text="5⭐", callback_data=f"{prefix}:5:{post_id}"),
+        ],
+    ])
+
+
+def image_offer_keyboard(post_id: str) -> InlineKeyboardMarkup:
+    """Offer to generate image after publish."""
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [
+            InlineKeyboardButton(text="🖼 Создать картинку", callback_data=f"pp_img:{post_id}"),
+            InlineKeyboardButton(text="⏭ Пропустить", callback_data=f"pp_skip:{post_id}"),
+        ],
+    ])
+
+
+def image_review_keyboard(post_id: str) -> InlineKeyboardMarkup:
+    """Review generated image: accept, redo, refine with text, reject."""
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [
+            InlineKeyboardButton(text="✅ Принять", callback_data=f"pp_ok:{post_id}"),
+            InlineKeyboardButton(text="🔄 Переделать", callback_data=f"pp_redo:{post_id}"),
+        ],
+        [
+            InlineKeyboardButton(text="✏️ Уточнить", callback_data=f"pp_fb:{post_id}"),
+            InlineKeyboardButton(text="❌ Отклонить", callback_data=f"pp_no:{post_id}"),
         ],
     ])
