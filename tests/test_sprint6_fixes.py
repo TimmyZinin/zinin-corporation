@@ -160,6 +160,29 @@ class TestExtractImagePaths:
         paths = extract_image_paths(text)
         assert len(paths) == 1
 
+    def test_app_data_path_extracted(self):
+        """RUVDS/Docker paths start with /app/data/, not /data/."""
+        from src.telegram_ceo.image_sender import extract_image_paths
+        text = "Изображение сохранено: /app/data/design_images/enhanced_upscale_20260214_194900_522a35.png"
+        paths = extract_image_paths(text)
+        assert len(paths) == 1
+        assert paths[0] == "/app/data/design_images/enhanced_upscale_20260214_194900_522a35.png"
+
+    def test_app_data_jpg(self):
+        from src.telegram_ceo.image_sender import extract_image_paths
+        text = "Chart: /app/data/design_images/chart_bar_20260214.jpg"
+        paths = extract_image_paths(text)
+        assert len(paths) == 1
+
+    def test_app_data_mixed_with_data(self):
+        from src.telegram_ceo.image_sender import extract_image_paths
+        text = (
+            "Image 1: /app/data/design_images/img1.png\n"
+            "Image 2: /data/design_images/img2.jpg\n"
+        )
+        paths = extract_image_paths(text)
+        assert len(paths) == 2
+
 
 class TestSendImagesFromResponse:
     """Test the async send_images_from_response function."""

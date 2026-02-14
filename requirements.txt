@@ -53,9 +53,8 @@ edge-tts>=6.1.0
 telegraph>=2.2.0
 
 # Voice transcription (faster-whisper)
-# NOTE: NOT included here — too heavy for Railway (ctranslate2 ~500MB).
-# Install locally: pip install faster-whisper>=1.0.0
-# The code handles missing dependency gracefully via is_voice_available().
+# ctranslate2 ~500MB — requires RUVDS (Railway OOM at 512MB).
+faster-whisper>=1.0.0
 
 # Podcast generation
 pydub>=0.25.1

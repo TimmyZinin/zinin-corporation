@@ -5,7 +5,7 @@ import os
 import re
 
 _IMAGE_PATH_RE = re.compile(
-    r"((?:/data|/tmp)[/\w\-_.]+\.(?:png|jpg|jpeg|gif|webp))",
+    r"((?:/(?:app/)?data|/tmp)[/\w\-_.]+\.(?:png|jpg|jpeg|gif|webp))",
     re.IGNORECASE,
 )
 
