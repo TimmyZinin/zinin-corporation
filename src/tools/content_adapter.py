@@ -45,6 +45,26 @@ PLATFORM_RULES = {
         "format": "1-3 предложения, вопрос в конце для дискуссии",
         "signature": False,
     },
+    "facebook": {
+        "label": "Facebook",
+        "max_chars": 63206,
+        "tone": "развёрнутый, сторителлинг",
+        "hashtags": True,
+        "max_hashtags": 5,
+        "emoji_level": "moderate",
+        "format": "длинный пост с абзацами и историями",
+        "signature": True,
+    },
+    "twitter": {
+        "label": "Twitter/X",
+        "max_chars": 280,
+        "tone": "острый, провокационный, панч",
+        "hashtags": True,
+        "max_hashtags": 2,
+        "emoji_level": "none",
+        "format": "1-2 предложения, каждое слово на вес золота",
+        "signature": False,
+    },
 }
 
 _ADAPT_SYSTEM = """You are a content adaptation expert. You rewrite posts for different social platforms.

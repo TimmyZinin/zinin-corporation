@@ -1204,6 +1204,346 @@ ThreadsPublisherTool = ThreadsTimPublisher
 
 
 # ──────────────────────────────────────────────────────────
+# Tool 3c: Facebook Page Publisher (Graph API)
+# ──────────────────────────────────────────────────────────
+
+_FB_GRAPH_BASE = "https://graph.facebook.com/v24.0"
+
+
+class FacebookPublisherInput(BaseModel):
+    action: str = Field(
+        ...,
+        description=(
+            "Action: 'publish_text' (text post — needs text), "
+            "'publish_image' (post with image — needs text + image_url), "
+            "'check_token' (check if Facebook is configured), "
+            "'status' (Facebook integration status)"
+        ),
+    )
+    text: Optional[str] = Field(None, description="Post text (max 63206 chars)")
+    image_url: Optional[str] = Field(None, description="Image URL to attach (for publish_image)")
+
+
+class _FacebookPublisherBase(BaseTool):
+    """Base Facebook Page publisher — subclass with specific env vars per page."""
+    name: str = "Facebook Publisher"
+    description: str = "Publishes posts to a Facebook Page via Graph API."
+    args_schema: Type[BaseModel] = FacebookPublisherInput
+
+    _token_env: str = "FB_PAGE_ACCESS_TOKEN"
+    _page_id_env: str = "FB_PAGE_ID"
+    _owner_label: str = ""
+
+    def _run(self, action: str, text: str = None, image_url: str = None) -> str:
+        from urllib.request import urlopen, Request
+        from urllib.error import HTTPError
+
+        access_token = os.getenv(self._token_env, "")
+        page_id = os.getenv(self._page_id_env, "")
+
+        if action == "status":
+            configured = bool(access_token and page_id)
+            label = f" ({self._owner_label})" if self._owner_label else ""
+            return (
+                f"FACEBOOK STATUS{label}:\n"
+                f"  Configured: {'✅ Yes' if configured else '❌ No'}\n"
+                f"  Token: {'Set' if access_token else 'MISSING'}\n"
+                f"  Page ID: {'Set' if page_id else 'MISSING'}\n"
+                f"  API: Graph API v24.0"
+            )
+
+        if action == "check_token":
+            if not access_token or not page_id:
+                return f"❌ {self._token_env} or {self._page_id_env} not set"
+            try:
+                req = Request(
+                    f"{_FB_GRAPH_BASE}/{page_id}?fields=name,id&access_token={access_token}",
+                )
+                with urlopen(req, timeout=10) as resp:
+                    data = json.loads(resp.read().decode("utf-8"))
+                    name = data.get("name", "Unknown")
+                    return f"✅ Facebook token valid. Page: {name}"
+            except HTTPError as e:
+                if e.code in (190, 401):
+                    return "❌ Facebook token EXPIRED or invalid."
+                return f"❌ Facebook error: HTTP {e.code}"
+            except Exception as e:
+                return f"❌ Facebook error: {e}"
+
+        if action in ("publish_text", "publish"):
+            if not text:
+                return "Error: need text to publish"
+            if not access_token or not page_id:
+                return f"❌ Facebook not configured. Set {self._token_env} and {self._page_id_env}."
+            if len(text) > 63206:
+                text = text[:63203] + "..."
+            return self._publish_post(access_token, page_id, text)
+
+        if action == "publish_image":
+            if not text:
+                return "Error: need text for image post"
+            if not image_url:
+                return "Error: need image_url for image post"
+            if not access_token or not page_id:
+                return f"❌ Facebook not configured. Set {self._token_env} and {self._page_id_env}."
+            if len(text) > 63206:
+                text = text[:63203] + "..."
+            return self._publish_image_post(access_token, page_id, text, image_url)
+
+        return f"Unknown action: {action}. Use: publish_text, publish_image, check_token, status"
+
+    def _publish_post(self, token: str, page_id: str, text: str) -> str:
+        """Publish a text-only post to Facebook Page."""
+        from urllib.request import urlopen, Request
+        from urllib.error import HTTPError
+        from urllib.parse import urlencode
+
+        try:
+            data = urlencode({"message": text, "access_token": token}).encode("utf-8")
+            req = Request(
+                f"{_FB_GRAPH_BASE}/{page_id}/feed",
+                data=data,
+                method="POST",
+            )
+            with urlopen(req, timeout=30) as resp:
+                result = json.loads(resp.read().decode("utf-8"))
+                post_id = result.get("id", "")
+                return f"✅ Published to Facebook!\nPost ID: {post_id}"
+        except HTTPError as e:
+            error_body = e.read().decode("utf-8") if e.fp else ""
+            if e.code in (190, 401):
+                return "❌ Facebook token EXPIRED or invalid."
+            return f"❌ Facebook publish error: HTTP {e.code}\n{error_body[:200]}"
+        except Exception as e:
+            return f"❌ Facebook publish error: {e}"
+
+    def _publish_image_post(self, token: str, page_id: str, text: str, image_url: str) -> str:
+        """Publish a post with image to Facebook Page."""
+        from urllib.request import urlopen, Request
+        from urllib.error import HTTPError
+        from urllib.parse import urlencode
+
+        try:
+            data = urlencode({
+                "message": text,
+                "url": image_url,
+                "access_token": token,
+            }).encode("utf-8")
+            req = Request(
+                f"{_FB_GRAPH_BASE}/{page_id}/photos",
+                data=data,
+                method="POST",
+            )
+            with urlopen(req, timeout=30) as resp:
+                result = json.loads(resp.read().decode("utf-8"))
+                post_id = result.get("post_id", result.get("id", ""))
+                return f"✅ Published to Facebook with image!\nPost ID: {post_id}"
+        except HTTPError as e:
+            error_body = e.read().decode("utf-8") if e.fp else ""
+            if e.code in (190, 401):
+                return "❌ Facebook token EXPIRED or invalid."
+            return f"❌ Facebook image post error: HTTP {e.code}\n{error_body[:200]}"
+        except Exception as e:
+            return f"❌ Facebook image post error: {e}"
+
+
+class FacebookTimPublisher(_FacebookPublisherBase):
+    name: str = "Facebook Tim Zinin"
+    description: str = (
+        "Publishes posts to TIM ZININ's Facebook Page. "
+        "Use ONLY when the post is meant for Tim's Facebook. "
+        "Actions: publish_text, publish_image, check_token, status."
+    )
+    _token_env: str = "FB_PAGE_ACCESS_TOKEN"
+    _page_id_env: str = "FB_PAGE_ID"
+    _owner_label: str = "Tim Zinin"
+
+
+# Backward-compat alias
+FacebookPublisherTool = FacebookTimPublisher
+
+
+# ──────────────────────────────────────────────────────────
+# Tool 3d: Twitter/X Publisher (API v2, OAuth 1.0a)
+# ──────────────────────────────────────────────────────────
+
+_TWITTER_API_BASE = "https://api.twitter.com"
+
+
+class TwitterPublisherInput(BaseModel):
+    action: str = Field(
+        ...,
+        description=(
+            "Action: 'publish_text' (tweet — needs text), "
+            "'check_token' (check if Twitter is configured), "
+            "'status' (Twitter integration status)"
+        ),
+    )
+    text: Optional[str] = Field(None, description="Tweet text (max 280 chars)")
+
+
+class _TwitterPublisherBase(BaseTool):
+    """Base Twitter publisher — OAuth 1.0a via stdlib."""
+    name: str = "Twitter Publisher"
+    description: str = "Publishes tweets to Twitter/X via API v2."
+    args_schema: Type[BaseModel] = TwitterPublisherInput
+
+    _consumer_key_env: str = "TWITTER_CONSUMER_KEY"
+    _consumer_secret_env: str = "TWITTER_CONSUMER_SECRET"
+    _access_token_env: str = "TWITTER_ACCESS_TOKEN"
+    _access_secret_env: str = "TWITTER_ACCESS_TOKEN_SECRET"
+    _owner_label: str = ""
+
+    def _get_credentials(self) -> tuple:
+        return (
+            os.getenv(self._consumer_key_env, ""),
+            os.getenv(self._consumer_secret_env, ""),
+            os.getenv(self._access_token_env, ""),
+            os.getenv(self._access_secret_env, ""),
+        )
+
+    def _oauth_header(self, method: str, url: str, body: str = "") -> str:
+        """Generate OAuth 1.0a Authorization header (HMAC-SHA1)."""
+        import hashlib
+        import hmac
+        import base64
+        import time
+        import uuid
+        from urllib.parse import quote, urlencode
+
+        consumer_key, consumer_secret, access_token, access_secret = self._get_credentials()
+
+        oauth_params = {
+            "oauth_consumer_key": consumer_key,
+            "oauth_nonce": uuid.uuid4().hex,
+            "oauth_signature_method": "HMAC-SHA1",
+            "oauth_timestamp": str(int(time.time())),
+            "oauth_token": access_token,
+            "oauth_version": "1.0",
+        }
+
+        # Build signature base string
+        params_str = "&".join(
+            f"{quote(k, safe='')}={quote(v, safe='')}"
+            for k, v in sorted(oauth_params.items())
+        )
+        base_string = f"{method.upper()}&{quote(url, safe='')}&{quote(params_str, safe='')}"
+
+        # Sign
+        signing_key = f"{quote(consumer_secret, safe='')}&{quote(access_secret, safe='')}"
+        signature = base64.b64encode(
+            hmac.new(signing_key.encode(), base_string.encode(), hashlib.sha1).digest()
+        ).decode()
+
+        oauth_params["oauth_signature"] = signature
+
+        auth_header = "OAuth " + ", ".join(
+            f'{quote(k, safe="")}="{quote(v, safe="")}"'
+            for k, v in sorted(oauth_params.items())
+        )
+        return auth_header
+
+    def _run(self, action: str, text: str = None) -> str:
+        consumer_key, consumer_secret, access_token, access_secret = self._get_credentials()
+
+        if action == "status":
+            configured = bool(consumer_key and consumer_secret and access_token and access_secret)
+            label = f" ({self._owner_label})" if self._owner_label else ""
+            return (
+                f"TWITTER STATUS{label}:\n"
+                f"  Configured: {'✅ Yes' if configured else '❌ No'}\n"
+                f"  Consumer Key: {'Set' if consumer_key else 'MISSING'}\n"
+                f"  Access Token: {'Set' if access_token else 'MISSING'}\n"
+                f"  API: Twitter API v2"
+            )
+
+        if action == "check_token":
+            if not all([consumer_key, consumer_secret, access_token, access_secret]):
+                return "❌ Twitter credentials not fully set. Need all 4 env vars."
+            return self._check_credentials()
+
+        if action in ("publish_text", "publish"):
+            if not text:
+                return "Error: need text to publish"
+            if not all([consumer_key, consumer_secret, access_token, access_secret]):
+                return "❌ Twitter not configured. Set TWITTER_CONSUMER_KEY, TWITTER_CONSUMER_SECRET, TWITTER_ACCESS_TOKEN, TWITTER_ACCESS_TOKEN_SECRET."
+            if len(text) > 280:
+                text = text[:277] + "..."
+            return self._publish_tweet(text)
+
+        return f"Unknown action: {action}. Use: publish_text, check_token, status"
+
+    def _check_credentials(self) -> str:
+        """Verify Twitter credentials by fetching authenticated user."""
+        from urllib.request import urlopen, Request
+        from urllib.error import HTTPError
+
+        url = f"{_TWITTER_API_BASE}/2/users/me"
+        try:
+            auth = self._oauth_header("GET", url)
+            req = Request(url, headers={"Authorization": auth})
+            with urlopen(req, timeout=10) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+                username = data.get("data", {}).get("username", "Unknown")
+                return f"✅ Twitter token valid. User: @{username}"
+        except HTTPError as e:
+            if e.code in (401, 403):
+                return "❌ Twitter credentials INVALID or permissions insufficient."
+            return f"❌ Twitter error: HTTP {e.code}"
+        except Exception as e:
+            return f"❌ Twitter error: {e}"
+
+    def _publish_tweet(self, text: str) -> str:
+        """Publish a tweet via Twitter API v2."""
+        from urllib.request import urlopen, Request
+        from urllib.error import HTTPError
+
+        url = f"{_TWITTER_API_BASE}/2/tweets"
+        payload = json.dumps({"text": text}).encode("utf-8")
+
+        try:
+            auth = self._oauth_header("POST", url, payload.decode())
+            req = Request(
+                url,
+                data=payload,
+                headers={
+                    "Authorization": auth,
+                    "Content-Type": "application/json",
+                },
+                method="POST",
+            )
+            with urlopen(req, timeout=30) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+                tweet_id = data.get("data", {}).get("id", "")
+                return f"✅ Published to Twitter!\nTweet ID: {tweet_id}\nURL: https://x.com/i/status/{tweet_id}"
+        except HTTPError as e:
+            error_body = e.read().decode("utf-8") if e.fp else ""
+            if e.code in (401, 403):
+                return "❌ Twitter credentials INVALID or permissions insufficient."
+            return f"❌ Twitter publish error: HTTP {e.code}\n{error_body[:200]}"
+        except Exception as e:
+            return f"❌ Twitter publish error: {e}"
+
+
+class TwitterTimPublisher(_TwitterPublisherBase):
+    name: str = "Twitter Tim Zinin"
+    description: str = (
+        "Publishes tweets to TIM ZININ's Twitter/X (@timzinin). "
+        "Use ONLY when the post is meant for Tim's Twitter. "
+        "Actions: publish_text, check_token, status."
+    )
+    _consumer_key_env: str = "TWITTER_CONSUMER_KEY"
+    _consumer_secret_env: str = "TWITTER_CONSUMER_SECRET"
+    _access_token_env: str = "TWITTER_ACCESS_TOKEN"
+    _access_secret_env: str = "TWITTER_ACCESS_TOKEN_SECRET"
+    _owner_label: str = "Tim Zinin @timzinin"
+
+
+# Backward-compat alias
+TwitterPublisherTool = TwitterTimPublisher
+
+
+# ──────────────────────────────────────────────────────────
 # Tool 4: Podcast Script Generator
 # ──────────────────────────────────────────────────────────
 

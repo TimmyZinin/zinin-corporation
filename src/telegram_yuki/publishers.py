@@ -121,6 +121,69 @@ class ThreadsPublisher(BasePublisher):
         return bool(os.getenv("THREADS_ACCESS_TOKEN") and os.getenv("THREADS_USER_ID"))
 
 
+class FacebookPublisher(BasePublisher):
+    """Facebook Page publisher — delegates to FacebookTimPublisher from smm_tools."""
+
+    name = "facebook"
+    label = "Facebook"
+    emoji = "📘"
+
+    async def publish(self, text: str, image_path: str = "") -> str:
+        import asyncio
+        from ..tools.smm_tools import FacebookTimPublisher
+
+        tool = FacebookTimPublisher()
+        if image_path and os.path.exists(image_path):
+            logger.warning("Facebook image publish needs a public URL, falling back to text-only")
+        result = await asyncio.to_thread(tool._run, action="publish_text", text=text)
+        return result
+
+    async def check_status(self) -> str:
+        import asyncio
+        from ..tools.smm_tools import FacebookTimPublisher
+
+        tool = FacebookTimPublisher()
+        result = await asyncio.to_thread(tool._run, action="check_token")
+        return result
+
+    @property
+    def is_configured(self) -> bool:
+        return bool(os.getenv("FB_PAGE_ACCESS_TOKEN") and os.getenv("FB_PAGE_ID"))
+
+
+class TwitterPublisher(BasePublisher):
+    """Twitter/X publisher — delegates to TwitterTimPublisher from smm_tools."""
+
+    name = "twitter"
+    label = "Twitter/X"
+    emoji = "𝕏"
+
+    async def publish(self, text: str, image_path: str = "") -> str:
+        import asyncio
+        from ..tools.smm_tools import TwitterTimPublisher
+
+        tool = TwitterTimPublisher()
+        result = await asyncio.to_thread(tool._run, action="publish_text", text=text)
+        return result
+
+    async def check_status(self) -> str:
+        import asyncio
+        from ..tools.smm_tools import TwitterTimPublisher
+
+        tool = TwitterTimPublisher()
+        result = await asyncio.to_thread(tool._run, action="check_token")
+        return result
+
+    @property
+    def is_configured(self) -> bool:
+        return bool(
+            os.getenv("TWITTER_CONSUMER_KEY")
+            and os.getenv("TWITTER_CONSUMER_SECRET")
+            and os.getenv("TWITTER_ACCESS_TOKEN")
+            and os.getenv("TWITTER_ACCESS_TOKEN_SECRET")
+        )
+
+
 # ── Publisher Registry ──────────────────────────────────────────────────────
 
 _PUBLISHERS: dict[str, BasePublisher] = {}
@@ -133,6 +196,8 @@ def _init_publishers():
             "linkedin": LinkedInPublisher(),
             "telegram": TelegramChannelPublisher(),
             "threads": ThreadsPublisher(),
+            "facebook": FacebookPublisher(),
+            "twitter": TwitterPublisher(),
         }
 
 

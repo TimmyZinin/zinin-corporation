@@ -65,6 +65,13 @@ async def main():
     except Exception as e:
         logger.error(f"Corporation pre-init failed: {e} — will retry on first message")
 
+    # Register EventBus auto-start listener
+    try:
+        from ..auto_start import register_auto_start
+        register_auto_start()
+    except Exception as e:
+        logger.warning(f"Auto-start registration failed: {e}")
+
     # Startup notification
     if config.allowed_user_ids:
         try:

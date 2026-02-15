@@ -182,11 +182,13 @@ def create_smm_agent() -> Optional[Agent]:
             ContentGenerator, YukiMemory, PodcastScriptGenerator,
             LinkedInTimPublisher, LinkedInKristinaPublisher,
             ThreadsTimPublisher, ThreadsKristinaPublisher,
+            FacebookTimPublisher, TwitterTimPublisher,
         )
         tools = [
             ContentGenerator(), YukiMemory(),
             LinkedInTimPublisher(), LinkedInKristinaPublisher(),
             ThreadsTimPublisher(), ThreadsKristinaPublisher(),
+            FacebookTimPublisher(), TwitterTimPublisher(),
             PodcastScriptGenerator(),
         ]
     except Exception as e:

@@ -995,3 +995,126 @@ class TestEscalation:
     def test_unknown_tags_no_match(self):
         suggestions = suggest_assignee(["xxxxxx"])
         assert len(suggestions) == 0
+
+
+# ──────────────────────────────────────────────────────────
+# EventBus integration tests
+# ──────────────────────────────────────────────────────────
+
+class TestTaskPoolEventBus:
+    """Verify that Task Pool CRUD operations emit EventBus events."""
+
+    @pytest.fixture(autouse=True)
+    def _setup(self, tmp_path, monkeypatch):
+        from src.event_bus import reset_event_bus
+        reset_event_bus()
+        path = str(tmp_path / "pool.json")
+        monkeypatch.setattr("src.task_pool._pool_path", lambda: path)
+        yield
+        reset_event_bus()
+
+    def test_create_task_emits_event(self):
+        from src.event_bus import get_event_bus, TASK_CREATED
+        bus = get_event_bus()
+        received = []
+        bus.on(TASK_CREATED, lambda e: received.append(e))
+
+        task = create_task("финансовый отчёт", source="test")
+        assert len(received) == 1
+        assert received[0].payload["task_id"] == task.id
+        assert received[0].payload["title"] == "финансовый отчёт"
+
+    def test_assign_task_emits_event(self):
+        from src.event_bus import get_event_bus, TASK_ASSIGNED
+        bus = get_event_bus()
+        received = []
+        bus.on(TASK_ASSIGNED, lambda e: received.append(e))
+
+        task = create_task("test task", source="test")
+        assign_task(task.id, "accountant")
+        assert len(received) == 1
+        assert received[0].payload["assignee"] == "accountant"
+
+    def test_start_task_emits_event(self):
+        from src.event_bus import get_event_bus, TASK_STARTED
+        bus = get_event_bus()
+        received = []
+        bus.on(TASK_STARTED, lambda e: received.append(e))
+
+        task = create_task("test", source="test")
+        assign_task(task.id, "smm")
+        start_task(task.id)
+        assert len(received) == 1
+        assert received[0].payload["assignee"] == "smm"
+
+    def test_complete_task_emits_event(self):
+        from src.event_bus import get_event_bus, TASK_COMPLETED
+        bus = get_event_bus()
+        received = []
+        bus.on(TASK_COMPLETED, lambda e: received.append(e))
+
+        task = create_task("test", source="test")
+        assign_task(task.id, "smm")
+        start_task(task.id)
+        complete_task(task.id, result="done")
+        assert len(received) == 1
+        assert received[0].payload["task_id"] == task.id
+        assert received[0].payload["result"] == "done"
+
+    def test_complete_task_emits_unblocked(self):
+        from src.event_bus import get_event_bus, TASK_UNBLOCKED
+        bus = get_event_bus()
+        unblocked_events = []
+        bus.on(TASK_UNBLOCKED, lambda e: unblocked_events.append(e))
+
+        # Create blocker task
+        blocker = create_task("blocker", source="test")
+        assign_task(blocker.id, "automator")
+
+        # Create dependent task blocked by blocker
+        dependent = create_task(
+            "dependent", source="test",
+            blocked_by=[blocker.id], assignee="smm",
+        )
+
+        # Complete blocker → should unblock dependent
+        start_task(blocker.id)
+        complete_task(blocker.id, result="done")
+
+        assert len(unblocked_events) == 1
+        assert unblocked_events[0].payload["task_id"] == dependent.id
+        assert unblocked_events[0].payload["assignee"] == "smm"
+        assert unblocked_events[0].payload["unblocked_by"] == blocker.id
+
+    def test_complete_unblocked_has_title(self):
+        from src.event_bus import get_event_bus, TASK_UNBLOCKED
+        bus = get_event_bus()
+        events = []
+        bus.on(TASK_UNBLOCKED, lambda e: events.append(e))
+
+        blocker = create_task("step one", source="test")
+        assign_task(blocker.id, "automator")
+        create_task("step two", source="test", blocked_by=[blocker.id], assignee="smm")
+
+        start_task(blocker.id)
+        complete_task(blocker.id)
+
+        assert events[0].payload["title"] == "step two"
+
+    def test_no_event_on_invalid_complete(self):
+        from src.event_bus import get_event_bus, TASK_COMPLETED
+        bus = get_event_bus()
+        received = []
+        bus.on(TASK_COMPLETED, lambda e: received.append(e))
+
+        complete_task("nonexistent")
+        assert len(received) == 0
+
+    def test_assign_nonexistent_no_event(self):
+        from src.event_bus import get_event_bus, TASK_ASSIGNED
+        bus = get_event_bus()
+        received = []
+        bus.on(TASK_ASSIGNED, lambda e: received.append(e))
+
+        assign_task("nonexistent", "smm")
+        assert len(received) == 0

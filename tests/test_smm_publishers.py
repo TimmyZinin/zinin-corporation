@@ -19,8 +19,16 @@ from src.tools.smm_tools import (
     ThreadsPublisherInput,
     ThreadsTimPublisher,
     ThreadsKristinaPublisher,
+    FacebookPublisherTool,
+    FacebookPublisherInput,
+    FacebookTimPublisher,
+    TwitterPublisherTool,
+    TwitterPublisherInput,
+    TwitterTimPublisher,
     _LINKEDIN_API_VERSION,
     _THREADS_BASE,
+    _FB_GRAPH_BASE,
+    _TWITTER_API_BASE,
 )
 
 
@@ -621,3 +629,362 @@ class TestMultiAccountThreads:
         with patch.dict(os.environ, env, clear=True):
             result = tool._run("status")
             assert "❌ No" in result
+
+
+# ══════════════════════════════════════════════════════════
+# FACEBOOK PAGE PUBLISHER TESTS
+# ══════════════════════════════════════════════════════════
+
+
+class TestFacebookPublisherInput:
+    def test_input_text(self):
+        inp = FacebookPublisherInput(action="publish_text", text="Hello Facebook!")
+        assert inp.action == "publish_text"
+        assert inp.text == "Hello Facebook!"
+
+    def test_input_image(self):
+        inp = FacebookPublisherInput(
+            action="publish_image", text="Post", image_url="https://img.com/a.png"
+        )
+        assert inp.image_url == "https://img.com/a.png"
+
+    def test_input_no_text(self):
+        inp = FacebookPublisherInput(action="status")
+        assert inp.text is None
+        assert inp.image_url is None
+
+
+class TestFacebookStatus:
+    def test_status_configured(self):
+        tool = FacebookPublisherTool()
+        with patch.dict(os.environ, {"FB_PAGE_ACCESS_TOKEN": "tok", "FB_PAGE_ID": "123"}):
+            result = tool._run("status")
+            assert "✅ Yes" in result
+            assert "Graph API v24.0" in result
+
+    def test_status_not_configured(self):
+        tool = FacebookPublisherTool()
+        with patch.dict(os.environ, {}, clear=True):
+            result = tool._run("status")
+            assert "❌ No" in result
+            assert "MISSING" in result
+
+
+class TestFacebookCheckToken:
+    def test_no_credentials(self):
+        tool = FacebookPublisherTool()
+        with patch.dict(os.environ, {}, clear=True):
+            result = tool._run("check_token")
+            assert "❌" in result
+            assert "not set" in result
+
+    @patch("urllib.request.urlopen")
+    def test_valid_token(self, mock_urlopen):
+        mock_urlopen.return_value = _mock_response({"name": "Tim Zinin", "id": "123"})
+        tool = FacebookPublisherTool()
+        with patch.dict(os.environ, {"FB_PAGE_ACCESS_TOKEN": "valid_tok", "FB_PAGE_ID": "123"}):
+            result = tool._run("check_token")
+            assert "✅" in result
+            assert "Tim Zinin" in result
+
+    @patch("urllib.request.urlopen")
+    def test_expired_token(self, mock_urlopen):
+        mock_urlopen.side_effect = _http_error(401)
+        tool = FacebookPublisherTool()
+        with patch.dict(os.environ, {"FB_PAGE_ACCESS_TOKEN": "expired", "FB_PAGE_ID": "123"}):
+            result = tool._run("check_token")
+            assert "❌" in result
+
+
+class TestFacebookPublishText:
+    def test_no_text(self):
+        tool = FacebookPublisherTool()
+        with patch.dict(os.environ, {"FB_PAGE_ACCESS_TOKEN": "t", "FB_PAGE_ID": "1"}):
+            result = tool._run("publish_text")
+            assert "Error" in result
+
+    def test_not_configured(self):
+        tool = FacebookPublisherTool()
+        with patch.dict(os.environ, {}, clear=True):
+            result = tool._run("publish_text", text="Hello")
+            assert "❌" in result
+            assert "not configured" in result
+
+    @patch("urllib.request.urlopen")
+    def test_publish_success(self, mock_urlopen):
+        mock_urlopen.return_value = _mock_response({"id": "123_456"})
+        tool = FacebookPublisherTool()
+        with patch.dict(os.environ, {"FB_PAGE_ACCESS_TOKEN": "tok", "FB_PAGE_ID": "123"}):
+            result = tool._run("publish_text", text="Test post")
+            assert "✅" in result
+            assert "Published to Facebook" in result
+            assert "123_456" in result
+
+    @patch("urllib.request.urlopen")
+    def test_publish_expired(self, mock_urlopen):
+        mock_urlopen.side_effect = _http_error(401)
+        tool = FacebookPublisherTool()
+        with patch.dict(os.environ, {"FB_PAGE_ACCESS_TOKEN": "tok", "FB_PAGE_ID": "123"}):
+            result = tool._run("publish_text", text="Test")
+            assert "❌" in result
+
+    @patch("urllib.request.urlopen")
+    def test_publish_server_error(self, mock_urlopen):
+        mock_urlopen.side_effect = _http_error(500, "Internal Server Error")
+        tool = FacebookPublisherTool()
+        with patch.dict(os.environ, {"FB_PAGE_ACCESS_TOKEN": "tok", "FB_PAGE_ID": "123"}):
+            result = tool._run("publish_text", text="Test")
+            assert "❌" in result
+            assert "500" in result
+
+    def test_text_truncation(self):
+        tool = FacebookPublisherTool()
+        long_text = "A" * 70000
+        with patch.dict(os.environ, {"FB_PAGE_ACCESS_TOKEN": "t", "FB_PAGE_ID": "1"}):
+            with patch("urllib.request.urlopen") as mock:
+                mock.return_value = _mock_response({"id": "post_1"})
+                result = tool._run("publish_text", text=long_text)
+                assert "✅" in result
+
+    def test_legacy_publish_action(self):
+        tool = FacebookPublisherTool()
+        with patch.dict(os.environ, {"FB_PAGE_ACCESS_TOKEN": "t", "FB_PAGE_ID": "1"}):
+            with patch("urllib.request.urlopen") as mock:
+                mock.return_value = _mock_response({"id": "post_2"})
+                result = tool._run("publish", text="Legacy test")
+                assert "✅" in result
+
+
+class TestFacebookPublishImage:
+    def test_no_text(self):
+        tool = FacebookPublisherTool()
+        with patch.dict(os.environ, {"FB_PAGE_ACCESS_TOKEN": "t", "FB_PAGE_ID": "1"}):
+            result = tool._run("publish_image", image_url="https://img.com/a.png")
+            assert "Error" in result
+            assert "text" in result
+
+    def test_no_image_url(self):
+        tool = FacebookPublisherTool()
+        with patch.dict(os.environ, {"FB_PAGE_ACCESS_TOKEN": "t", "FB_PAGE_ID": "1"}):
+            result = tool._run("publish_image", text="Post")
+            assert "Error" in result
+            assert "image_url" in result
+
+    @patch("urllib.request.urlopen")
+    def test_image_publish_success(self, mock_urlopen):
+        mock_urlopen.return_value = _mock_response({"post_id": "123_789"})
+        tool = FacebookPublisherTool()
+        with patch.dict(os.environ, {"FB_PAGE_ACCESS_TOKEN": "tok", "FB_PAGE_ID": "123"}):
+            result = tool._run("publish_image", text="Photo!", image_url="https://img.com/a.png")
+            assert "✅" in result
+            assert "image" in result.lower()
+
+    @patch("urllib.request.urlopen")
+    def test_image_publish_error(self, mock_urlopen):
+        mock_urlopen.side_effect = _http_error(400, "Bad request")
+        tool = FacebookPublisherTool()
+        with patch.dict(os.environ, {"FB_PAGE_ACCESS_TOKEN": "t", "FB_PAGE_ID": "1"}):
+            result = tool._run("publish_image", text="Post", image_url="https://img.com/a.png")
+            assert "❌" in result
+
+
+class TestFacebookUnknownAction:
+    def test_unknown_action(self):
+        tool = FacebookPublisherTool()
+        result = tool._run("unknown_action")
+        assert "Unknown action" in result
+
+
+class TestFacebookBackwardCompat:
+    def test_alias(self):
+        assert FacebookPublisherTool is FacebookTimPublisher
+
+    def test_tim_tool_name(self):
+        tool = FacebookTimPublisher()
+        assert "Tim" in tool.name
+
+    def test_tim_reads_tim_env(self):
+        tool = FacebookTimPublisher()
+        env = {"FB_PAGE_ACCESS_TOKEN": "tok", "FB_PAGE_ID": "page_123"}
+        with patch.dict(os.environ, env, clear=False):
+            result = tool._run("status")
+            assert "✅ Yes" in result
+            assert "Tim" in result
+
+
+# ══════════════════════════════════════════════════════════
+# TWITTER/X PUBLISHER TESTS
+# ══════════════════════════════════════════════════════════
+
+
+_TWITTER_ENV = {
+    "TWITTER_CONSUMER_KEY": "ck",
+    "TWITTER_CONSUMER_SECRET": "cs",
+    "TWITTER_ACCESS_TOKEN": "at",
+    "TWITTER_ACCESS_TOKEN_SECRET": "as",
+}
+
+
+class TestTwitterPublisherInput:
+    def test_input_text(self):
+        inp = TwitterPublisherInput(action="publish_text", text="Hello Twitter!")
+        assert inp.action == "publish_text"
+        assert inp.text == "Hello Twitter!"
+
+    def test_input_no_text(self):
+        inp = TwitterPublisherInput(action="status")
+        assert inp.text is None
+
+
+class TestTwitterStatus:
+    def test_status_configured(self):
+        tool = TwitterPublisherTool()
+        with patch.dict(os.environ, _TWITTER_ENV):
+            result = tool._run("status")
+            assert "✅ Yes" in result
+            assert "Twitter API v2" in result
+
+    def test_status_not_configured(self):
+        tool = TwitterPublisherTool()
+        with patch.dict(os.environ, {}, clear=True):
+            result = tool._run("status")
+            assert "❌ No" in result
+            assert "MISSING" in result
+
+    def test_status_partial_config(self):
+        tool = TwitterPublisherTool()
+        with patch.dict(os.environ, {"TWITTER_CONSUMER_KEY": "ck"}, clear=True):
+            result = tool._run("status")
+            assert "❌ No" in result
+
+
+class TestTwitterCheckToken:
+    def test_no_credentials(self):
+        tool = TwitterPublisherTool()
+        with patch.dict(os.environ, {}, clear=True):
+            result = tool._run("check_token")
+            assert "❌" in result
+            assert "not fully set" in result
+
+    @patch("urllib.request.urlopen")
+    def test_valid_token(self, mock_urlopen):
+        mock_urlopen.return_value = _mock_response({"data": {"username": "timzinin"}})
+        tool = TwitterPublisherTool()
+        with patch.dict(os.environ, _TWITTER_ENV):
+            result = tool._run("check_token")
+            assert "✅" in result
+            assert "@timzinin" in result
+
+    @patch("urllib.request.urlopen")
+    def test_invalid_token(self, mock_urlopen):
+        mock_urlopen.side_effect = _http_error(401)
+        tool = TwitterPublisherTool()
+        with patch.dict(os.environ, _TWITTER_ENV):
+            result = tool._run("check_token")
+            assert "❌" in result
+            assert "INVALID" in result
+
+
+class TestTwitterPublishText:
+    def test_no_text(self):
+        tool = TwitterPublisherTool()
+        with patch.dict(os.environ, _TWITTER_ENV):
+            result = tool._run("publish_text")
+            assert "Error" in result
+
+    def test_not_configured(self):
+        tool = TwitterPublisherTool()
+        with patch.dict(os.environ, {}, clear=True):
+            result = tool._run("publish_text", text="Hello")
+            assert "❌" in result
+            assert "not configured" in result
+
+    @patch("urllib.request.urlopen")
+    def test_publish_success(self, mock_urlopen):
+        mock_urlopen.return_value = _mock_response({"data": {"id": "1234567890"}})
+        tool = TwitterPublisherTool()
+        with patch.dict(os.environ, _TWITTER_ENV):
+            result = tool._run("publish_text", text="Test tweet")
+            assert "✅" in result
+            assert "Published to Twitter" in result
+            assert "1234567890" in result
+            assert "x.com" in result
+
+    @patch("urllib.request.urlopen")
+    def test_publish_unauthorized(self, mock_urlopen):
+        mock_urlopen.side_effect = _http_error(403, "Forbidden")
+        tool = TwitterPublisherTool()
+        with patch.dict(os.environ, _TWITTER_ENV):
+            result = tool._run("publish_text", text="Test")
+            assert "❌" in result
+            assert "INVALID" in result or "permissions" in result.lower()
+
+    @patch("urllib.request.urlopen")
+    def test_publish_server_error(self, mock_urlopen):
+        mock_urlopen.side_effect = _http_error(500, "Internal Server Error")
+        tool = TwitterPublisherTool()
+        with patch.dict(os.environ, _TWITTER_ENV):
+            result = tool._run("publish_text", text="Test")
+            assert "❌" in result
+            assert "500" in result
+
+    def test_text_truncation(self):
+        tool = TwitterPublisherTool()
+        long_text = "A" * 400
+        with patch.dict(os.environ, _TWITTER_ENV):
+            with patch("urllib.request.urlopen") as mock:
+                mock.return_value = _mock_response({"data": {"id": "tweet_1"}})
+                result = tool._run("publish_text", text=long_text)
+                assert "✅" in result
+
+    def test_legacy_publish_action(self):
+        tool = TwitterPublisherTool()
+        with patch.dict(os.environ, _TWITTER_ENV):
+            with patch("urllib.request.urlopen") as mock:
+                mock.return_value = _mock_response({"data": {"id": "tweet_2"}})
+                result = tool._run("publish", text="Legacy test")
+                assert "✅" in result
+
+
+class TestTwitterOAuth:
+    def test_oauth_header_format(self):
+        tool = TwitterTimPublisher()
+        with patch.dict(os.environ, _TWITTER_ENV):
+            header = tool._oauth_header("POST", "https://api.twitter.com/2/tweets")
+            assert header.startswith("OAuth ")
+            assert "oauth_consumer_key" in header
+            assert "oauth_signature" in header
+            assert "oauth_nonce" in header
+            assert "oauth_timestamp" in header
+
+    def test_oauth_header_changes_per_call(self):
+        tool = TwitterTimPublisher()
+        with patch.dict(os.environ, _TWITTER_ENV):
+            h1 = tool._oauth_header("POST", "https://api.twitter.com/2/tweets")
+            h2 = tool._oauth_header("POST", "https://api.twitter.com/2/tweets")
+            # Nonce differs each time
+            assert h1 != h2
+
+
+class TestTwitterUnknownAction:
+    def test_unknown_action(self):
+        tool = TwitterPublisherTool()
+        result = tool._run("delete_tweet")
+        assert "Unknown action" in result
+
+
+class TestTwitterBackwardCompat:
+    def test_alias(self):
+        assert TwitterPublisherTool is TwitterTimPublisher
+
+    def test_tim_tool_name(self):
+        tool = TwitterTimPublisher()
+        assert "Tim" in tool.name
+        assert "timzinin" in tool._owner_label
+
+    def test_tim_reads_tim_env(self):
+        tool = TwitterTimPublisher()
+        with patch.dict(os.environ, _TWITTER_ENV, clear=False):
+            result = tool._run("status")
+            assert "✅ Yes" in result
+            assert "Tim" in result

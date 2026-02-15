@@ -265,6 +265,14 @@ def create_task(
         _save_pool(pool)
 
     logger.info(f"Created task {task.id}: {title} [{task.status}]")
+
+    # EventBus: notify
+    from .event_bus import get_event_bus, TASK_CREATED
+    get_event_bus().emit(TASK_CREATED, {
+        "task_id": task.id, "title": title, "status": task.status.value,
+        "assignee": task.assignee, "tags": task.tags, "source": source,
+    })
+
     return task
 
 
@@ -298,6 +306,12 @@ def assign_task(task_id: str, assignee: str, assigned_by: str = "ceo-alexey") ->
 
     task = PoolTask(**raw)
     logger.info(f"Assigned {task_id} → {assignee} [{task.status}]")
+
+    from .event_bus import get_event_bus, TASK_ASSIGNED
+    get_event_bus().emit(TASK_ASSIGNED, {
+        "task_id": task.id, "assignee": assignee, "status": task.status.value,
+    })
+
     return task
 
 
@@ -319,6 +333,12 @@ def start_task(task_id: str) -> Optional[PoolTask]:
 
     task = PoolTask(**raw)
     logger.info(f"Started {task_id} [{task.status}]")
+
+    from .event_bus import get_event_bus, TASK_STARTED
+    get_event_bus().emit(TASK_STARTED, {
+        "task_id": task.id, "assignee": task.assignee,
+    })
+
     return task
 
 
@@ -343,6 +363,18 @@ def complete_task(task_id: str, result: str = "") -> Optional[PoolTask]:
         # Dependency Engine: unblock dependent tasks
         unblocked = _run_dependency_engine(pool, task_id)
 
+        # Capture unblocked task data before releasing lock (for EventBus)
+        unblocked_data = []
+        for uid in unblocked:
+            ut = _find_task(pool, uid)
+            if ut:
+                unblocked_data.append({
+                    "task_id": uid,
+                    "assignee": ut.get("assignee", ""),
+                    "title": ut.get("title", ""),
+                    "unblocked_by": task_id,
+                })
+
         _save_pool(pool)
 
     task = PoolTask(**raw)
@@ -350,6 +382,14 @@ def complete_task(task_id: str, result: str = "") -> Optional[PoolTask]:
         logger.info(f"Completed {task_id}, unblocked: {unblocked}")
     else:
         logger.info(f"Completed {task_id}")
+
+    # EventBus: notify completion + unblocked tasks
+    from .event_bus import get_event_bus, TASK_COMPLETED, TASK_UNBLOCKED
+    bus = get_event_bus()
+    bus.emit(TASK_COMPLETED, {"task_id": task_id, "result": result[:500] if result else ""})
+    for ud in unblocked_data:
+        bus.emit(TASK_UNBLOCKED, ud)
+
     return task
 
 
