@@ -12,7 +12,7 @@ from aiogram.types import CallbackQuery
 from ...error_handler import format_error_for_user
 from ..callback_factory import (
     TaskCB, EscCB, CtoCB, ApiCB, ActionCB, EveningCB,
-    GalleryCB, VoiceBrainCB, SubMenuCB,
+    GalleryCB, VoiceBrainCB, SubMenuCB, ApprovalCB,
 )
 
 logger = logging.getLogger(__name__)
@@ -1277,4 +1277,51 @@ async def on_sub_status_revenue(callback: CallbackQuery, callback_data: SubMenuC
         await callback.message.answer("\n".join(lines))
     except Exception as e:
         await callback.message.answer(f"💰 Ошибка чтения revenue: {e}")
+    await callback.answer()
+
+
+# ── Approval Gate ──────────────────────────────────────────────────────────
+
+
+@router.callback_query(ApprovalCB.filter())
+async def approval_callback(callback: CallbackQuery, callback_data: ApprovalCB):
+    """Handle approval gate decisions (HITL tasks)."""
+    action = callback_data.action
+    task_id = callback_data.id
+
+    if action == "yes":
+        from ...event_bus import get_event_bus, TASK_APPROVED
+        from ...task_pool import get_task
+        task = get_task(task_id)
+        if task:
+            get_event_bus().emit(TASK_APPROVED, {
+                "task_id": task_id,
+                "assignee": task.assignee,
+                "title": task.title,
+            })
+            await callback.message.edit_text(
+                f"✅ Задача одобрена: {task.title}\n"
+                f"👤 {task.assignee} начинает выполнение."
+            )
+        else:
+            await callback.message.edit_text(f"❌ Задача {task_id} не найдена.")
+
+    elif action == "no":
+        from ...task_pool import get_task, block_task
+        task = get_task(task_id)
+        if task:
+            block_task(task_id)
+            from ...event_bus import get_event_bus, TASK_REJECTED
+            get_event_bus().emit(TASK_REJECTED, {
+                "task_id": task_id,
+                "assignee": task.assignee,
+                "title": task.title,
+            })
+            await callback.message.edit_text(
+                f"🚫 Задача отклонена: {task.title}\n"
+                f"Статус: BLOCKED."
+            )
+        else:
+            await callback.message.edit_text(f"❌ Задача {task_id} не найдена.")
+
     await callback.answer()

@@ -65,6 +65,8 @@ class PoolTask(BaseModel):
     completed_at: Optional[str] = None
     result: Optional[str] = None
     source: str = ""             # "telegram", "brain_dump", "scheduler", "manual"
+    checkpoint: str = ""         # "started", "executing", "done", "failed:{error}"
+    retry_count: int = 0
 
 
 # Escalation threshold — if best suggest_assignee confidence < this, escalate
@@ -523,6 +525,32 @@ def get_pool_summary() -> dict[str, int]:
 # ──────────────────────────────────────────────────────────
 # Utility
 # ──────────────────────────────────────────────────────────
+
+def set_checkpoint(task_id: str, checkpoint: str) -> bool:
+    """Update checkpoint field on a task. Used by auto-start for resume."""
+    with _lock:
+        pool = _load_pool()
+        raw = _find_task(pool, task_id)
+        if not raw:
+            return False
+        raw["checkpoint"] = checkpoint
+        raw["updated_at"] = datetime.now().isoformat()
+        _save_pool(pool)
+    return True
+
+
+def increment_retry(task_id: str) -> int:
+    """Increment retry_count and return new value. Returns -1 if not found."""
+    with _lock:
+        pool = _load_pool()
+        raw = _find_task(pool, task_id)
+        if not raw:
+            return -1
+        raw["retry_count"] = raw.get("retry_count", 0) + 1
+        raw["updated_at"] = datetime.now().isoformat()
+        _save_pool(pool)
+        return raw["retry_count"]
+
 
 def delete_task(task_id: str) -> bool:
     """Remove a task from the pool entirely."""

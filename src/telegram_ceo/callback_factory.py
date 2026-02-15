@@ -54,6 +54,12 @@ class VoiceBrainCB(CallbackData, prefix="vb"):
     action: str
 
 
+class ApprovalCB(CallbackData, prefix="approve"):
+    """Approval gate callbacks: yes, no, edit."""
+    action: str
+    id: str = ""
+
+
 class SubMenuCB(CallbackData, prefix="sub"):
     """Sub-menu callbacks: content_post, content_calendar, etc."""
     menu: str

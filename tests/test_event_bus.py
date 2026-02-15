@@ -9,9 +9,13 @@ from src.event_bus import (
     AGENT_EXECUTION_COMPLETED,
     AGENT_EXECUTION_STARTED,
     QUALITY_SCORED,
+    TASK_APPROVAL_REQUIRED,
+    TASK_APPROVED,
     TASK_ASSIGNED,
     TASK_COMPLETED,
     TASK_CREATED,
+    TASK_REJECTED,
+    TASK_RETRY,
     TASK_STARTED,
     TASK_UNBLOCKED,
     Event,
@@ -263,6 +267,8 @@ class TestEventConstants:
             TASK_COMPLETED, TASK_UNBLOCKED,
             AGENT_EXECUTION_STARTED, AGENT_EXECUTION_COMPLETED,
             QUALITY_SCORED,
+            TASK_APPROVAL_REQUIRED, TASK_APPROVED, TASK_REJECTED,
+            TASK_RETRY,
         ):
             assert isinstance(const, str)
             assert "." in const  # dotted notation

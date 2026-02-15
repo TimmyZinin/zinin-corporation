@@ -34,6 +34,11 @@ AGENT_EXECUTION_COMPLETED = "agent.execution.completed"
 
 QUALITY_SCORED = "quality.scored"
 
+TASK_APPROVAL_REQUIRED = "task.approval.required"
+TASK_APPROVED = "task.approved"
+TASK_REJECTED = "task.rejected"
+TASK_RETRY = "task.retry"
+
 
 # ──────────────────────────────────────────────────────────
 # Event record

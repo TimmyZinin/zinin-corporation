@@ -5,12 +5,15 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from src.event_bus import Event, TASK_UNBLOCKED, get_event_bus, reset_event_bus
+from src.event_bus import Event, TASK_UNBLOCKED, TASK_APPROVED, TASK_RETRY, get_event_bus, reset_event_bus
 from src.auto_start import (
     MAX_CONCURRENT_AUTO,
+    MAX_RETRIES,
     _active_auto_tasks,
     _active_lock,
     _on_task_unblocked,
+    _on_task_approved,
+    _on_task_retry,
     _execute_auto_task,
     _semaphore,
     get_auto_start_status,
@@ -52,15 +55,23 @@ class TestRegistration:
     def test_register_subscribes_to_bus(self):
         bus = get_event_bus()
         assert bus.subscriber_count(TASK_UNBLOCKED) == 0
+        assert bus.subscriber_count(TASK_APPROVED) == 0
+        assert bus.subscriber_count(TASK_RETRY) == 0
         register_auto_start()
         assert bus.subscriber_count(TASK_UNBLOCKED) == 1
+        assert bus.subscriber_count(TASK_APPROVED) == 1
+        assert bus.subscriber_count(TASK_RETRY) == 1
 
     def test_unregister_removes_listener(self):
         register_auto_start()
         bus = get_event_bus()
         assert bus.subscriber_count(TASK_UNBLOCKED) == 1
+        assert bus.subscriber_count(TASK_APPROVED) == 1
+        assert bus.subscriber_count(TASK_RETRY) == 1
         unregister_auto_start()
         assert bus.subscriber_count(TASK_UNBLOCKED) == 0
+        assert bus.subscriber_count(TASK_APPROVED) == 0
+        assert bus.subscriber_count(TASK_RETRY) == 0
 
 
 # ── Event handling ──
@@ -197,3 +208,34 @@ class TestAutoStartStatus:
         status = get_auto_start_status()
         assert status["active_count"] == 2
         assert status["available_slots"] == MAX_CONCURRENT_AUTO - 2
+
+
+# ── Task Approved ──
+
+
+class TestOnTaskApproved:
+    @patch("src.auto_start.threading.Thread")
+    @patch("src.agent_mutex.is_busy", return_value=False)
+    def test_approved_starts_thread(self, mock_busy, mock_thread_cls):
+        mock_thread = MagicMock()
+        mock_thread_cls.return_value = mock_thread
+
+        event = Event(TASK_APPROVED, {
+            "task_id": "t1",
+            "assignee": "smm",
+            "title": "Publish LinkedIn post",
+        })
+        _on_task_approved(event)
+
+        mock_thread_cls.assert_called_once()
+        mock_thread.start.assert_called_once()
+        assert "t1" in _active_auto_tasks
+
+    def test_approved_without_assignee_skips(self):
+        event = Event(TASK_APPROVED, {
+            "task_id": "t1",
+            "assignee": "",
+            "title": "Test",
+        })
+        _on_task_approved(event)
+        assert "t1" not in _active_auto_tasks

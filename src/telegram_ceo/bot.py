@@ -72,6 +72,63 @@ async def main():
     except Exception as e:
         logger.warning(f"Auto-start registration failed: {e}")
 
+    # Register GitHub Issues sync
+    try:
+        from ..github_sync import register_github_sync
+        register_github_sync()
+    except Exception as e:
+        logger.warning(f"GitHub sync registration failed: {e}")
+
+    # Register Auto-Claim (competing consumers)
+    try:
+        from ..auto_claim import register_auto_claim
+        register_auto_claim()
+    except Exception as e:
+        logger.warning(f"Auto-claim registration failed: {e}")
+
+    # Register approval notification listener
+    try:
+        from ..event_bus import get_event_bus, TASK_APPROVAL_REQUIRED
+        from .keyboards import approval_keyboard
+
+        def _on_approval_required(event):
+            """Send approval keyboard to Tim when HITL task needs approval."""
+            p = event.payload
+            task_id = p.get("task_id", "")
+            title = p.get("title", "")
+            assignee = p.get("assignee", "")
+            tags = p.get("tags", [])
+            reason = p.get("reason", "")
+
+            msg = (
+                f"🔐 <b>Требуется одобрение</b>\n\n"
+                f"📋 {title}\n"
+                f"👤 Агент: {assignee}\n"
+                f"🏷 Теги: {', '.join(tags)}\n"
+                f"💡 {reason}"
+            )
+
+            async def _send():
+                try:
+                    await bot.send_message(
+                        config.allowed_user_ids[0],
+                        msg,
+                        reply_markup=approval_keyboard(task_id),
+                        parse_mode="HTML",
+                    )
+                except Exception as e:
+                    logger.warning(f"Approval notification failed: {e}")
+
+            try:
+                loop = asyncio.get_running_loop()
+                loop.create_task(_send())
+            except RuntimeError:
+                logger.debug("No event loop for approval notification")
+
+        get_event_bus().on(TASK_APPROVAL_REQUIRED, _on_approval_required)
+    except Exception as e:
+        logger.warning(f"Approval listener registration failed: {e}")
+
     # Startup notification
     if config.allowed_user_ids:
         try:

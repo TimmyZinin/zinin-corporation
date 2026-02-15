@@ -1118,3 +1118,37 @@ class TestTaskPoolEventBus:
 
         assign_task("nonexistent", "smm")
         assert len(received) == 0
+
+
+# ── Checkpoint & Retry fields ──
+
+
+class TestCheckpointFields:
+    def test_set_checkpoint(self):
+        from src.task_pool import set_checkpoint
+        task = create_task("Test checkpoint")
+        assert set_checkpoint(task.id, "started") is True
+        updated = get_task(task.id)
+        assert updated.checkpoint == "started"
+
+    def test_set_checkpoint_nonexistent(self):
+        from src.task_pool import set_checkpoint
+        assert set_checkpoint("nonexistent", "started") is False
+
+    def test_increment_retry(self):
+        from src.task_pool import increment_retry
+        task = create_task("Test retry")
+        assert task.retry_count == 0
+        assert increment_retry(task.id) == 1
+        assert increment_retry(task.id) == 2
+        updated = get_task(task.id)
+        assert updated.retry_count == 2
+
+    def test_increment_retry_nonexistent(self):
+        from src.task_pool import increment_retry
+        assert increment_retry("nonexistent") == -1
+
+    def test_checkpoint_default_empty(self):
+        task = create_task("No checkpoint")
+        assert task.checkpoint == ""
+        assert task.retry_count == 0

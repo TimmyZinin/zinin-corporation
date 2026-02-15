@@ -4,7 +4,7 @@ from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeybo
 
 from .callback_factory import (
     TaskCB, EscCB, CtoCB, ApiCB, ActionCB, EveningCB,
-    GalleryCB, VoiceBrainCB, SubMenuCB,
+    GalleryCB, VoiceBrainCB, SubMenuCB, ApprovalCB,
 )
 
 
@@ -236,5 +236,23 @@ def status_submenu_keyboard() -> InlineKeyboardMarkup:
             InlineKeyboardButton(text="👥 Агенты", callback_data=SubMenuCB(menu="status", action="agents").pack()),
             InlineKeyboardButton(text="📋 Tasks", callback_data=SubMenuCB(menu="status", action="tasks").pack()),
             InlineKeyboardButton(text="💰 Revenue", callback_data=SubMenuCB(menu="status", action="revenue").pack()),
+        ],
+    ])
+
+
+# ── Approval Gate keyboards ──────────────────────────────────────────────────
+
+def approval_keyboard(task_id: str) -> InlineKeyboardMarkup:
+    """Approval gate — shown when HITL task needs Tim's approval."""
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [
+            InlineKeyboardButton(
+                text="✅ Одобрить",
+                callback_data=ApprovalCB(action="yes", id=task_id).pack(),
+            ),
+            InlineKeyboardButton(
+                text="❌ Отклонить",
+                callback_data=ApprovalCB(action="no", id=task_id).pack(),
+            ),
         ],
     ])
