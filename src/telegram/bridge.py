@@ -234,7 +234,7 @@ class AgentBridge:
         return await asyncio.to_thread(_sync)
 
     @classmethod
-    async def run_generate_image(cls, topic: str, style: str = "isotype") -> str:
+    async def run_generate_image(cls, topic: str, style: str = "photorealistic") -> str:
         """Generate image via Ryan's ImageGenerator tool + register in Image Registry.
 
         Used by Yuki→Ryan pipeline. Returns path to image file or error string.

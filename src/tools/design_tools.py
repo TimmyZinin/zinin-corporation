@@ -162,8 +162,8 @@ def _save_image(image_bytes: bytes, prefix: str = "design") -> str:
 class ImageGeneratorInput(BaseModel):
     prompt: str = Field(..., description="Описание изображения для генерации")
     style: str = Field(
-        default="auto",
-        description="Стиль: auto, isotype, photorealistic, abstract, infographic, brand",
+        default="photorealistic",
+        description="Стиль: photorealistic (по умолчанию), brand, infographic, abstract, isotype (ТОЛЬКО по явному запросу)",
     )
     model: str = Field(
         default="auto",
@@ -174,13 +174,15 @@ class ImageGeneratorInput(BaseModel):
 class ImageGenerator(BaseTool):
     name: str = "Image Generator"
     description: str = (
-        "Генерация изображений с помощью AI. Каскад моделей: Gemini (бесплатно, 500/день) "
-        "→ Pollinations (бесплатно, без ключа). Стили: isotype, photorealistic, abstract, "
-        "infographic, brand. Возвращает путь к сохранённому файлу."
+        "Генерация изображений с помощью AI. Каскад моделей: Gemini (основная, бесплатно) "
+        "→ Pollinations (фоллбэк). Стили: photorealistic (по умолчанию!), brand, infographic, "
+        "abstract, isotype. ВАЖНО: используй photorealistic если пользователь не указал стиль явно. "
+        "isotype — ТОЛЬКО если пользователь ПРЯМО сказал 'isotype' или 'пиктограмма'. "
+        "Возвращает путь к сохранённому файлу."
     )
     args_schema: Type[BaseModel] = ImageGeneratorInput
 
-    def _run(self, prompt: str, style: str = "auto", model: str = "auto") -> str:
+    def _run(self, prompt: str, style: str = "photorealistic", model: str = "auto") -> str:
         # For isotype style with topic — use full ISOTYPE scene library
         if style == "isotype":
             try:
@@ -698,10 +700,10 @@ class VideoCreator(BaseTool):
 
 
 # ══════════════════════════════════════════════════════════════
-# Tool 11: AIVideoGenerator (Pollinations.ai — free AI video)
+# Tool 11: AIVideoGenerator (Pollinations.ai video generation)
 # ══════════════════════════════════════════════════════════════
 
-# Free video models on gen.pollinations.ai (no paid_only flag)
+# Video models on gen.pollinations.ai (requires POLLINATIONS_API_KEY)
 _VIDEO_MODELS = ["wan", "seedance", "grok-video"]
 _VIDEO_GEN_TIMEOUT = 180  # seconds — video gen is slow
 
@@ -720,13 +722,21 @@ class AIVideoGenerator(BaseTool):
     name: str = "AI Video Generator"
     description: str = (
         "Генерация настоящего AI-видео с анимацией из текстового описания. "
-        "Каскад бесплатных моделей через Pollinations.ai: "
+        "Каскад моделей через Pollinations.ai: "
         "wan (Alibaba Wan 2.6, 1080P, с аудио, 2-15s) → seedance (BytePlus) → grok-video (xAI). "
-        "Возвращает путь к MP4 файлу. Генерация занимает 30-120 секунд."
+        "Возвращает путь к MP4 файлу. Генерация занимает 30-120 секунд. "
+        "Требует POLLINATIONS_API_KEY. Если ключа нет — вернёт сообщение об ошибке."
     )
     args_schema: Type[BaseModel] = AIVideoGeneratorInput
 
     def _run(self, prompt: str, model: str = "wan", duration: int = 5) -> str:
+        api_key = os.getenv("POLLINATIONS_API_KEY", "")
+        if not api_key:
+            return (
+                "ERROR: Генерация видео временно недоступна — не настроен POLLINATIONS_API_KEY. "
+                "Зарегистрируйтесь на enter.pollinations.ai и добавьте ключ."
+            )
+
         duration = max(2, min(15, duration))
 
         # Try requested model first, then fallback cascade
@@ -736,17 +746,14 @@ class AIVideoGenerator(BaseTool):
                 models_to_try.append(m)
 
         for vid_model in models_to_try:
-            result = self._generate_video(prompt, vid_model, duration)
+            result = self._generate_video(prompt, vid_model, duration, api_key)
             if result and not result.startswith("ERROR"):
                 return result
             logger.warning(f"AI video model {vid_model} failed, trying next...")
 
-        # All models failed — fallback to TTS audiogram
-        logger.warning("All AI video models failed, falling back to TTS audiogram")
-        fallback = VideoCreator()
-        return fallback._create_tts_video(text=prompt[:500], title="AI Generated")
+        return "ERROR: Все модели видео-генерации недоступны. Попробуйте позже."
 
-    def _generate_video(self, prompt: str, model: str, duration: int) -> Optional[str]:
+    def _generate_video(self, prompt: str, model: str, duration: int, api_key: str) -> Optional[str]:
         """Call Pollinations gen.pollinations.ai for AI video generation."""
         from urllib.parse import quote
 
@@ -758,11 +765,15 @@ class AIVideoGenerator(BaseTool):
 
         logger.info(f"Generating AI video: model={model}, duration={duration}s, prompt={prompt[:80]}...")
 
+        headers = {
+            "User-Agent": "RyanDesignBot/2.0",
+            "Authorization": f"Bearer {api_key}",
+        }
+
         for attempt in range(2):
             try:
-                req = Request(url, headers={"User-Agent": "RyanDesignBot/2.0"})
+                req = Request(url, headers=headers)
                 with urlopen(req, timeout=_VIDEO_GEN_TIMEOUT) as resp:
-                    content_type = resp.headers.get("Content-Type", "")
                     data = resp.read()
 
                 # Validate: must be video, not error page
