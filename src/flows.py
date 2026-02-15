@@ -167,38 +167,62 @@ def _run_agent_crew(agent, task_description: str, agent_name: str = "",
         reflect: If True, run LLM judge after first response and retry once
                  with feedback if score < REFLECTION_SCORE_THRESHOLD.
     """
-    result = _execute_crew(agent, task_description, agent_name,
-                           use_memory, guardrail, output_pydantic)
+    from .event_bus import get_event_bus, AGENT_EXECUTION_STARTED, AGENT_EXECUTION_COMPLETED
+    bus = get_event_bus()
 
-    if not reflect:
+    bus.emit(AGENT_EXECUTION_STARTED, {
+        "agent_name": agent_name,
+        "task_description": task_description[:200],
+    })
+
+    try:
+        result = _execute_crew(agent, task_description, agent_name,
+                               use_memory, guardrail, output_pydantic)
+
+        if not reflect:
+            bus.emit(AGENT_EXECUTION_COMPLETED, {
+                "agent_name": agent_name, "success": True,
+                "output_length": len(result),
+            })
+            return result
+
+        # Reflection: judge the result and retry once if low quality
+        try:
+            from .tools.llm_judge import judge_response
+            verdict = judge_response(task_description, result, agent_name)
+            if verdict and not verdict.passed and verdict.overall < REFLECTION_SCORE_THRESHOLD:
+                logger.info(
+                    f"Reflection triggered for {agent_name}: "
+                    f"score={verdict.overall}, feedback={verdict.feedback!r}"
+                )
+                reflection_prompt = (
+                    f"{task_description}\n\n"
+                    f"--- РЕФЛЕКСИЯ ---\n"
+                    f"Твой предыдущий ответ получил оценку {verdict.overall}/5.\n"
+                    f"Обратная связь: {verdict.feedback}\n"
+                    f"Баллы: релевантность={verdict.relevance}, полнота={verdict.completeness}, "
+                    f"точность={verdict.accuracy}, формат={verdict.format_score}\n"
+                    f"ИСПРАВЬ свой ответ с учётом этой обратной связи. "
+                    f"Используй СВОИ ИНСТРУМЕНТЫ для получения реальных данных.\n"
+                    f"--- КОНЕЦ РЕФЛЕКСИИ ---"
+                )
+                result = _execute_crew(agent, reflection_prompt, agent_name,
+                                       use_memory, guardrail, output_pydantic)
+        except Exception as e:
+            logger.warning(f"Reflection failed for {agent_name}: {e}")
+
+        bus.emit(AGENT_EXECUTION_COMPLETED, {
+            "agent_name": agent_name, "success": True,
+            "output_length": len(result),
+        })
         return result
 
-    # Reflection: judge the result and retry once if low quality
-    try:
-        from .tools.llm_judge import judge_response
-        verdict = judge_response(task_description, result, agent_name)
-        if verdict and not verdict.passed and verdict.overall < REFLECTION_SCORE_THRESHOLD:
-            logger.info(
-                f"Reflection triggered for {agent_name}: "
-                f"score={verdict.overall}, feedback={verdict.feedback!r}"
-            )
-            reflection_prompt = (
-                f"{task_description}\n\n"
-                f"--- РЕФЛЕКСИЯ ---\n"
-                f"Твой предыдущий ответ получил оценку {verdict.overall}/5.\n"
-                f"Обратная связь: {verdict.feedback}\n"
-                f"Баллы: релевантность={verdict.relevance}, полнота={verdict.completeness}, "
-                f"точность={verdict.accuracy}, формат={verdict.format_score}\n"
-                f"ИСПРАВЬ свой ответ с учётом этой обратной связи. "
-                f"Используй СВОИ ИНСТРУМЕНТЫ для получения реальных данных.\n"
-                f"--- КОНЕЦ РЕФЛЕКСИИ ---"
-            )
-            result = _execute_crew(agent, reflection_prompt, agent_name,
-                                   use_memory, guardrail, output_pydantic)
     except Exception as e:
-        logger.warning(f"Reflection failed for {agent_name}: {e}")
-
-    return result
+        bus.emit(AGENT_EXECUTION_COMPLETED, {
+            "agent_name": agent_name, "success": False,
+            "error": str(e)[:200],
+        })
+        raise
 
 
 def _execute_crew(agent, task_description: str, agent_name: str = "",
@@ -329,6 +353,13 @@ def _judge_and_log(agent_name: str, short_desc: str,
                 "format_score": verdict.format_score,
                 "feedback": verdict.feedback,
                 "passed": verdict.passed,
+            })
+
+            # EventBus: quality scored
+            from .event_bus import get_event_bus, QUALITY_SCORED
+            get_event_bus().emit(QUALITY_SCORED, {
+                "agent_name": agent_name, "task": short_desc,
+                "score": verdict.overall, "passed": verdict.passed,
             })
 
             # Auto-lesson on low quality
@@ -506,6 +537,11 @@ class CorporationFlow(Flow[CorporationState]):
             f"Не повторяй весь результат — дай стратегическую оценку."
         )
 
+        # Extract media paths from specialist result BEFORE CEO synthesis
+        # CEO often drops file paths — we need to preserve them for image_sender
+        from .telegram_ceo.image_sender import extract_media_paths
+        specialist_media_paths = extract_media_paths(spec_output) if spec_output else []
+
         log_task_start("manager", short_desc)
         try:
             ceo_result = _run_agent_crew(
@@ -513,6 +549,16 @@ class CorporationFlow(Flow[CorporationState]):
                 use_memory=self.state.use_memory, guardrail=_manager_guardrail,
             )
             log_task_end("manager", short_desc, success=True)
+
+            # Re-inject media paths that CEO may have dropped
+            if specialist_media_paths:
+                existing_paths = extract_media_paths(ceo_result)
+                missing = [p for p in specialist_media_paths if p not in existing_paths]
+                if missing:
+                    paths_block = "\n".join(missing)
+                    ceo_result = f"{paths_block}\n\n{ceo_result}"
+                    logger.info(f"Re-injected {len(missing)} media paths into CEO response")
+
             self.state.final_output = ceo_result
             _judge_and_log("manager", short_desc, self.state.task_description, ceo_result)
         except Exception as e:
