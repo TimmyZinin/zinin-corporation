@@ -329,6 +329,136 @@ class TestTimeoutConfig:
         assert AGENT_TIMEOUT_SEC == 120
 
 
+class TestExtractVideoPaths:
+    """Test video path extraction from agent responses."""
+
+    def test_extract_mp4_path(self):
+        from src.telegram_ceo.image_sender import extract_video_paths
+        text = "Аудиограмма создана: /data/design_videos/audiogram_abc12345.mp4"
+        paths = extract_video_paths(text)
+        assert len(paths) == 1
+        assert paths[0] == "/data/design_videos/audiogram_abc12345.mp4"
+
+    def test_extract_mov_path(self):
+        from src.telegram_ceo.image_sender import extract_video_paths
+        text = "Video: /data/design_videos/intro.mov"
+        paths = extract_video_paths(text)
+        assert len(paths) == 1
+
+    def test_extract_app_data_mp4(self):
+        from src.telegram_ceo.image_sender import extract_video_paths
+        text = "Видео: /app/data/design_videos/audiogram_20260214_test.mp4"
+        paths = extract_video_paths(text)
+        assert len(paths) == 1
+        assert paths[0] == "/app/data/design_videos/audiogram_20260214_test.mp4"
+
+    def test_tmp_video_path(self):
+        from src.telegram_ceo.image_sender import extract_video_paths
+        text = "File at /tmp/render_output.mp4"
+        paths = extract_video_paths(text)
+        assert len(paths) == 1
+
+    def test_no_video_in_text(self):
+        from src.telegram_ceo.image_sender import extract_video_paths
+        text = "Отчёт готов. Видео не создавалось."
+        paths = extract_video_paths(text)
+        assert len(paths) == 0
+
+    def test_image_not_in_video_paths(self):
+        from src.telegram_ceo.image_sender import extract_video_paths
+        text = "/data/design_images/banner.png"
+        paths = extract_video_paths(text)
+        assert len(paths) == 0
+
+    def test_video_not_in_image_paths(self):
+        from src.telegram_ceo.image_sender import extract_image_paths
+        text = "/data/design_videos/audiogram_abc.mp4"
+        paths = extract_image_paths(text)
+        assert len(paths) == 0
+
+
+class TestExtractMediaPaths:
+    """Test combined media path extraction."""
+
+    def test_mixed_image_and_video(self):
+        from src.telegram_ceo.image_sender import extract_media_paths
+        text = (
+            "Image: /data/design_images/logo.png\n"
+            "Video: /data/design_videos/audiogram.mp4\n"
+        )
+        paths = extract_media_paths(text)
+        assert len(paths) == 2
+
+    def test_all_extensions(self):
+        from src.telegram_ceo.image_sender import extract_media_paths
+        text = (
+            "/data/a.png /data/b.jpg /data/c.jpeg /data/d.gif /data/e.webp "
+            "/data/f.mp4 /data/g.mov /data/h.avi /data/i.mkv"
+        )
+        paths = extract_media_paths(text)
+        assert len(paths) == 9
+
+
+class TestSendVideoFromResponse:
+    """Test video sending via send_images_from_response."""
+
+    @pytest.mark.asyncio
+    async def test_video_file_sent_via_send_video(self):
+        from src.telegram_ceo.image_sender import send_images_from_response
+        tmp_vid = f"/tmp/test_video_{os.getpid()}.mp4"
+        try:
+            with open(tmp_vid, "wb") as f:
+                f.write(b"\x00" * 200)
+            bot = AsyncMock()
+            text = f"Видео: {tmp_vid}"
+            result = await send_images_from_response(bot, 123, text)
+            bot.send_video.assert_called_once()
+            bot.send_photo.assert_not_called()
+            assert "[🎬 видео отправлено выше]" in result
+            assert tmp_vid not in result
+        finally:
+            if os.path.exists(tmp_vid):
+                os.unlink(tmp_vid)
+
+    @pytest.mark.asyncio
+    async def test_mixed_image_and_video_sent(self):
+        from src.telegram_ceo.image_sender import send_images_from_response
+        tmp_img = f"/tmp/test_mixed_img_{os.getpid()}.png"
+        tmp_vid = f"/tmp/test_mixed_vid_{os.getpid()}.mp4"
+        try:
+            with open(tmp_img, "wb") as f:
+                f.write(b"\x89PNG\r\n\x1a\n" + b"\x00" * 100)
+            with open(tmp_vid, "wb") as f:
+                f.write(b"\x00" * 200)
+            bot = AsyncMock()
+            text = f"Image: {tmp_img}\nVideo: {tmp_vid}"
+            result = await send_images_from_response(bot, 123, text)
+            bot.send_photo.assert_called_once()
+            bot.send_video.assert_called_once()
+            assert "[📷 отправлено выше]" in result
+            assert "[🎬 видео отправлено выше]" in result
+        finally:
+            for p in (tmp_img, tmp_vid):
+                if os.path.exists(p):
+                    os.unlink(p)
+
+    @pytest.mark.asyncio
+    async def test_video_send_failure_handled(self):
+        from src.telegram_ceo.image_sender import send_images_from_response
+        tmp_vid = f"/tmp/test_vidfail_{os.getpid()}.mp4"
+        try:
+            with open(tmp_vid, "wb") as f:
+                f.write(b"\x00" * 200)
+            bot = AsyncMock()
+            bot.send_video.side_effect = Exception("Telegram API error")
+            text = f"Video: {tmp_vid}"
+            result = await send_images_from_response(bot, 123, text)
+            assert tmp_vid in result  # Not replaced since send failed
+        finally:
+            if os.path.exists(tmp_vid):
+                os.unlink(tmp_vid)
+
+
 class TestFastRouterModule:
     """Verify fast_router.py module."""
 
