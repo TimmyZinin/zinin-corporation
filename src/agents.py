@@ -225,14 +225,14 @@ def create_designer_agent() -> Optional[Agent]:
         from .tools.design_tools import (
             ImageGenerator, ImageEnhancer, ChartGenerator,
             InfographicBuilder, VisualAnalyzer, VideoCreator,
-            TelegraphPublisher, DesignSystemManager, ImageResizer,
-            BrandVoiceVisual,
+            AIVideoGenerator, TelegraphPublisher, DesignSystemManager,
+            ImageResizer, BrandVoiceVisual,
         )
         tools = [
             ImageGenerator(), ImageEnhancer(), ChartGenerator(),
             InfographicBuilder(), VisualAnalyzer(), VideoCreator(),
-            TelegraphPublisher(), DesignSystemManager(), ImageResizer(),
-            BrandVoiceVisual(),
+            AIVideoGenerator(), TelegraphPublisher(), DesignSystemManager(),
+            ImageResizer(), BrandVoiceVisual(),
         ]
     except Exception as e:
         logger.warning(f"Could not load design tools: {e}")

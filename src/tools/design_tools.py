@@ -698,6 +698,97 @@ class VideoCreator(BaseTool):
 
 
 # ══════════════════════════════════════════════════════════════
+# Tool 11: AIVideoGenerator (Pollinations.ai — free AI video)
+# ══════════════════════════════════════════════════════════════
+
+# Free video models on gen.pollinations.ai (no paid_only flag)
+_VIDEO_MODELS = ["wan", "seedance", "grok-video"]
+_VIDEO_GEN_TIMEOUT = 180  # seconds — video gen is slow
+
+
+class AIVideoGeneratorInput(BaseModel):
+    prompt: str = Field(..., description="Описание видео-сцены для генерации")
+    model: str = Field(
+        default="wan",
+        description="Модель: wan (Alibaba, 2-15s, 1080P, с аудио), "
+        "seedance (BytePlus, 2-10s), grok-video (xAI)",
+    )
+    duration: int = Field(default=5, description="Длительность в секундах (2-15)")
+
+
+class AIVideoGenerator(BaseTool):
+    name: str = "AI Video Generator"
+    description: str = (
+        "Генерация настоящего AI-видео с анимацией из текстового описания. "
+        "Каскад бесплатных моделей через Pollinations.ai: "
+        "wan (Alibaba Wan 2.6, 1080P, с аудио, 2-15s) → seedance (BytePlus) → grok-video (xAI). "
+        "Возвращает путь к MP4 файлу. Генерация занимает 30-120 секунд."
+    )
+    args_schema: Type[BaseModel] = AIVideoGeneratorInput
+
+    def _run(self, prompt: str, model: str = "wan", duration: int = 5) -> str:
+        duration = max(2, min(15, duration))
+
+        # Try requested model first, then fallback cascade
+        models_to_try = [model] if model in _VIDEO_MODELS else []
+        for m in _VIDEO_MODELS:
+            if m not in models_to_try:
+                models_to_try.append(m)
+
+        for vid_model in models_to_try:
+            result = self._generate_video(prompt, vid_model, duration)
+            if result and not result.startswith("ERROR"):
+                return result
+            logger.warning(f"AI video model {vid_model} failed, trying next...")
+
+        # All models failed — fallback to TTS audiogram
+        logger.warning("All AI video models failed, falling back to TTS audiogram")
+        fallback = VideoCreator()
+        return fallback._create_tts_video(text=prompt[:500], title="AI Generated")
+
+    def _generate_video(self, prompt: str, model: str, duration: int) -> Optional[str]:
+        """Call Pollinations gen.pollinations.ai for AI video generation."""
+        from urllib.parse import quote
+
+        encoded_prompt = quote(prompt[:500])
+        url = (
+            f"https://gen.pollinations.ai/image/{encoded_prompt}"
+            f"?model={model}&duration={duration}&nologo=true"
+        )
+
+        logger.info(f"Generating AI video: model={model}, duration={duration}s, prompt={prompt[:80]}...")
+
+        for attempt in range(2):
+            try:
+                req = Request(url, headers={"User-Agent": "RyanDesignBot/2.0"})
+                with urlopen(req, timeout=_VIDEO_GEN_TIMEOUT) as resp:
+                    content_type = resp.headers.get("Content-Type", "")
+                    data = resp.read()
+
+                # Validate: must be video, not error page
+                if len(data) < 5000:
+                    logger.warning(f"Video response too small ({len(data)} bytes), likely error")
+                    return None
+
+                # Save MP4
+                filename = f"ai_video_{model}_{uuid.uuid4().hex[:8]}.mp4"
+                out_path = str(DESIGN_VIDEO_DIR / filename)
+                with open(out_path, "wb") as f:
+                    f.write(data)
+
+                size_mb = len(data) / (1024 * 1024)
+                logger.info(f"AI video saved: {out_path} ({size_mb:.1f} MB)")
+                return f"AI-видео создано: {out_path}"
+
+            except Exception as e:
+                logger.warning(f"AI video gen attempt {attempt + 1} failed ({model}): {e}")
+                if attempt < 1:
+                    time.sleep(5)
+
+        return None
+
+
+# ══════════════════════════════════════════════════════════════
 # Tool 7: TelegraphPublisher
 # ══════════════════════════════════════════════════════════════
 

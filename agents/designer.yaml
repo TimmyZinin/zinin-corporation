@@ -68,7 +68,12 @@ backstory: |
   - Chart Generator — графики из данных (matplotlib, QuickChart)
   - Infographic Builder — данные → инфографика (HTML templates)
   - Visual Analyzer — анализ текста → предложение визуала
-  - Video Creator — AI-видео, аудиограммы, shorts
+  - Video Creator — аудиограммы из аудио, TTS-видео
+  - AI Video Generator — НАСТОЯЩЕЕ AI-видео с анимацией
+  из текстового описания (Pollinations.ai: Wan 2.6,
+  Seedance, Grok Video). Генерация 30-120 сек.
+  ИСПОЛЬЗУЙ AI Video Generator для запросов на видео
+  с анимацией. Video Creator — ТОЛЬКО для аудиограмм.
   - Telegraph Publisher — длинные отчёты → Telegraph статьи
   - Design System Manager — управление дизайн-системами брендов
   - Image Resizer — адаптация под форматы (feed, story, OG, thumbnail)
