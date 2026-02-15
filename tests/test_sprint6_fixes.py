@@ -273,6 +273,126 @@ class TestCEOHandlersImportImageSender:
         assert callable(send_images_from_response)
 
 
+# ── Path Normalization (Docker /data/ vs /app/data/ mismatch) ───
+
+
+class TestNormalizePath:
+    """Test _normalize_path handles Docker path mismatches."""
+
+    def test_existing_file_returns_as_is(self, tmp_path):
+        from src.telegram_ceo.image_sender import _normalize_path
+        f = tmp_path / "img.png"
+        f.write_bytes(b"\x89PNG")
+        assert _normalize_path(str(f)) == str(f)
+
+    def test_nonexistent_file_returns_as_is(self):
+        from src.telegram_ceo.image_sender import _normalize_path
+        p = "/data/design_images/nonexistent_xyz.png"
+        assert _normalize_path(p) == p
+
+    def test_data_prefix_adds_app(self, tmp_path):
+        from src.telegram_ceo.image_sender import _normalize_path
+        # Simulate: agent says /data/x.png but file is at /app/data/x.png
+        with patch("src.telegram_ceo.image_sender.os.path.isfile") as mock_isfile:
+            mock_isfile.side_effect = lambda p: p == "/app/data/img.png"
+            result = _normalize_path("/data/img.png")
+            assert result == "/app/data/img.png"
+
+    def test_tmp_prefix_adds_app(self):
+        from src.telegram_ceo.image_sender import _normalize_path
+        with patch("src.telegram_ceo.image_sender.os.path.isfile") as mock_isfile:
+            mock_isfile.side_effect = lambda p: p == "/app/tmp/voice.wav"
+            result = _normalize_path("/tmp/voice.wav")
+            assert result == "/app/tmp/voice.wav"
+
+    def test_already_app_data_no_double_prefix(self):
+        from src.telegram_ceo.image_sender import _normalize_path
+        with patch("src.telegram_ceo.image_sender.os.path.isfile") as mock_isfile:
+            mock_isfile.side_effect = lambda p: p == "/app/data/img.png"
+            result = _normalize_path("/app/data/img.png")
+            assert result == "/app/data/img.png"
+
+    def test_alt_not_found_returns_original(self):
+        from src.telegram_ceo.image_sender import _normalize_path
+        with patch("src.telegram_ceo.image_sender.os.path.isfile", return_value=False):
+            result = _normalize_path("/data/missing.png")
+            assert result == "/data/missing.png"
+
+
+class TestSendImagesNormalization:
+    """Test send_images_from_response uses _normalize_path for Docker paths."""
+
+    @pytest.mark.asyncio
+    async def test_normalized_path_sent_successfully(self):
+        """Agent returns /data/x.png, file exists at /app/data/x.png — should send."""
+        from src.telegram_ceo.image_sender import send_images_from_response
+
+        bot = AsyncMock()
+        text = "Вот картинка: /data/design_images/gen_photo_123.png"
+
+        with patch("src.telegram_ceo.image_sender.os.path.isfile") as mock_isfile:
+            mock_isfile.side_effect = lambda p: p == "/app/data/design_images/gen_photo_123.png"
+            with patch("aiogram.types.FSInputFile") as mock_fsinput:
+                mock_fsinput.return_value = MagicMock()
+                result = await send_images_from_response(bot, 123, text)
+
+        bot.send_photo.assert_called_once()
+        assert "[📷 отправлено выше]" in result
+        assert "/data/design_images/gen_photo_123.png" not in result
+
+    @pytest.mark.asyncio
+    async def test_original_path_still_works(self):
+        """If file exists at original path, send without normalization."""
+        from src.telegram_ceo.image_sender import send_images_from_response
+
+        bot = AsyncMock()
+        tmp_img = f"/tmp/test_norm_orig_{os.getpid()}.png"
+        try:
+            with open(tmp_img, "wb") as f:
+                f.write(b"\x89PNG\r\n\x1a\n" + b"\x00" * 100)
+            text = f"Image: {tmp_img}"
+            result = await send_images_from_response(bot, 123, text)
+            bot.send_photo.assert_called_once()
+            assert "[📷 отправлено выше]" in result
+        finally:
+            if os.path.exists(tmp_img):
+                os.unlink(tmp_img)
+
+    @pytest.mark.asyncio
+    async def test_text_replacement_covers_both_paths(self):
+        """Both /data/x.png and /app/data/x.png should be replaced in text."""
+        from src.telegram_ceo.image_sender import send_images_from_response
+
+        bot = AsyncMock()
+        text = "Путь: /data/design_images/test.png и ещё раз /data/design_images/test.png"
+
+        with patch("src.telegram_ceo.image_sender.os.path.isfile") as mock_isfile:
+            mock_isfile.side_effect = lambda p: p == "/app/data/design_images/test.png"
+            with patch("aiogram.types.FSInputFile") as mock_fsinput:
+                mock_fsinput.return_value = MagicMock()
+                result = await send_images_from_response(bot, 123, text)
+
+        assert "/data/design_images/test.png" not in result
+        assert result.count("[📷 отправлено выше]") >= 1
+
+    @pytest.mark.asyncio
+    async def test_video_normalization(self):
+        """Video paths also get normalized."""
+        from src.telegram_ceo.image_sender import send_images_from_response
+
+        bot = AsyncMock()
+        text = "Видео: /data/design_images/video_123.mp4"
+
+        with patch("src.telegram_ceo.image_sender.os.path.isfile") as mock_isfile:
+            mock_isfile.side_effect = lambda p: p == "/app/data/design_images/video_123.mp4"
+            with patch("aiogram.types.FSInputFile") as mock_fsinput:
+                mock_fsinput.return_value = MagicMock()
+                result = await send_images_from_response(bot, 123, text)
+
+        bot.send_video.assert_called_once()
+        assert "[🎬 видео отправлено выше]" in result
+
+
 # ── Sprint 6 Refactor: CEO Bot ──────────────────────────────────
 
 

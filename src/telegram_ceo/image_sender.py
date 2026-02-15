@@ -19,6 +19,27 @@ _IMAGE_PATH_RE = _MEDIA_PATH_RE
 logger = logging.getLogger(__name__)
 
 
+def _normalize_path(path: str) -> str:
+    """Normalize media path — handle /data/ vs /app/data/ Docker mismatch.
+
+    CrewAI agents sometimes strip the /app/ prefix from paths in their responses.
+    This function tries the original path first, then /app/ prefixed version.
+    """
+    if os.path.isfile(path):
+        return path
+    # Agent returned /data/... but file is at /app/data/...
+    if path.startswith("/data/") and not path.startswith("/app/"):
+        alt = "/app" + path
+        if os.path.isfile(alt):
+            return alt
+    # Agent returned /tmp/... but file is at /app/tmp/...
+    if path.startswith("/tmp/") and not path.startswith("/app/"):
+        alt = "/app" + path
+        if os.path.isfile(alt):
+            return alt
+    return path
+
+
 def _get_extension(path: str) -> str:
     """Get lowercase file extension without dot."""
     return os.path.splitext(path)[1].lstrip(".").lower()
@@ -50,30 +71,34 @@ async def send_images_from_response(bot, chat_id: int, text: str) -> str:
     if not paths:
         return text
 
-    sent = []
+    sent = []  # (original_path, resolved_path) tuples
     for path in paths:
-        if not os.path.isfile(path):
+        resolved = _normalize_path(path)
+        if not os.path.isfile(resolved):
             logger.warning(f"Media path in response but file missing: {path}")
             continue
-        ext = _get_extension(path)
+        if resolved != path:
+            logger.info(f"Normalized media path: {path} -> {resolved}")
+        ext = _get_extension(resolved)
         try:
-            media = FSInputFile(path)
+            media = FSInputFile(resolved)
             if ext in _VIDEO_EXTENSIONS:
                 await bot.send_video(chat_id, video=media)
-                sent.append(path)
-                logger.info(f"Sent video to chat {chat_id}: {path}")
+                sent.append((path, resolved))
+                logger.info(f"Sent video to chat {chat_id}: {resolved}")
             elif ext in _IMAGE_EXTENSIONS:
                 await bot.send_photo(chat_id, photo=media)
-                sent.append(path)
-                logger.info(f"Sent image to chat {chat_id}: {path}")
+                sent.append((path, resolved))
+                logger.info(f"Sent image to chat {chat_id}: {resolved}")
         except Exception as e:
-            logger.warning(f"Failed to send media {path}: {e}")
+            logger.warning(f"Failed to send media {resolved}: {e}")
 
-    for path in sent:
-        ext = _get_extension(path)
-        if ext in _VIDEO_EXTENSIONS:
-            text = text.replace(path, "[🎬 видео отправлено выше]")
-        else:
-            text = text.replace(path, "[📷 отправлено выше]")
+    for original_path, resolved_path in sent:
+        ext = _get_extension(resolved_path)
+        marker = "[🎬 видео отправлено выше]" if ext in _VIDEO_EXTENSIONS else "[📷 отправлено выше]"
+        # Replace both original and resolved paths in text
+        text = text.replace(original_path, marker)
+        if resolved_path != original_path:
+            text = text.replace(resolved_path, marker)
 
     return text
