@@ -17,7 +17,7 @@ This is a **production multi-agent system** with 6 specialized AI agents, 3 Tele
 - **Product:** Backlog management, sprint tracking, feature health monitoring
 - **Tasks:** Shared Task Pool with dependency blocking and auto-routing
 
-**Key constraint:** All changes must pass 1990+ existing tests. Never break existing functionality.
+**Key constraint:** All changes must pass 2740+ existing tests. Never break existing functionality.
 
 ---
 
@@ -143,8 +143,8 @@ Banking: `TBankBalance`, `TBankStatement` | Crypto: `EVMPortfolio`, `SolanaPortf
 ### SMM Юки (7 tools)
 `ContentGenerator`, `YukiMemory`, `LinkedInTimPublisher`, `LinkedInKristinaPublisher`, `ThreadsTimPublisher`, `ThreadsKristinaPublisher`, `PodcastScriptGenerator`
 
-### Designer Райан (10 tools)
-`ImageGenerator`, `ImageEnhancer`, `ChartGenerator`, `InfographicBuilder`, `VisualAnalyzer`, `VideoCreator`, `TelegraphPublisher`, `DesignSystemManager`, `ImageResizer`, `BrandVoiceVisual`
+### Designer Райан (11 tools)
+`ImageGenerator`, `AIVideoGenerator`, `ImageEnhancer`, `ChartGenerator`, `InfographicBuilder`, `VisualAnalyzer`, `VideoCreator`, `TelegraphPublisher`, `DesignSystemManager`, `ImageResizer`, `BrandVoiceVisual`
 
 ### CPO Софи (4 tools)
 `FeatureHealthChecker`, `SprintTracker`, `BacklogAnalyzer`, `ProgressReporter`
@@ -215,7 +215,7 @@ ai_corporation/
 │   ├── telegram/          # CFO Маттиас bot
 │   ├── telegram_ceo/      # CEO Алексей bot
 │   └── telegram_yuki/     # SMM Юки bot
-├── tests/                 # 1990+ tests (50+ files)
+├── tests/                 # 2740+ tests (71+ files)
 ├── run_cfo_mcp.py         # CFO MCP server entry point
 ├── run_tribute_mcp.py     # Tribute MCP server entry point
 ├── run_telegram_mcp.py    # Telegram Task Pool MCP entry point
@@ -259,7 +259,7 @@ pip install -r requirements.txt
 
 ### Tests
 ```bash
-pytest tests/ -v              # All 1800+ tests
+pytest tests/ -v              # All 2740+ tests
 pytest tests/test_X.py -v     # Single file
 ```
 
@@ -323,4 +323,28 @@ Existing 12 scheduler jobs continue silently. Problems escalate into touchpoints
 
 ---
 
-*Updated: February 13, 2026 — Sprint 4 + Hotfix (OOM fix, health check, rule-based analysis)*
+---
+
+## Telegram MCP Communication Protocol
+
+### Sprint Completion Notification (ОБЯЗАТЕЛЬНО)
+После каждого спринта — отправить Тиму уведомление через `tg-communicator` MCP:
+- Название спринта и номер коммита
+- Что сделано (3-5 пунктов)
+- Количество новых тестов / общее количество
+- Статус деплоя
+- **Спринт НЕ завершён без уведомления в Telegram**
+
+### HITL через Telegram (НЕМЕДЛЕННО)
+При любых вопросах, сомнениях, или потребности в решении Тима — **писать в Telegram сразу**, не ждать:
+- Неясность в требованиях → Telegram
+- Сомнение в подходе → Telegram
+- Нужно подтверждение → Telegram
+- Что-то сломалось → Telegram
+- Задача заблокирована → Telegram
+
+**Бот:** @Botanicatest_bot | **Chat ID:** 64242118 | **MCP:** `tg-communicator`
+
+---
+
+*Updated: February 15, 2026 — Sprint 12 + Hotfix (Docker path normalization) + Telegram MCP Communication Protocol*
