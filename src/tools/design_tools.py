@@ -704,16 +704,15 @@ class VideoCreator(BaseTool):
 # ══════════════════════════════════════════════════════════════
 
 # Video models on gen.pollinations.ai (requires POLLINATIONS_API_KEY)
-_VIDEO_MODELS = ["wan", "seedance", "grok-video"]
+_VIDEO_MODELS = ["seedance", "wan", "grok-video"]
 _VIDEO_GEN_TIMEOUT = 180  # seconds — video gen is slow
 
 
 class AIVideoGeneratorInput(BaseModel):
     prompt: str = Field(..., description="Описание видео-сцены для генерации")
     model: str = Field(
-        default="wan",
-        description="Модель: wan (Alibaba, 2-15s, 1080P, с аудио), "
-        "seedance (BytePlus, 2-10s), grok-video (xAI)",
+        default="seedance",
+        description="Модель видео. ВСЕГДА используй seedance (по умолчанию). Другие модели нестабильны.",
     )
     duration: int = Field(default=5, description="Длительность в секундах (2-15)")
 
@@ -723,13 +722,13 @@ class AIVideoGenerator(BaseTool):
     description: str = (
         "Генерация настоящего AI-видео с анимацией из текстового описания. "
         "Каскад моделей через Pollinations.ai: "
-        "wan (Alibaba Wan 2.6, 1080P, с аудио, 2-15s) → seedance (BytePlus) → grok-video (xAI). "
+        "seedance (BytePlus, стабильная) → wan (Alibaba) → grok-video (xAI). Используй seedance по умолчанию. "
         "Возвращает путь к MP4 файлу. Генерация занимает 30-120 секунд. "
         "Требует POLLINATIONS_API_KEY. Если ключа нет — вернёт сообщение об ошибке."
     )
     args_schema: Type[BaseModel] = AIVideoGeneratorInput
 
-    def _run(self, prompt: str, model: str = "wan", duration: int = 5) -> str:
+    def _run(self, prompt: str, model: str = "seedance", duration: int = 5) -> str:
         api_key = os.getenv("POLLINATIONS_API_KEY", "")
         if not api_key:
             return (

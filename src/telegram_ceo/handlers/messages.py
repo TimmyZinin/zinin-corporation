@@ -28,6 +28,7 @@ logger = logging.getLogger(__name__)
 router = Router()
 
 AGENT_TIMEOUT_SEC = 120
+DESIGNER_TIMEOUT_SEC = 180  # video generation needs more time
 
 _chat_contexts: dict[int, list[dict]] = {}
 MAX_CONTEXT = 20
@@ -394,7 +395,7 @@ async def handle_text(message: Message):
                 bot=message.bot,
                 chat_id=message.chat.id,
             ),
-            timeout=AGENT_TIMEOUT_SEC,
+            timeout=DESIGNER_TIMEOUT_SEC if agent_name == "designer" else AGENT_TIMEOUT_SEC,
         )
         print(f"[CEO] AgentBridge returned {len(response)} chars", flush=True)
         user_ctx.append({"role": "assistant", "text": response})

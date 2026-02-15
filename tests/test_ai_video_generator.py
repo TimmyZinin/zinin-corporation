@@ -14,7 +14,7 @@ class TestAIVideoGeneratorInput:
     def test_default_values(self):
         from src.tools.design_tools import AIVideoGeneratorInput
         inp = AIVideoGeneratorInput(prompt="A sunset scene")
-        assert inp.model == "wan"
+        assert inp.model == "seedance"
         assert inp.duration == 5
 
     def test_custom_values(self):
@@ -336,7 +336,7 @@ class TestAIVideoGeneratorRun:
              patch.object(tool, "_generate_video", side_effect=mock_gen):
             tool._run(prompt="test", model="unknown_model", duration=5)
 
-        assert tried_models == ["wan", "seedance", "grok-video"]
+        assert tried_models == ["seedance", "wan", "grok-video"]
 
     def test_duration_clamped_min(self):
         """Duration below 2 should be clamped to 2."""
